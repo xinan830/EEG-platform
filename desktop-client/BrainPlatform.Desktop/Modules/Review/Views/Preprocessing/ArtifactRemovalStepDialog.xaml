@@ -40,7 +40,7 @@
         </Grid>
 
         <!-- Body -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,16">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,16" Background="#F6F8FB">
             <StackPanel>
                 <TextBlock Text="去伪迹方式" FontSize="12.5" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8" />
                 <Grid Margin="0,0,0,14">
@@ -88,6 +88,23 @@
                     </RadioButton>
                 </Grid>
 
+                <Border Background="White" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="专用辅助通道（来自当前录音）" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock Text="眼电 EOG：可多选" Margin="0,0,0,5" />
+                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="EogReferenceChoices" ItemsSource="{Binding ReferenceChannels}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEog, Mode=TwoWay}" Margin="0,3,15,3" />
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="心电 ECG（仅 ICA）：留空为自动识别" Margin="0,10,0,5" />
+                        <ComboBox x:Name="EcgReferenceChoice" ItemsSource="{Binding EcgChannelOptions}" SelectedItem="{Binding SelectedEcgChannel, Mode=TwoWay}" IsEnabled="{Binding IsRemovalIca}" MinHeight="30" />
+                        <TextBlock Text="{Binding ReferenceStatusText}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
                 <!-- Parameters Card -->
                 <Border Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="12" Padding="16,13" Margin="0,0,0,14">
                     <Grid>

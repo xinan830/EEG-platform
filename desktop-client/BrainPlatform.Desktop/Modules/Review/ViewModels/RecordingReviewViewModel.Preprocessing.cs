@@ -96,6 +96,23 @@ public sealed partial class RecordingReviewViewModel
         return JsonSerializer.SerializeToElement(merged);
     }
 
+    private async Task<(RegisteredRecording Recording, HistoricalMontageDescriptor? Montage)> ResolvePreprocessingAnalysisInputsAsync(
+        RegisteredRecording recording, HistoricalMontageDescriptor? montage, AlgorithmCatalogItem algorithm, CancellationToken token)
+    {
+        var payload = Preprocessing.BuildPayload(algorithm.SupportsArtifactRemoval);
+        if (payload.ArtifactRemoval.EogChannels.Count == 0 && (payload.ArtifactRemoval.EcgChannels?.Count ?? 0) == 0)
+            return (recording, montage);
+        var client = preprocessingAlgorithmClient as IPreprocessingClient
+            ?? throw new InvalidOperationException("专用参考通道需要后端确认分析输入。");
+        var resolved = await client.GetPreprocessingAnalysisChannelsAsync(recording.Id, payload, montage?.Id, token);
+        token.ThrowIfCancellationRequested();
+        if (resolved.RecordingId != recording.Id || resolved.Channels.Count == 0)
+            throw new InvalidOperationException("当前预处理配置没有可用的 EEG 分析通道。");
+        var available = resolved.Channels.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (recording with { Channels = resolved.Channels }, montage is null ? null : montage with
+        { Outputs = montage.Outputs.Where(output => available.Contains(output.Id)).ToArray() });
+    }
+
     private void DisposePreprocessing()
     {
         if (Preprocessing is null) return;

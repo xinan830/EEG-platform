@@ -4,6 +4,12 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
 public interface IPreprocessingClient
 {
+    Task<PreprocessingAnalysisChannels> GetPreprocessingAnalysisChannelsAsync(string recordingId,
+        OfflinePreprocessingConfigPayload preprocessing, string? montageId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(string recordingId,
+        CancellationToken cancellationToken = default);
     Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
         string recordingId,
         double startSeconds = 0,
@@ -19,6 +25,8 @@ public interface IPreprocessingClient
         double? muscleZScoreThreshold = 4.0,
         IReadOnlyList<string>? badChannels = null,
         string badChannelPolicy = "none",
+        IReadOnlyList<string>? eogChannels = null,
+        IReadOnlyList<string>? ecgChannels = null,
         CancellationToken cancellationToken = default);
 
     Task<IcaInspectionResponse> InspectIcaComponentsAsync(
@@ -35,6 +43,8 @@ public interface IPreprocessingClient
         bool allowFrontalEogProxy = true,
         int? icaComponentCount = null,
         double icaEogThreshold = 0.7,
+        IReadOnlyList<string>? eogChannels = null,
+        IReadOnlyList<string>? ecgChannels = null,
         CancellationToken cancellationToken = default);
 
     Task<PreprocessingPreviewWindowResponse> PreviewPreprocessedWindowAsync(

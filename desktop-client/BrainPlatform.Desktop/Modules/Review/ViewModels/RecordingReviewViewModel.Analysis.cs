@@ -98,13 +98,17 @@ public sealed partial class RecordingReviewViewModel
                 if (hasUnresolvedAnalysisMontage)
                     throw new ReviewInputMappingException("montage_snapshot_unavailable",
                         "后端没有当前导联快照，不能沿用旧导联结果。", "montage");
+                var inputs = await ResolvePreprocessingAnalysisInputsAsync(analysisRecording, montage, algorithm, token);
+                token.ThrowIfCancellationRequested();
+                if (revision != analysisConfigurationRevision || selection.Revision != montageSelection.Revision) return;
+                montage = inputs.Montage;
                 var panel = analysisPanels[sourceId];
                 loadingAnalysisParameters = true;
                 try
                 {
-                    panel.InitializeForSelection(analysisRecording, algorithm, selection, montage);
+                    panel.InitializeForSelection(inputs.Recording, algorithm, selection, montage);
                     if (rbpAlgorithm is not null)
-                        analysisPanels["rbp"].InitializeForSelection(analysisRecording, rbpAlgorithm, selection, montage);
+                        analysisPanels["rbp"].InitializeForSelection(inputs.Recording, rbpAlgorithm, selection, montage);
                 }
                 finally { loadingAnalysisParameters = false; }
                 var duration = analysisRecording.DurationSeconds ?? DurationSeconds;

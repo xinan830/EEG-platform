@@ -17,7 +17,6 @@ public sealed partial class RecordingReviewSciChartCanvas
         artifactSegments = new ReviewArtifactSegmentLayer(surface, chartHost);
         preprocessingOverlay = new ReviewPreprocessingOverlayLayer(surface);
         chartHost.Children.Add(artifactSegments.Canvas);
-        chartHost.Children.Add(preprocessingOverlay.LegendElement);
     }
 
     private void SubscribePreprocessing(RecordingReviewViewModel? viewModel)

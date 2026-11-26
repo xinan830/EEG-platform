@@ -1,0 +1,42 @@
+........................................................................ [ 29%]
+........................................................................ [ 58%]
+........................................................................ [ 87%]
+.........F...F..............F.                                           [100%]
+================================== FAILURES ===================================
+______ test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum ______
+backend\tests\test_algorithm_runtime_architecture.py:59: in test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum
+    assert parameter.maximum is None, module.manifest.algorithm_id
+E   AssertionError: brainbeat
+E   assert 30 is None
+E    +  where 30 = AlgorithmParameter(key='window_s', label_zh='��̬��������', value_type='number', required=False, default=None, unit='s', minimum=10, maximum=30, step=10, affects_science=True, visibility='user', options=[], description_zh='').maximum
+______ test_services_use_scientific_package_facades_not_concrete_modules ______
+backend\tests\test_algorithm_runtime_architecture.py:103: in test_services_use_scientific_package_facades_not_concrete_modules
+    assert not any(module.startswith(prefix) for module in imported for prefix in forbidden), path
+E   AssertionError: WindowsPath('D:/AI/EEG-platform/backend/app/services/custom_frequency_inspection.py')
+E   assert not True
+E    +  where True = any(<generator object test_services_use_scientific_package_facades_not_concrete_modules.<locals>.<genexpr> at 0x000002AC2C94D210>)
+__ test_generic_run_services_do_not_import_algorithm_science_implementations __
+backend\tests\test_algorithm_runtime_architecture.py:261: in test_generic_run_services_do_not_import_algorithm_science_implementations
+    assert not any(
+E   AssertionError: live_rbp_algorithm.py
+E   assert not True
+E    +  where True = any(<generator object test_generic_run_services_do_not_import_algorithm_science_implementations.<locals>.<genexpr> at 0x000002AC32491B60>)
+============================== warnings summary ===============================
+backend\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\AI\EEG-platform\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\AI\EEG-platform\backend\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_offline_bad_channels.py::test_spherical_spline_interpolation_matches_mne_raw_interpolate_bads_to_machine_precision
+  D:\AI\EEG-platform\backend\tests\test_offline_bad_channels.py:63: RuntimeWarning: Only 10 head digitization points of the specified kinds ("eeg", "extra",), fitting may be inaccurate
+    raw.interpolate_bads(reset_bads=True, mode="accurate", verbose=False)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend\tests\test_algorithm_runtime_architecture.py::test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum
+FAILED backend\tests\test_algorithm_runtime_architecture.py::test_services_use_scientific_package_facades_not_concrete_modules
+FAILED backend\tests\test_algorithm_runtime_architecture.py::test_generic_run_services_do_not_import_algorithm_science_implementations
+3 failed, 243 passed, 3 warnings in 49.31s

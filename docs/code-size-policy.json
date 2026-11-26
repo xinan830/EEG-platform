@@ -235,8 +235,8 @@
     },
     "backend/app/scientific/artifact_removal.py": {
       "decision": "keep",
-      "max_lines": 430,
-      "reason": "当前 421 行，纯科学层离线去伪迹模块（EOG 回归、MNE 公开 SSP 与可审查 Infomax ICA 拟合/复用），严格零服务/传输/持久化依赖且仅使用公开 MNE API。三类去伪迹共用代理通道解析、NaN 连续分段高通与结果证据模型；精确缺失输入/重建可用性由独立纯科学模块拥有，本模块仅统一附加证据。保留 430 行评审上限，若新增第四类算法再按方法拆分。"
+      "max_lines": 460,
+      "reason": "457-line pure scientific artifact-removal module. Dedicated references add joint-finite ICA scoring and EEG-only EOG regression/SSP without changing scientific formulas. Shared role resolution, finite-span filtering and result evidence remain one coherent module. Evaluated splitting SSP/regression: it introduced reverse imports of these shared owners without independent lifecycle ownership, so retain the cohesive module and reassess before adding another algorithm."
     },
     "backend/app/scientific/artifact_segments.py": {
       "decision": "keep",
@@ -246,7 +246,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 625,
-      "reason": "618 行，已按超过 600 行高风险线复核。本轮把连续/有界/ICA 缓存构建和失效责任交给离线预处理门面，RecordingService 仅委派录音访问、目录持久化、显示读取与兼容分析 API；相比原 615 行因兼容属性增加 3 行，未增加科学执行职责。后续新增目录或注册职责前先独立其持久化用例。",
+      "reason": "621 lines, reviewed above the 600-line high-risk threshold. This change forwards raw-voltage and artifact-reference access parameters only; scientific execution, auxiliary allocation and discovery remain in focused services. No new recording lifecycle or persistence responsibility. Extract catalog/registration persistence before adding another use case.",
       "follow_up": "Extract recording catalog/registration persistence from the analysis facade methods before adding new methods to RecordingService."
     },
     "backend/app/persistence/migrations.py": {
@@ -431,6 +431,16 @@
       "decision": "keep",
       "max_lines": 410,
       "reason": "401 行，同一算法运行时公共契约，新增一项显式去伪迹能力声明；无执行逻辑。保留输入/输出/模块协议之间的类型关系，避免为 1 行机械拆分。后续添加独立契约族时再按职责评估。"
+    },
+    "backend/app/services/recording_access.py": {
+      "decision": "keep",
+      "max_lines": 430,
+      "reason": "427-line identity-bound recording access owner. Adds explicit raw-voltage access and pre-montage reference partition while retaining file identity, lock, source validation and close ownership in one place. Auxiliary discovery, unit/rate validation and allocation live in artifact_references.py; scientific artifact removal stays in the scientific package. Reassess before adding another format or read mode."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Review/ReviewPreprocessingTests.cs": {
+      "decision": "keep",
+      "max_lines": 445,
+      "reason": "443-line existing shared Review test fixture; adds typed discovery, EEG layout resolution and reference arguments to its fake. New reference behavior and HTTP tests have separate files. Preserve fixture ownership instead of copying shared responses."
     }
   }
 }

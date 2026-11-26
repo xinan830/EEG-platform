@@ -6,7 +6,8 @@ from app.scientific.contracts.preprocessing import ARTIFACT_DETECTION_VERSION
 
 
 def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz, notch_q,
-                             channel_names=None, bad_channel_spec=None, preprocessing_spec=None):
+                             channel_names=None, bad_channel_spec=None, preprocessing_spec=None,
+                             artifact_reference_channels=()):
     selected_channels = tuple(channel_names) if channel_names is not None else None
     payload = {
         "schema_version": "continuous-prepared-source-v1",
@@ -26,6 +27,8 @@ def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz
         "preprocessing_scope": "whole_recording_before_window_slice",
         "bandpass_hz": [low_hz, high_hz], "notch_hz": notch_hz, "notch_q": notch_q,
     }
+    if artifact_reference_channels:
+        payload["artifact_reference_partition"] = sorted(name.casefold() for name in artifact_reference_channels)
     if preprocessing_spec is not None and (
         preprocessing_spec.bad_channels.normalized().is_active
         or preprocessing_spec.artifact_rejection.normalized().is_active

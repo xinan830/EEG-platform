@@ -1,0 +1,14 @@
+代码规模评审提示：
+- backend/app/algorithm_runtime/contracts.py: 401 行，超过 400 行目标线（软上限）
+- backend/app/persistence/migrations.py: 438 行，超过 400 行目标线（软上限）
+- backend/app/scientific/artifact_removal.py: 413 行，超过 400 行目标线（软上限）
+- backend/app/scientific/artifact_segments.py: 410 行，超过 400 行目标线（软上限）
+- backend/app/services/algorithm_recording_context.py: 423 行，超过 400 行目标线（软上限）
+- backend/app/services/recordings.py: 618 行，超过 400 行目标线（高风险）
+- backend/app/services/recording_import.py: 404 行，超过 400 行目标线（软上限）
+- backend/app/services/runs.py: 418 行，超过 400 行目标线（软上限）
+- backend/app/services/run_queue.py: 435 行，超过 400 行目标线（软上限）
+- backend/app/services/spectral_analysis.py: 486 行，超过 400 行目标线（软上限）
+- backend/app/algorithms/psd/runner.py: 464 行，超过 400 行目标线（软上限）
+- backend/app/persistence/repositories/dynamic_attempt.py: 470 行，超过 400 行目标线（软上限）
+代码规模检查通过（400 行为目标软上限；超限文件必须登记职责评估）

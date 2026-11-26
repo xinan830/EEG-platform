@@ -24,7 +24,7 @@ public partial class IcaReviewDialog : Window
             _ => "未匹配 EOG 参考",
         };
         HeaderSubtitleText.Text =
-            $"共 {inspection.ComponentCount} 个独立成分 · 眼电参考：{proxyLabel} · 勾选需要剔除的伪迹成分（前额亮红/蓝通常为眨眼）。";
+            $"共 {inspection.ComponentCount} 个独立成分 · 眼电参考：{proxyLabel} · 心电参考：{string.Join(", ", inspection.EcgChannelsUsed.DefaultIfEmpty("未匹配"))} · 请结合评分、波形与头皮分布确认剔除。";
         FingerprintText.Text = $"指纹: {inspection.IcaFitFingerprint ?? "预览模式"}";
         UpdateSelectionSummary();
     }

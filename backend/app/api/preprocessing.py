@@ -11,6 +11,8 @@ from app.models.preprocessing_preview import (
     PreprocessingPreviewWindowRequest,
     PreprocessingPreviewWindowResponse,
 )
+from app.models.artifact_references import ArtifactReferenceCatalogue, PreprocessingAnalysisChannels
+from app.models.analysis_config import OfflinePreprocessingRequest
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
 from app.services.artifact_inspection import inspect_recording_artifact_segments, inspect_recording_ica_components
 from app.services.bad_channel_reader import inspect_recording_bad_channels
@@ -31,6 +33,31 @@ def _record_audit(request: Request, action: str, recording_id: str, parameters: 
         action, str(getattr(request.state, "request_id", "unknown")),
         recording_id=recording_id, parameters=parameters,
     )
+
+
+@router.get("/{recording_id}/preprocessing/reference-channels", response_model=ArtifactReferenceCatalogue)
+def reference_channels(recording_id: str, request: Request):
+    try:
+        from app.services.artifact_references import discover_artifact_references
+        service = _service(request)
+        return discover_artifact_references(service, service.require_recording(recording_id))
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "ARTIFACT_REFERENCE_INVALID", str(exc))
+
+
+@router.post("/{recording_id}/preprocessing/analysis-channels", response_model=PreprocessingAnalysisChannels)
+def analysis_channels(recording_id: str, request: Request, body: OfflinePreprocessingRequest,
+                      montage_id: Optional[str] = Query(None)):
+    try:
+        from app.services.artifact_references import resolve_preprocessing_analysis_channels
+        service = _service(request)
+        return resolve_preprocessing_analysis_channels(service, service.require_recording(recording_id), body, montage_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "PREPROCESSING_CHANNELS_INVALID", str(exc))
 
 
 @router.get("/{recording_id}/preprocessing/bad-channels")
@@ -72,6 +99,8 @@ def inspect_artifact_segments(
     high_hz: float = Query(50.0, gt=0.0),
     notch_hz: Optional[float] = Query(50.0, ge=0.0),
     notch_q: float = Query(30.0, gt=0.0),
+    eog_channels: Optional[str] = Query(None),
+    ecg_channels: Optional[str] = Query(None),
 ) -> dict:
     """Return a bounded projection of the shared continuous artifact detection report."""
     try:
@@ -93,6 +122,8 @@ def inspect_artifact_segments(
             bad_channel_spec=bad_spec,
             artifact_spec=art_spec,
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz or None, notch_q=notch_q,
+            artifact_reference_channels=tuple(item.strip() for value in (eog_channels, ecg_channels)
+                if value for item in value.split(",") if item.strip()),
         )
         _record_audit(request, "preprocessing.inspect_artifact_segments", recording_id, {
             "start_s": payload["start_s"],
@@ -101,6 +132,8 @@ def inspect_artifact_segments(
             "segment_count": len(payload["segments"]),
             "clean_ratio": payload["clean_ratio"],
             "inspection_filter": payload["inspection_filter"],
+            "reference_channels": [item.strip() for value in (eog_channels, ecg_channels)
+                if value for item in value.split(",") if item.strip()],
             "detection_scope": payload["detection_scope"],
         })
         return payload
@@ -126,6 +159,7 @@ def inspect_ica_components_endpoint(
     peak_to_peak_uv: Optional[float] = Query(300.0, gt=0.0),
     muscle_zscore_threshold: Optional[float] = Query(4.0, gt=0.0),
     eog_channels: Optional[str] = Query(None),
+    ecg_channels: Optional[str] = Query(None),
     allow_frontal_eog_proxy: bool = Query(False),
     ica_n_components: Optional[int] = Query(None, ge=2, le=64),
     ica_eog_threshold: float = Query(0.7, gt=0.0, le=1.0),
@@ -145,6 +179,7 @@ def inspect_ica_components_endpoint(
         rem_spec = ArtifactRemovalSpec(
             method="ica_infomax",
             eog_channels=parsed_eog,
+            ecg_channels=tuple(item.strip() for item in ecg_channels.split(",") if item.strip()) if ecg_channels else (),
             allow_frontal_eog_proxy=allow_frontal_eog_proxy,
             ica_n_components=ica_n_components,
             ica_eog_threshold=ica_eog_threshold,
@@ -169,6 +204,8 @@ def inspect_ica_components_endpoint(
             "n_components": payload["n_components"],
             "ica_fit_fingerprint": payload.get("ica_fit_fingerprint"),
             "recommended_exclude_components": payload["recommended_exclude_components"],
+            "eog_channels_used": payload["eog_channels_used"],
+            "ecg_channels_used": payload["ecg_channels_used"],
         })
         return payload
     except KeyError:

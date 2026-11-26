@@ -16,6 +16,7 @@ from scipy import signal
 
 from app.scientific.contracts.artifact_removal import ARTIFACT_REMOVAL_APPLICATION_VERSION, ArtifactRemovalSpec
 from app.scientific.artifact_removal_validity import build_application_validity
+from app.scientific.artifact_reference_signals import ArtifactReferenceSignals
 
 
 _DEDICATED_EOG_CANDIDATES = ("veog", "heog", "eog", "eog1", "eog2")
@@ -176,6 +177,25 @@ def _highpass_finite_spans(data_v: np.ndarray, sfreq_hz: float, cutoff_hz: float
     return np.vstack(pieces) if pieces else np.empty((0, data_v.shape[1]), dtype=np.float64)
 
 
+def _regress_external_eog(data, sfreq, names, references):
+    references.validate(len(data))
+    columns = [references.channel_names.index(name) for name in references.eog_channels]
+    eog = references.values_v[:, columns]
+    joint = np.column_stack((data, eog))
+    fit = _highpass_finite_spans(joint, sfreq)
+    if len(fit) < max(256, int(5 * sfreq)):
+        raise ValueError("ARTIFACT_REFERENCE_INSUFFICIENT_SAMPLES: 眼电回归有效样本不足")
+    x, y = fit[:, len(names):], fit[:, :len(names)]
+    x = x - x.mean(axis=0)
+    weights, *_ = np.linalg.lstsq(x, y - y.mean(axis=0), rcond=None)
+    valid = np.all(np.isfinite(eog), axis=1)
+    output = np.full_like(data, np.nan)
+    output[valid] = data[valid] - (eog[valid] - eog[valid].mean(axis=0)) @ weights
+    return ArtifactRemovalResult(data_v=output, method="eog_regression", applied=True, status="applied",
+        eog_channels_used=references.eog_channels, eog_channel_source="explicit_channel",
+        regression_weights={name: weights[:, i].tolist() for i, name in enumerate(names)})
+
+
 def _apply_eog_regression(
     data_v: np.ndarray, sfreq_hz: float, channel_names: tuple[str, ...], spec: ArtifactRemovalSpec,
 ) -> ArtifactRemovalResult:
@@ -217,21 +237,28 @@ def _apply_eog_regression(
 
 def _apply_ssp_eog(
     data_v: np.ndarray, sfreq_hz: float, channel_names: tuple[str, ...], spec: ArtifactRemovalSpec,
+    references: ArtifactReferenceSignals | None = None,
 ) -> ArtifactRemovalResult:
-    eog_names, eog_source = _resolve_eog_channels(
-        channel_names, spec, allow_frontal_fallback=True, required=True, max_auto=1,
-    )
-    spans = _contiguous_finite_spans(data_v, max(64, int(round(3.0 * sfreq_hz))))
+    eog_names, eog_source = ((references.eog_channels, "explicit_channel")
+        if references is not None and references.eog_channels else _resolve_eog_channels(
+            channel_names, spec, allow_frontal_fallback=True, required=True, max_auto=1))
+    span_values = data_v if references is None else np.column_stack((data_v, references.values_v))
+    spans = _contiguous_finite_spans(span_values, max(64, int(round(3.0 * sfreq_hz))))
     if not spans:
         raise ValueError("ARTIFACT_REMOVAL_INSUFFICIENT_FINITE_SAMPLES: 缺少至少 3 秒连续有限样本，无法估计 SSP 眼电投影")
     longest = max(spans, key=lambda pair: pair[1] - pair[0])
     info = mne.create_info(list(channel_names), sfreq=sfreq_hz, ch_types="eeg")
     raw_fit = mne.io.RawArray(np.ascontiguousarray(data_v[longest[0]:longest[1]].T, dtype=np.float64), info, verbose=False)
+    eog_lookup = {}
+    if references is not None:
+        mask = np.zeros(len(data_v), dtype=bool)
+        mask[longest[0]:longest[1]] = True
+        raw_fit, eog_lookup = references.scoring_raw(data_v, channel_names, sfreq_hz, mask, minimum_seconds=3)
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             projs, events = mne.preprocessing.compute_proj_eog(
-                raw_fit, ch_name=eog_names[0], n_eeg=spec.ssp_n_eeg,
+                raw_fit, ch_name=[eog_lookup.get(name, name) for name in eog_names], n_eeg=spec.ssp_n_eeg,
                 n_grad=0, n_mag=0, average=True, no_proj=True, verbose=False,
             )
     except RuntimeError:
@@ -260,6 +287,7 @@ def _apply_ssp_eog(
 
 def fit_ica_model(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec | None = None,
+    *, references: ArtifactReferenceSignals | None = None,
 ) -> FittedIcaModel:
     """Fit reproducible MNE infomax ICA on 1 Hz span-highpassed copy and score components."""
     data = np.asarray(values_v, dtype=np.float64)
@@ -287,11 +315,12 @@ def fit_ica_model(
     if int(np.count_nonzero(finite_rows)) < max(256, int(round(5.0 * rate))):
         raise ValueError("ARTIFACT_REMOVAL_INSUFFICIENT_FINITE_SAMPLES: 有效样本不足 5 秒，无法稳定拟合 ICA")
 
-    ecg_names = _resolve_ecg_channels(names, norm.ecg_channels)
+    ecg_names = (references.ecg_channels if references is not None and references.ecg_channels
+                 else _resolve_ecg_channels(names, norm.ecg_channels))
     eog_required = not ecg_names and norm.ica_exclude_components is None
-    eog_names, eog_source = _resolve_eog_channels(
-        names, norm, allow_frontal_fallback=True, required=eog_required, max_auto=2,
-    )
+    eog_names, eog_source = ((references.eog_channels, "explicit_channel")
+        if references is not None and references.eog_channels else _resolve_eog_channels(
+            names, norm, allow_frontal_fallback=True, required=eog_required, max_auto=2))
     n_components = min(norm.ica_n_components or min(n_channels - 1, 20), n_channels - 1)
     fit_hp = _highpass_finite_spans(data, rate, cutoff_hz=1.0)
     info = mne.create_info(list(names), sfreq=rate, ch_types="eeg")
@@ -304,13 +333,17 @@ def fit_ica_model(
         warnings.simplefilter("ignore", RuntimeWarning)
         ica.fit(raw_fit, verbose=False)
 
+    scoring_raw, reference_lookup = raw_fit, {}
+    if references is not None:
+        scoring_raw, reference_lookup = references.scoring_raw(data, names, rate, finite_rows)
     eog_scores = np.zeros(ica.n_components_, dtype=np.float64)
     auto_eog: set[int] = set()
     for ch in eog_names:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             indices, scores = ica.find_bads_eog(
-                raw_fit, ch_name=ch, threshold=norm.ica_eog_threshold, measure="correlation", verbose=False,
+                scoring_raw, ch_name=reference_lookup.get(ch, ch), threshold=norm.ica_eog_threshold,
+                measure="correlation", verbose=False,
             )
         auto_eog.update(int(i) for i in indices)
         arr = np.asarray(scores, dtype=np.float64)
@@ -321,7 +354,7 @@ def fit_ica_model(
     for ch in ecg_names:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            indices, scores = ica.find_bads_ecg(raw_fit, ch_name=ch, verbose=False)
+            indices, scores = ica.find_bads_ecg(scoring_raw, ch_name=reference_lookup.get(ch, ch), verbose=False)
         auto_ecg.update(int(i) for i in indices)
         arr = np.asarray(scores, dtype=np.float64)
         ecg_scores = np.where(np.abs(arr) > np.abs(ecg_scores), arr, ecg_scores)
@@ -363,6 +396,7 @@ def inspect_ica_components(
 def apply_offline_artifact_removal(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec, *,
     prefitted_ica: FittedIcaModel | None = None, ica_fit_fingerprint: str | None = None,
+    references: ArtifactReferenceSignals | None = None,
 ) -> ArtifactRemovalResult:
     """Apply explicit offline artifact removal (EOG regression, MNE SSP, or reviewable ICA)."""
     norm, data = spec.normalized(), np.asarray(values_v, dtype=np.float64)
@@ -382,12 +416,14 @@ def apply_offline_artifact_removal(
         return replace(result, application_validity=build_application_validity(data, result.data_v, names, rate))
 
     if norm.method == "eog_regression":
+        if references is not None and references.eog_channels:
+            return with_validity(_regress_external_eog(data, rate, names, references))
         return with_validity(_apply_eog_regression(data, rate, names, norm))
     if norm.method == "ssp_eog":
-        return with_validity(_apply_ssp_eog(data, rate, names, norm))
+        return with_validity(_apply_ssp_eog(data, rate, names, norm, references))
 
     reused = prefitted_ica is not None
-    fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(data, rate, names, norm)
+    fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(data, rate, names, norm, references=references)
     if norm.ica_exclude_components is not None:
         invalid = [idx for idx in norm.ica_exclude_components if idx >= fitted.ica.n_components_]
         if invalid:

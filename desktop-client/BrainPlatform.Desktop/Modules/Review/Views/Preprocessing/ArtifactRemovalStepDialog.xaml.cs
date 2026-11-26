@@ -12,6 +12,7 @@ public partial class ArtifactRemovalStepDialog : Window
         InitializeComponent();
         this.viewModel = viewModel;
         DataContext = viewModel;
+        Loaded += async (_, _) => await viewModel.LoadReferenceChannelsAsync();
     }
 
     private async void OnOpenIcaReviewClick(object sender, RoutedEventArgs e)

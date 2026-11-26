@@ -27,7 +27,7 @@
             <DockPanel>
                 <StackPanel>
                     <TextBlock Text="ICA 生理伪迹成分审查" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
-                    <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" />
+                    <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="780" />
                 </StackPanel>
                 <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
                         CornerRadius="8" Padding="10,5" VerticalAlignment="Center">

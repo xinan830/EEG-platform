@@ -66,22 +66,21 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                       channels: list[str] | None = None, execution_context: ExecutionControl | None = None,
                       bad_channel_spec: Any = None, artifact_rejection_spec: Any = None,
                       artifact_removal_spec: Any = None,
-                      annotated_source: PreprocessedRecording | None = None) -> PreprocessedRecording:
+                      annotated_source: PreprocessedRecording | None = None,
+                      artifact_reference_channels=()) -> PreprocessedRecording:
     policy = getattr(execution_context, "preparation_resource_policy", None)
     owner = MappedArrays() if policy is None else MappedArrays(policy)
     session = None
-    ica_cache = (getattr(recordings, "ica_review_cache", None)
-                 if getattr(artifact_removal_spec, "method", None) == "ica_infomax" else None)
-    recording_id = str(getattr(recording, "id", ""))
-    ica_token = ica_cache.publication_token(recording_id) if ica_cache is not None else None
     def check_cancelled():
         if execution_context is not None:
             execution_context.check_cancelled()
     try:
+        reference_options = ({"artifact_reference_channels": artifact_reference_channels}
+                             if artifact_reference_channels else {})
         session = (
-            recordings.open_access_session(recording)
+            recordings.open_access_session(recording, **reference_options)
             if bad_channel_spec is None
-            else recordings.open_access_session(recording, bad_channel_spec=bad_channel_spec)
+            else recordings.open_access_session(recording, bad_channel_spec=bad_channel_spec, **reference_options)
         )
         lookup = {name.casefold(): name for name in session.channel_names}
         names = tuple(session.channel_names) if channels is None else tuple(lookup[name.casefold()] for name in channels)
@@ -140,59 +139,14 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
             owner.release(source)
         artifact_removal_evidence: dict[str, object] | None = None
         if artifact_removal_spec is not None and artifact_removal_spec.normalized().is_active:
-            from app.scientific.artifact_removal import apply_offline_artifact_removal, fit_ica_model
-            from app.services.ica_review_cache import compute_ica_fit_fingerprint
-
+            from app.services.artifact_removal_preparation import apply_prepared_removal
+            from app.scientific.contracts.preprocessing import ScientificFilterSpec
             check_cancelled()
-            norm_rem = artifact_removal_spec.normalized()
-            prefitted_ica = None
-            ica_fit_fp: str | None = None
-            if norm_rem.method == "ica_infomax":
-                identity = getattr(session, "identity", None)
-                ica_fit_fp = compute_ica_fit_fingerprint(
-                    recording_id=getattr(identity, "recording_id", getattr(recording, "id", "")),
-                    source_sha256=getattr(identity, "source_sha256", getattr(recording, "source_sha256", "") or ""),
-                    signal_view_sha256=getattr(identity, "signal_view_sha256", None),
-                    channel_names=names,
-                    sampling_rate_hz=session.sampling_rate_hz,
-                    sample_count=session.sample_count,
-                    low_hz=low_hz,
-                    high_hz=high_hz,
-                    notch_hz=notch_hz,
-                    notch_q=notch_q,
-                    bad_channel_spec=bad_channel_spec,
-                    artifact_rejection_spec=artifact_rejection_spec,
-                    removal_spec=norm_rem,
-                )
-                if norm_rem.ica_fit_fingerprint and norm_rem.ica_fit_fingerprint != ica_fit_fp:
-                    raise ValueError(
-                        "ICA_FIT_FINGERPRINT_MISMATCH: 请求应用的 ICA 审查指纹与当前前置预处理状态（导联/滤波/坏导/坏段/成分数）不一致，请重新审查 ICA 成分"
-                    )
-                prefitted_ica = ica_cache.get(ica_fit_fp) if ica_cache is not None else None
-                if prefitted_ica is None and ica_cache is not None:
-                    fitted = fit_ica_model(target, session.sampling_rate_hz, names, norm_rem)
-                    ica_cache.put(ica_fit_fp, fitted, recording_id=recording_id, token=ica_token)
-                    removal_result = apply_offline_artifact_removal(
-                        target, session.sampling_rate_hz, names, norm_rem,
-                        prefitted_ica=fitted, ica_fit_fingerprint=ica_fit_fp,
-                    )
-                    ev = removal_result.to_evidence()
-                    ev["ica_model_reused"] = False
-                    target[:] = removal_result.data_v
-                    artifact_removal_evidence = ev
-                else:
-                    removal_result = apply_offline_artifact_removal(
-                        target, session.sampling_rate_hz, names, norm_rem,
-                        prefitted_ica=prefitted_ica, ica_fit_fingerprint=ica_fit_fp,
-                    )
-                    target[:] = removal_result.data_v
-                    artifact_removal_evidence = removal_result.to_evidence()
-            else:
-                removal_result = apply_offline_artifact_removal(
-                    target, session.sampling_rate_hz, names, norm_rem,
-                )
-                target[:] = removal_result.data_v
-                artifact_removal_evidence = removal_result.to_evidence()
+            target[:], artifact_removal_evidence = apply_prepared_removal(
+                recordings, recording, session, target, names, artifact_removal_spec.normalized(),
+                filters=ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q),
+                bad_spec=bad_channel_spec, artifact_spec=artifact_rejection_spec,
+                owner=owner, check_cancelled=check_cancelled)
         target.flush()
         return PreprocessedRecording(
             target, session.sampling_rate_hz, names, owner,

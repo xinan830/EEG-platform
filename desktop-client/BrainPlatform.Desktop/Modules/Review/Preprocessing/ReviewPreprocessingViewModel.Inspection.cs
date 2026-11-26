@@ -105,7 +105,9 @@ public sealed partial class ReviewPreprocessingViewModel
             var (recId, montageId, duration) = await ensureBackendRecordingAsync(token);
             var response = await client.InspectArtifactSegmentsAsync(
                 recId, 0, Math.Min(Math.Max(duration, 4), 180), montageId,
-                PeakToPeakUv, MuscleZScoreThreshold, SelectedBadChannels, BadChannelPolicy, token);
+                PeakToPeakUv, MuscleZScoreThreshold, SelectedBadChannels, BadChannelPolicy,
+                RemovalMethod != "none" ? SelectedEogChannels : [],
+                RemovalMethod == "ica_infomax" ? SelectedEcgChannels : [], token);
             EnsureInspectionCurrent(operation);
             ArtifactSegments.Clear();
             foreach (var seg in response.Segments)
@@ -129,6 +131,7 @@ public sealed partial class ReviewPreprocessingViewModel
 
     public async Task<IcaInspectionResponse> InspectIcaForDialogAsync()
     {
+        ValidateReferenceSelection();
         var client = RequireClient();
         pendingIca = null;
         var operation = BeginInspection();
@@ -142,8 +145,9 @@ public sealed partial class ReviewPreprocessingViewModel
                 badChannels: SelectedBadChannels, badChannelPolicy: BadChannelPolicy,
                 artifactPolicy: ArtifactPolicy, peakToPeakUv: PeakToPeakUv,
                 muscleZScoreThreshold: MuscleZScoreThreshold,
-                allowFrontalEogProxy: AllowFrontalEogProxy,
+                allowFrontalEogProxy: SelectedEogChannels.Count == 0 && AllowFrontalEogProxy,
                 icaComponentCount: IcaComponentCount, icaEogThreshold: 0.7,
+                eogChannels: SelectedEogChannels, ecgChannels: SelectedEcgChannels,
                 cancellationToken: token);
 
             EnsureInspectionCurrent(operation);

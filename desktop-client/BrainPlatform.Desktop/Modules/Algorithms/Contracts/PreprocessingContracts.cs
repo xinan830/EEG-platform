@@ -111,7 +111,8 @@ public sealed record ArtifactRemovalConfigPayload(
     [property: JsonPropertyName("ica_eog_threshold")] double IcaEogThreshold,
     [property: JsonPropertyName("ica_exclude_components")] IReadOnlyList<int>? IcaExcludeComponents,
     [property: JsonPropertyName("ica_fit_fingerprint")] string? IcaFitFingerprint,
-    [property: JsonPropertyName("ssp_n_eeg")] int SspEegCount = 1);
+    [property: JsonPropertyName("ssp_n_eeg")] int SspEegCount = 1,
+    [property: JsonPropertyName("ecg_channels")] IReadOnlyList<string>? EcgChannels = null);
 
 public sealed record OfflinePreprocessingConfigPayload(
     [property: JsonPropertyName("bad_channels")] BadChannelConfigPayload BadChannels,

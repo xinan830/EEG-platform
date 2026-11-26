@@ -296,13 +296,14 @@ public sealed partial class ReviewPreprocessingTests
         public override async Task<ArtifactSegmentInspectionResponse> InspectArtifactSegmentsAsync(
             string recordingId, double startSeconds, double windowSeconds, string? montageId,
             double? peakToPeakUv, double? muscleZScoreThreshold, IReadOnlyList<string>? badChannels,
-            string badChannelPolicy, CancellationToken cancellationToken)
+            string badChannelPolicy, IReadOnlyList<string>? eogChannels,
+            IReadOnlyList<string>? ecgChannels, CancellationToken cancellationToken)
         {
             LastScanDuration = windowSeconds;
             ScanStarted.TrySetResult();
             if (DelayScan) await ScanRelease.Task;
             var result = await base.InspectArtifactSegmentsAsync(recordingId, startSeconds, windowSeconds, montageId,
-                peakToPeakUv, muscleZScoreThreshold, badChannels, badChannelPolicy, cancellationToken);
+                peakToPeakUv, muscleZScoreThreshold, badChannels, badChannelPolicy, eogChannels, ecgChannels, cancellationToken);
             return ReturnedScanEnd is { } end ? result with { EndSeconds = end } : result;
         }
 
@@ -310,13 +311,14 @@ public sealed partial class ReviewPreprocessingTests
             string recordingId, string? montageId, double lowHz, double highHz, double? notchHz,
             IReadOnlyList<string>? badChannels, string badChannelPolicy, string artifactPolicy,
             double? peakToPeakUv, double? muscleZScoreThreshold, bool allowFrontalEogProxy,
-            int? icaComponentCount, double icaEogThreshold, CancellationToken cancellationToken)
+            int? icaComponentCount, double icaEogThreshold, IReadOnlyList<string>? eogChannels,
+            IReadOnlyList<string>? ecgChannels, CancellationToken cancellationToken)
         {
             IcaStarted.TrySetResult();
             if (DelayIca) await IcaRelease.Task;
             var report = await base.InspectIcaComponentsAsync(recordingId, montageId, lowHz, highHz, notchHz,
                 badChannels, badChannelPolicy, artifactPolicy, peakToPeakUv, muscleZScoreThreshold,
-                allowFrontalEogProxy, icaComponentCount, icaEogThreshold, cancellationToken);
+                allowFrontalEogProxy, icaComponentCount, icaEogThreshold, eogChannels, ecgChannels, cancellationToken);
             return NextFingerprint is null ? report : report with { IcaFitFingerprint = NextFingerprint };
         }
 

@@ -1,0 +1,10 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  BrainPlatform.Desktop -> D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\bin\Release\net10.0-windows\BrainPlatform.Desktop.dll
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Algorithms\OfflineAnalysisSelectionTests.cs(110,9): warning xUnit2013: Do not use Assert.Equal() to check for collection size. Use Assert.Single instead. (https://xunit.net/xunit.analyzers/rules/xUnit2013) [D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\BrainPlatform.Desktop.Tests.csproj]
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Algorithms\ResponseReadDiagnosticsTests.cs(26,23): warning CA2022: 避免使用“BrainPlatform.Desktop.Infrastructure.Diagnostics.ResponseReadDiagnosticsStream.ReadAsync(System.Memory<byte>, System.Threading.CancellationToken)”进行不准确读取 (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2022) [D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\BrainPlatform.Desktop.Tests.csproj]
+  BrainPlatform.Desktop.Tests -> D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\bin\Release\net10.0-windows\BrainPlatform.Desktop.Tests.dll
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\bin\Release\net10.0-windows\BrainPlatform.Desktop.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+
+已通过! - 失败:     0，通过:    42，已跳过:     0，总计:    42，持续时间: 1 s - BrainPlatform.Desktop.Tests.dll (net10.0)

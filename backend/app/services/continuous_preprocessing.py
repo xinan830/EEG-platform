@@ -39,7 +39,8 @@ class ContinuousPreprocessingService:
     def load(self, recording: RecordingSummary, preprocessing_spec: OfflinePreprocessingSpec,
              execution_context: ExecutionControl | None = None,
              channels: list[str] | None = None, *,
-             requested_channels_only: bool = False, _notify_prepared: bool = True) -> PreprocessedRecording:
+             requested_channels_only: bool = False, _notify_prepared: bool = True,
+             _artifact_reference_channels: tuple[str, ...] = ()) -> PreprocessedRecording:
         """Execute the facade's validated effective specification without reinterpreting it."""
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
@@ -51,6 +52,7 @@ class ContinuousPreprocessingService:
                                        preprocessing_spec.artifact_rejection,
                                        preprocessing_spec.artifact_removal)
         bad_active, art_active, rem_active = norm_bad.is_active, norm_art.is_active, norm_rem.is_active
+        reference_channels = _artifact_reference_channels or (*norm_rem.eog_channels, *norm_rem.ecg_channels)
         selected_channels = None
         if channels and (requested_channels_only or getattr(execution_context, "select_requested_channels", False)):
             # An explicit projection policy may opt into a smaller source.
@@ -67,19 +69,24 @@ class ContinuousPreprocessingService:
                     available = {name.casefold(): name for name in recording.channels}
                     selected_channels = tuple(available[item.casefold()] for item in channels)
         # Artifact z-scores and interval boundaries belong to the complete channel population.
-        if art_active:
+        if art_active or reference_channels:
             selected_channels = None
         effective_notch_q = float(filters.notch_q)
         signal_provenance = self.recordings.analysis_signal_provenance(recording)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
             high_hz=high_hz, notch_hz=notch_hz, notch_q=effective_notch_q,
             channel_names=selected_channels, bad_channel_spec=norm_bad,
-            preprocessing_spec=preprocessing_spec)
+            preprocessing_spec=preprocessing_spec, artifact_reference_channels=reference_channels)
         expected_contract = None
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
             contract_channels = selected_channels or tuple(recording.channels)
-            if bad_active and norm_bad.policy == "exclude" and selected_channels is None:
+            if reference_channels:
+                from app.services.artifact_references import exclude_reference_outputs
+                raw_labels = () if recording.extension == ".wpf" else recording.raw_channel_labels
+                contract_channels = exclude_reference_outputs(contract_channels, raw_labels,
+                    reference_channels, signal_provenance, norm_bad)
+            elif bad_active and norm_bad.policy == "exclude" and selected_channels is None:
                 from app.services.bad_channel_reader import predict_excluded_output_channels
 
                 contract_channels = predict_excluded_output_channels(
@@ -117,6 +124,7 @@ class ContinuousPreprocessingService:
                         artifact_rejection=replace(norm_art, policy='annotate'),
                         artifact_removal=ArtifactRemovalSpec()), execution_context,
                     _notify_prepared=False,
+                    _artifact_reference_channels=reference_channels,
                 )
             prepared = mapped_preprocess(
                 self.recordings, recording, low_hz=low_hz, high_hz=high_hz,
@@ -127,6 +135,7 @@ class ContinuousPreprocessingService:
                 artifact_rejection_spec=norm_art if art_active else None,
                 artifact_removal_spec=norm_rem if rem_active else None,
                 annotated_source=annotated,
+                artifact_reference_channels=reference_channels,
             )
             if expected_contract is not None:
                 actual_contract = replace(

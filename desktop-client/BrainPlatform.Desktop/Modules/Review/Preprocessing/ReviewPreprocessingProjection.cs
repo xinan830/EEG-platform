@@ -63,7 +63,9 @@ internal static class ReviewPreprocessingProjection
         int icaComponentCount,
         IReadOnlyList<int>? confirmedIcaExcluded,
         string? icaFitFingerprint,
-        bool allowArtifactRemoval)
+        bool allowArtifactRemoval,
+        IReadOnlyList<string>? eogChannels = null,
+        IReadOnlyList<string>? ecgChannels = null)
     {
         var bads = badChannelPolicy != "none" ? selectedBadChannels : [];
         var effBadPolicy = bads.Count > 0 ? badChannelPolicy : "none";
@@ -79,12 +81,13 @@ internal static class ReviewPreprocessingProjection
 
         var remPayload = new ArtifactRemovalConfigPayload(
             Method: effMethod,
-            EogChannels: [],
-            AllowFrontalEogProxy: allowFrontalEogProxy,
+            EogChannels: effMethod != "none" ? eogChannels ?? [] : [],
+            AllowFrontalEogProxy: (eogChannels?.Count ?? 0) == 0 && allowFrontalEogProxy,
             IcaComponentCount: effMethod == "ica_infomax" ? icaComponentCount : null,
             IcaEogThreshold: 0.7,
             IcaExcludeComponents: effMethod == "ica_infomax" ? (confirmedIcaExcluded ?? []) : null,
-            IcaFitFingerprint: effMethod == "ica_infomax" ? icaFitFingerprint : null);
+            IcaFitFingerprint: effMethod == "ica_infomax" ? icaFitFingerprint : null,
+            EcgChannels: effMethod == "ica_infomax" ? ecgChannels ?? [] : []);
         return new OfflinePreprocessingConfigPayload(badPayload, artPayload, remPayload);
     }
 
@@ -116,7 +119,7 @@ internal static class ReviewPreprocessingProjection
             {
                 ["method"] = payload.ArtifactRemoval.Method,
                 ["eog_channels"] = payload.ArtifactRemoval.EogChannels,
-                ["ecg_channels"] = Array.Empty<string>(),
+                ["ecg_channels"] = payload.ArtifactRemoval.EcgChannels ?? [],
                 ["allow_frontal_eog_proxy"] = payload.ArtifactRemoval.AllowFrontalEogProxy,
                 ["ica_n_components"] = payload.ArtifactRemoval.IcaComponentCount,
                 ["ica_eog_threshold"] = payload.ArtifactRemoval.IcaEogThreshold,

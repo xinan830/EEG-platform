@@ -219,13 +219,14 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         ReviewPreprocessingProjection.BuildPayload(
             BadChannelPolicy, SelectedBadChannels, ArtifactPolicy, PeakToPeakUv, MuscleZScoreThreshold,
             RemovalMethod, AllowFrontalEogProxy, IcaComponentCount, confirmedIcaExcluded, icaFitFingerprint,
-            allowArtifactRemoval);
+            allowArtifactRemoval, SelectedEogChannels, SelectedEcgChannels);
 
     public Dictionary<string, object?>? BuildAlgorithmConfigDictionary(bool allowArtifactRemoval) =>
         ReviewPreprocessingProjection.ToAlgorithmConfigDictionary(BuildPayload(allowArtifactRemoval));
 
     public void ResetAll()
     {
+        ResetReferenceChannels();
         InvalidateIcaFingerprint("尚未进行 ICA 成分审查", markPendingReview: false);
         BadChannelRows.Clear();
         badChannelPolicy = "none";

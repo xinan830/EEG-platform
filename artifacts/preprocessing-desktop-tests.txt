@@ -1,0 +1,202 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  BrainPlatform.Desktop -> D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\bin\Release\net10.0-windows\BrainPlatform.Desktop.dll
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Algorithms\OfflineAnalysisSelectionTests.cs(110,9): warning xUnit2013: Do not use Assert.Equal() to check for collection size. Use Assert.Single instead. (https://xunit.net/xunit.analyzers/rules/xUnit2013) [D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\BrainPlatform.Desktop.Tests.csproj]
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Algorithms\ResponseReadDiagnosticsTests.cs(26,23): warning CA2022: 避免使用“BrainPlatform.Desktop.Infrastructure.Diagnostics.ResponseReadDiagnosticsStream.ReadAsync(System.Memory<byte>, System.Threading.CancellationToken)”进行不准确读取 (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2022) [D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\BrainPlatform.Desktop.Tests.csproj]
+  BrainPlatform.Desktop.Tests -> D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\bin\Release\net10.0-windows\BrainPlatform.Desktop.Tests.dll
+D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\bin\Release\net10.0-windows\BrainPlatform.Desktop.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+[xUnit.net 00:00:03.32]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1, editing: True) [FAIL]
+[xUnit.net 00:00:03.57]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: False, scale: 1, editing: False) [FAIL]
+[xUnit.net 00:00:03.83]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1.5, editing: False) [FAIL]
+[xUnit.net 00:00:04.04]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: False, scale: 1.5, editing: False) [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1, editing: True) [249 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: False, scale: 1, editing: False) [253 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1.5, editing: False) [263 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: False, scale: 1.5, editing: False) [210 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:04.24]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1.5, editing: True) [FAIL]
+[xUnit.net 00:00:04.48]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1, editing: False) [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1.5, editing: True) [198 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(hasEvents: True, scale: 1, editing: False) [238 ms]
+  错误消息:
+   Assert.InRange() Failure: Value not in range
+Range:  (378 - 390)
+Actual: 416
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass31_0.<AnnotationWindowRendersCompiledPanel>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 293
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowRendersCompiledPanel(Boolean hasEvents, Double scale, Boolean editing) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 262
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:08.07]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(supportsRemoval: False) [FAIL]
+[xUnit.net 00:00:08.07]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(supportsRemoval: True) [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(supportsRemoval: False) [3 ms]
+  错误消息:
+   System.InvalidOperationException : 当前回溯记录缺少可用于算法分析的来源身份。
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Modules.Review.ViewModels.RecordingReviewViewModel.PrepareAnalysisAsync(String algorithmId, CancellationToken cancellationToken) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\Modules\Review\ViewModels\RecordingReviewViewModel.Analysis.cs:line 87
+   at BrainPlatform.Desktop.Modules.Review.ViewModels.RecordingReviewViewModel.OpenAnalysisAsync(String algorithmId) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\Modules\Review\ViewModels\RecordingReviewViewModel.Analysis.cs:line 22
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(Boolean supportsRemoval) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAlgorithmRegistrationTests.cs:line 24
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(Boolean supportsRemoval) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAlgorithmRegistrationTests.cs:line 29
+--- End of stack trace from previous location ---
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(supportsRemoval: True) [2 ms]
+  错误消息:
+   System.InvalidOperationException : 当前回溯记录缺少可用于算法分析的来源身份。
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Modules.Review.ViewModels.RecordingReviewViewModel.PrepareAnalysisAsync(String algorithmId, CancellationToken cancellationToken) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\Modules\Review\ViewModels\RecordingReviewViewModel.Analysis.cs:line 87
+   at BrainPlatform.Desktop.Modules.Review.ViewModels.RecordingReviewViewModel.OpenAnalysisAsync(String algorithmId) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop\Modules\Review\ViewModels\RecordingReviewViewModel.Analysis.cs:line 22
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(Boolean supportsRemoval) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAlgorithmRegistrationTests.cs:line 24
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(Boolean supportsRemoval) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAlgorithmRegistrationTests.cs:line 29
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:08.98]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowOpensWithoutMarkingAndKeepsCommandsAndPermissions [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowOpensWithoutMarkingAndKeepsCommandsAndPermissions [114 ms]
+  错误消息:
+   Assert.Equal() Failure: Values differ
+Expected: 事件标记
+Actual:   事件标注
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass28_0.<AnnotationWindowOpensWithoutMarkingAndKeepsCommandsAndPermissions>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 37
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowOpensWithoutMarkingAndKeepsCommandsAndPermissions() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 29
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowOpensWithoutMarkingAndKeepsCommandsAndPermissions() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 29
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:09.23]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Analysis_status_notifications_do_not_republish_result_and_detach_clears_panel [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Analysis_status_notifications_do_not_republish_result_and_detach_clears_panel [11 ms]
+  错误消息:
+   Assert.Equal() Failure: Values differ
+Expected: 1
+Actual:   0
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Analysis_status_notifications_do_not_republish_result_and_detach_clears_panel() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\RecordingReviewAnalysisPresentationTests.cs:line 26
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Analysis_status_notifications_do_not_republish_result_and_detach_clears_panel() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\RecordingReviewAnalysisPresentationTests.cs:line 32
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:09.50]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowPersistsWhileWorkingAndClosesOnlyExplicitlyOrWithSession [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowPersistsWhileWorkingAndClosesOnlyExplicitlyOrWithSession [184 ms]
+  错误消息:
+   Assert.Equal() Failure: Values differ
+Expected: 46
+Actual:   48
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.<>c__DisplayClass29_0.<AnnotationWindowPersistsWhileWorkingAndClosesOnlyExplicitlyOrWithSession>b__0() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 153
+   at System.Windows.Threading.DispatcherOperation.InvokeDelegateCore()
+   at System.Windows.Threading.DispatcherOperation.InvokeImpl()
+--- End of stack trace from previous location ---
+   at System.Windows.Threading.DispatcherOperation.Wait(TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.InvokeImpl(DispatcherOperation operation, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback, DispatcherPriority priority, CancellationToken cancellationToken, TimeSpan timeout)
+   at System.Windows.Threading.Dispatcher.Invoke(Action callback)
+   at BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(Action action) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Shared\WpfApplicationFixture.cs:line 51
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowPersistsWhileWorkingAndClosesOnlyExplicitlyOrWithSession() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 141
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.AnnotationWindowPersistsWhileWorkingAndClosesOnlyExplicitlyOrWithSession() in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\ReviewAnnotationToolTests.cs:line 141
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:10.74]     BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Dragging_exclusively_owns_position_then_restores_previous_playback_state(wasPlaying: True) [FAIL]
+  失败 BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Dragging_exclusively_owns_position_then_restores_previous_playback_state(wasPlaying: True) [2 ms]
+  错误消息:
+   Assert.False() Failure
+Expected: False
+Actual:   True
+  堆栈跟踪:
+     at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Dragging_exclusively_owns_position_then_restores_previous_playback_state(Boolean wasPlaying) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\RecordingReviewNavigationRaceTests.cs:line 78
+   at BrainPlatform.Desktop.Tests.Review.RecordingReviewViewModelTests.Dragging_exclusively_owns_position_then_restores_previous_playback_state(Boolean wasPlaying) in D:\AI\EEG-platform\desktop-client\BrainPlatform.Desktop.Tests\Review\RecordingReviewNavigationRaceTests.cs:line 89
+--- End of stack trace from previous location ---
+
+失败!  - 失败:    12，通过:   142，已跳过:     0，总计:   154，持续时间: 11 s - BrainPlatform.Desktop.Tests.dll (net10.0)

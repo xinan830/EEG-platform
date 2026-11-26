@@ -1,0 +1,477 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView"
+             x:Name="RootReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
+             xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Waveform"
+             xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views"
+             xmlns:reviewAnalysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Analysis"
+             xmlns:tnk="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
+             xmlns:presentation="clr-namespace:BrainPlatform.Desktop.Shared.Behaviors"
+             Background="#F3F5F8" Focusable="True" PreviewKeyDown="OnPreviewKeyDown"
+             presentation:EegSessionPresentation.Menu="{Binding ElementName=PageMenu}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <DataTemplate x:Key="RbpPanelTemplate"><analysis:RbpReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="PsdPanelTemplate"><analysis:PsdReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="StftPanelTemplate"><analysis:StftReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="ScalarPanelTemplate"><analysis:ReviewScalarAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="SpectralValuesPanelTemplate"><analysis:ReviewSpectralValuesPanel /></DataTemplate>
+            <DataTemplate x:Key="CustomFrequencyInspectionPanelTemplate"><analysis:ReviewCustomFrequencyInspectionPanel /></DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Menu x:Name="PageMenu" Style="{StaticResource AnalysisWorkspaceMenuStyle}" Visibility="Collapsed">
+            <MenuItem Header="项目">
+                <MenuItem Header="返回项目" Click="OnBackClick" />
+            </MenuItem>
+            <MenuItem Header="算法">
+                <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
+                <MenuItem Header="PSD 功率谱密度" Command="{Binding OpenPsdAnalysisCommand}" />
+                <MenuItem Header="频段数值核查" Command="{Binding OpenSpectralValuesCommand}" />
+                <MenuItem Header="自定义频段" Command="{Binding OpenCustomFrequencyInspectionCommand}" />
+                <MenuItem Header="STFT 时频分析" Command="{Binding OpenStftAnalysisCommand}" />
+                <MenuItem Header="额叶 Alpha 不对称性" Command="{Binding OpenFaaAnalysisCommand}" />
+                <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
+                <MenuItem Header="Theta/Beta 比值" Command="{Binding OpenThetaBetaAnalysisCommand}" />
+                <MenuItem Header="脑节律指标" Command="{Binding OpenBrainbeatAnalysisCommand}" />
+                <MenuItem Header="个体化 BrainBeat（IAPF 相对功率）" Command="{Binding OpenIndividualizedBrainbeatAnalysisCommand}" />
+                <MenuItem Header="TNK 脑指标组" Command="{Binding OpenTnkAnalysisCommand}" />
+            </MenuItem>
+            <MenuItem Header="报告" IsEnabled="False" />
+            <MenuItem Header="设置" IsEnabled="False" />
+        </Menu>
+    <views:EegWorkspaceShell Grid.Row="1" Style="{StaticResource EegInstrumentShellStyle}" WaveformDataContext="{Binding}"
+                             IsImmersiveWaveform="True" IsEdgeToEdgeTopBar="True">
+        <views:EegWorkspaceShell.TopBar>
+            <Grid Background="#FFFFFF">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 1. 功能按钮 Ribbon 栏 (白色背景，底部分割线，上图下字按钮) -->
+                <Border Grid.Row="0" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6" Background="#FFFFFF">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:EegToolButton Content="波形浏览" Glyph="&#xE9D9;" ToolTip="浏览连续脑电波形" />
+                        <controls:EegToolButton x:Name="PointLineModeButton" Content="点线模式" Glyph="&#xE91B;"
+                                                Click="OnPointLineModeClick"
+                                                ToolTip="显示真实采样点；缩小视图下采样点过密时自动隐藏圆点" />
+                        <analysis:ReviewAnnotationTool x:Name="AnnotationTool" />
+                        <controls:EegToolButton Content="测量" Glyph="&#xED5E;" ToolTip="测量波幅与周期" />
+                        <controls:EegToolButton Content="RBP 算法" IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png" Command="{Binding OpenRbpAnalysisCommand}"
+                                                ToolTip="打开相对频段功率算法面板" />
+                        <controls:EegToolButton Content="PSD" IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png" Command="{Binding OpenPsdAnalysisCommand}"
+                                                ToolTip="打开功率谱密度算法面板" />
+                        <controls:EegToolButton Content="频段数值" Glyph="&#xE80A;" Command="{Binding OpenSpectralValuesCommand}"
+                                                ToolTip="按导联核查现有 PSD/RBP 结果数值" />
+                        <controls:EegToolButton Content="自定义频段" Glyph="&#xE9D9;" Command="{Binding OpenCustomFrequencyInspectionCommand}"
+                                                ToolTip="核查单个频率或自定义范围的 PSD/RBP 数值" />
+                        <controls:EegToolButton Content="STFT 时频" IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png" Command="{Binding OpenStftAnalysisCommand}"
+                                                ToolTip="打开当前窗口的时频算法面板" />
+                        <controls:EegToolButton Content="FAA" IconSource="pack://application:,,,/Assets/AlgorithmIcons/faa.png" Command="{Binding OpenFaaAnalysisCommand}"
+                                                ToolTip="打开额叶 Alpha 不对称性面板" />
+                        <controls:EegToolButton Content="IAPF" IconSource="pack://application:,,,/Assets/AlgorithmIcons/iapf.png" Command="{Binding OpenIapfAnalysisCommand}"
+                                                ToolTip="打开个体 Alpha 峰频率面板" />
+                        <controls:EegToolButton Content="Theta/Beta" IconSource="pack://application:,,,/Assets/AlgorithmIcons/theta-beta.png" Command="{Binding OpenThetaBetaAnalysisCommand}"
+                                                ToolTip="打开 Theta/Beta 比值面板" />
+                        <controls:EegToolButton Content="脑节律" IconSource="pack://application:,,,/Assets/AlgorithmIcons/brainbeat.png" Command="{Binding OpenBrainbeatAnalysisCommand}"
+                                                ToolTip="打开脑节律指标面板" />
+                        <controls:EegToolButton Content="个体化 BrainBeat" Glyph="&#xE9D2;" Command="{Binding OpenIndividualizedBrainbeatAnalysisCommand}"
+                                                ToolTip="打开 IAPF 相对功率 BrainBeat 面板" />
+                        <controls:EegToolButton Content="TNK 指标组" Glyph="&#xE7C4;" Command="{Binding OpenTnkAnalysisCommand}"
+                                                ToolTip="打开 TNK 脑指标组面板" />
+                        <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />
+                        <controls:EegToolButton Content="数据信息" Glyph="&#xE946;" Click="OnToggleDataInfoClick" ToolTip="查看记录与数据信息" />
+                        <controls:EegToolButton Content="{Binding SignalExportButtonText}" Glyph="&#xE896;" Click="OnExportClick" ToolTip="导出整段原始脑电信号为 EDF/BDF；导出中可取消" />
+                        <TextBlock Text="{Binding SignalExportStatus}" VerticalAlignment="Center" Margin="4,0" />
+                        <controls:EegToolButton Content="报告" Glyph="&#xE8A5;" ToolTip="生成脑电检测报告" />
+                    </StackPanel>
+                </Border>
+                <!-- 2. 参数控制栏 (浅底边框凹槽参数框 + 右侧记录状态与项目标签) -->
+                <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6">
+                    <DockPanel LastChildFill="False">
+                        <!-- 左侧：参数字段群组 -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- 高通 -->
+                            <controls:EegParameterField Header="高通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding HighPassHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="0.01 Hz" Tag="0.01" /><ComboBoxItem Content="0.05 Hz" Tag="0.05" />
+                                    <ComboBoxItem Content="0.1 Hz" Tag="0.1" /><ComboBoxItem Content="0.2 Hz" Tag="0.2" />
+                                    <ComboBoxItem Content="0.3 Hz" Tag="0.3" /><ComboBoxItem Content="0.4 Hz" Tag="0.4" />
+                                    <ComboBoxItem Content="0.5 Hz" Tag="0.5" /><ComboBoxItem Content="0.6 Hz" Tag="0.6" />
+                                    <ComboBoxItem Content="0.7 Hz" Tag="0.7" /><ComboBoxItem Content="0.8 Hz" Tag="0.8" />
+                                    <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
+                                    <ComboBoxItem Content="1 Hz" Tag="1" /><ComboBoxItem Content="1.5 Hz" Tag="1.5" />
+                                    <ComboBoxItem Content="2 Hz" Tag="2" /><ComboBoxItem Content="3 Hz" Tag="3" />
+                                    <ComboBoxItem Content="5 Hz" Tag="5" /><ComboBoxItem Content="10 Hz" Tag="10" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 低通 -->
+                            <controls:EegParameterField Header="低通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding LowPassHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="10 Hz" Tag="10" /><ComboBoxItem Content="20 Hz" Tag="20" />
+                                    <ComboBoxItem Content="30 Hz" Tag="30" /><ComboBoxItem Content="40 Hz" Tag="40" />
+                                    <ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                                    <ComboBoxItem Content="70 Hz" Tag="70" /><ComboBoxItem Content="80 Hz" Tag="80" />
+                                    <ComboBoxItem Content="90 Hz" Tag="90" /><ComboBoxItem Content="100 Hz" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 陷波 -->
+                            <controls:EegParameterField Header="陷波" MinWidth="78">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding NotchHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="关闭" Tag="0" /><ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 灵敏度 -->
+                            <controls:EegParameterField Header="灵敏度" MinWidth="94">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
+                                    <ComboBoxItem Content="1 µV/mm" Tag="1" /><ComboBoxItem Content="2 µV/mm" Tag="2" />
+                                    <ComboBoxItem Content="5 µV/mm" Tag="5" /><ComboBoxItem Content="7 µV/mm" Tag="7" />
+                                    <ComboBoxItem Content="10 µV/mm" Tag="10" /><ComboBoxItem Content="15 µV/mm" Tag="15" />
+                                    <ComboBoxItem Content="20 µV/mm" Tag="20" /><ComboBoxItem Content="50 µV/mm" Tag="50" />
+                                    <ComboBoxItem Content="70 µV/mm" Tag="70" />
+                                    <ComboBoxItem Content="100 µV/mm" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 走纸速度 -->
+                            <controls:EegParameterField MinWidth="92">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale"
+                                                 IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
+                                          SelectionChanged="OnPaperSpeedSelectionChanged"
+                                          SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
+                                    <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
+                                    <ComboBoxItem Content="15 mm/s" Tag="15" /><ComboBoxItem Content="30 mm/s" Tag="30" />
+                                    <ComboBoxItem Content="60 mm/s" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 时间基 -->
+                            <controls:EegParameterField MinWidth="86">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="时间基" GroupName="ReviewHorizontalScale"
+                                                 IsChecked="{Binding IsTimebaseMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
+                                          SelectionChanged="OnTimebaseSelectionChanged"
+                                          SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
+                                    <ComboBoxItem Content="0.1 s/屏" Tag="0.1" /><ComboBoxItem Content="0.25 s/屏" Tag="0.25" />
+                                    <ComboBoxItem Content="0.5 s/屏" Tag="0.5" /><ComboBoxItem Content="1 s/屏" Tag="1" />
+                                    <ComboBoxItem Content="2 s/屏" Tag="2" /><ComboBoxItem Content="5 s/屏" Tag="5" />
+                                    <ComboBoxItem Content="10 s/屏" Tag="10" /><ComboBoxItem Content="15 s/屏" Tag="15" />
+                                    <ComboBoxItem Content="20 s/屏" Tag="20" /><ComboBoxItem Content="30 s/屏" Tag="30" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 查看导联 -->
+                            <controls:EegParameterField Header="导联配置" MinWidth="170">
+                                <ComboBox x:Name="MontageSelector"
+                                          Style="{StaticResource EegParameterComboBoxStyle}"
+                                          ItemsSource="{Binding CompatibleViewingMontages}"
+                                          SelectedItem="{Binding CurrentViewingMontage, Mode=OneWay}"
+                                          IsEnabled="{Binding HasCompatibleViewingMontages}"
+                                          ToolTipService.ShowOnDisabled="True"
+                                          SelectionChanged="OnMontageSelectionChanged"
+                                          ToolTip="{Binding MontageSelectionHint}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </controls:EegParameterField>
+                            <Button Content="在线导联" Click="OnOnlineMontageClick" Style="{StaticResource AppCompactActionButtonStyle}" Margin="0,0,8,0"
+                                    VerticalAlignment="Bottom" ToolTip="打开完整导联设置；保存后切换整套临时波形配置，不参与算法" />
+
+                            <TextBlock Text="无兼容导联" FontSize="11" Foreground="#94A3B8"
+                                       VerticalAlignment="Center" Margin="2,0,8,0" ToolTip="{Binding MontageSelectionHint}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCompatibleViewingMontages}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </views:EegWorkspaceShell.TopBar>
+
+        <views:EegWorkspaceShell.Waveform>
+            <shared:AnalysisDockHost IsPanelOpen="{Binding IsAnalysisPanelOpen}"
+                                     IsPanelBelowWaveform="{Binding IsTnkAnalysisPanelOpen}"
+                                     PanelTitle="{Binding AnalysisPanelTitle}">
+                <shared:AnalysisDockHost.Waveform>
+                    <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas"
+                        PreviewMouseWheel="OnWaveformMouseWheel"
+                        ToolTip="滚轮：向下前进 1 秒，向上后退 1 秒" />
+                </shared:AnalysisDockHost.Waveform>
+                <shared:AnalysisDockHost.Panel>
+                    <ContentControl Content="{Binding}">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Rbp}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Psd}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource PsdPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Stft}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Tnk}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.SpectralValues}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource SpectralValuesPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.CustomFrequencyInspection}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource CustomFrequencyInspectionPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </shared:AnalysisDockHost.Panel>
+            </shared:AnalysisDockHost>
+        </views:EegWorkspaceShell.Waveform>
+
+        <views:EegWorkspaceShell.Overlay>
+            <Grid>
+            <!-- 数据信息弹窗 -->
+            <Popup IsOpen="{Binding IsDataInfoOpen, ElementName=RootReviewView}"
+                   Placement="Center" StaysOpen="True" AllowsTransparency="True">
+                <Border Width="460" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="24,20,24,22">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.14" Color="#000000" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header Bar -->
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource BlueBrandPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="数据信息" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Style="{StaticResource ModernCloseCrossButtonStyle}"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    ToolTip="关闭"
+                                    Click="OnCloseDataInfoClick" />
+                        </Grid>
+
+                        <!-- Content Grid -->
+                        <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,14">
+                            <Grid Grid.IsSharedSizeScope="True">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ReviewInfoLabelCol" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 所属项目 -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="所属项目" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ProjectName}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 记录名称 -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="记录名称" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding RecordingName}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 采样率 -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="采样率" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding SamplingRateHz, StringFormat={}{0} Hz}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+
+                                <!-- 通道数量 -->
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="通道数" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="原始 " Foreground="#64748B" FontSize="13" />
+                                    <TextBlock Text="{Binding SourceChannelCount}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13" />
+                                    <TextBlock Text=" 通道 / 当前显示 " Foreground="#64748B" FontSize="13" />
+                                    <TextBlock Text="{Binding OutputChannelCount}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13" />
+                                    <TextBlock Text=" 通道" Foreground="#64748B" FontSize="13" />
+                                </StackPanel>
+
+                                <!-- 当前导联 -->
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="当前导联" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CurrentViewingMontage.Name, TargetNullValue=原始导联}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 采集时间 -->
+                                <TextBlock Grid.Row="10" Grid.Column="0" Text="采集时间" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding RecordingStartUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Foreground="#0F172A" FontSize="13" VerticalAlignment="Center" />
+
+                                <!-- 时间范围 -->
+                                <TextBlock Grid.Row="12" Grid.Column="0" Text="时间范围" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="12" Grid.Column="2" Text="{Binding RecordingClockRangeText}" Foreground="#334155" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Footer -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                            <Button Content="关闭" Style="{StaticResource EegInstrumentPrimaryButtonStyle}" Padding="20,6" Click="OnCloseDataInfoClick" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Popup>
+            </Grid>
+        </views:EegWorkspaceShell.Overlay>
+
+        <views:EegWorkspaceShell.BottomBar>
+            <Grid Height="34">
+                <Grid.ColumnDefinitions>
+                    <!-- 左侧：播控按钮 -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- 当前时间：固定列宽，避免毫秒位数变化挤动时间轴 -->
+                    <ColumnDefinition Width="220" />
+                    <!-- 中间：完整时间轴 -->
+                    <ColumnDefinition Width="*" />
+                    <!-- 右侧：倍速与记录时间/采集时间分段药丸 -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧：播放控制组 (|◀ 起点 | ≪ 翻屏退 | ‹ 步进退 | [▷] 播放 | › 步进进 | ≫ 翻屏进 | ▶| 终点) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,8,0">
+                    <!-- 1. 跳转起始 |< -->
+                    <Button Tag="-1000000" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="跳到记录开始" Margin="0,0,8,0">
+                        <Canvas Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Line X1="2" Y1="1.5" X2="2" Y2="12.5" Stroke="#1E293B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="M 12,2 L 4.5,7 L 12,12 Z" Stroke="#1E293B" StrokeThickness="1.5" StrokeLineJoin="Round" Fill="Transparent" />
+                        </Canvas>
+                    </Button>
+
+                    <!-- 2. 后退一整屏 << (大块翻页) -->
+                    <Button Tag="page-back" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="后退一整屏" Margin="0,0,8,0">
+                        <Path Data="M 7,2 L 2,7 L 7,12 M 12,2 L 7,7 L 12,12"
+                              Stroke="#1E293B" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="13" Height="13" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 3. 后退一小块 < (小块微移 1秒) -->
+                    <Button Tag="-1" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="后退一小步 (1 秒)" Margin="0,0,10,0">
+                        <Path Data="M 8,2 L 3,7 L 8,12"
+                              Stroke="#1E293B" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="9" Height="13" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 4. 核心播放/暂停按钮 [▷] (浅蓝柔和卡片，空心蓝三角，尺寸 32x32) -->
+                    <Button Click="OnPlayClick" Style="{StaticResource EegPlayButtonStyle}" Margin="0,0,10,0" ToolTip="播放或暂停回溯" />
+
+                    <!-- 5. 前进一小块 > (小块微移 1秒) -->
+                    <Button Tag="1" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="前进一小步 (1 秒)" Margin="0,0,8,0">
+                        <Path Data="M 3,2 L 8,7 L 3,12"
+                              Stroke="#1E293B" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="9" Height="13" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 6. 前进一整屏 >> (大块翻页) -->
+                    <Button Tag="page-forward" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="前进一整屏" Margin="0,0,8,0">
+                        <Path Data="M 2,2 L 7,7 L 2,12 M 7,2 L 12,7 L 7,12"
+                              Stroke="#1E293B" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="13" Height="13" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 7. 跳转结束 >| -->
+                    <Button Tag="1000000" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="跳到记录结束" Margin="0,0,10,0">
+                        <Canvas Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 2,2 L 9.5,7 L 2,12 Z" Stroke="#1E293B" StrokeThickness="1.5" StrokeLineJoin="Round" Fill="Transparent" />
+                            <Line X1="12" Y1="1.5" X2="12" Y2="12.5" Stroke="#1E293B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Canvas>
+                    </Button>
+
+                </StackPanel>
+
+                <!-- 时间文本 (如 00:53.750 / 02:30) -->
+                <TextBlock Grid.Column="1" Text="{Binding PositionTimeText}" FontSize="12.5" FontWeight="SemiBold"
+                           FontFamily="Consolas, Segoe UI, sans-serif" Foreground="#0F172A"
+                           VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Right"
+                           Padding="0,0,8,0" />
+
+                <!-- 中间：时间轴拖动滑轨 -->
+                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="2" Height="26" VerticalAlignment="Center"
+                    TimeDisplay="{Binding TimeDisplay, Mode=OneWay}"
+                    TimeDisplayMode="{Binding TimeDisplay.EffectiveMode, Mode=OneWay}"
+                    RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
+                    DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
+                    PositionSeconds="{Binding PositionSeconds, Mode=OneWay}"
+                    VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
+                      DragStarted="OnTimelineDragStarted"
+                      DragCompleted="OnTimelineDragCompleted"
+                    PreviewPositionChanged="OnTimelinePreviewPositionChanged"
+                    PositionCommitted="OnTimelinePositionCommitted"
+                    ToolTip="{Binding RecordingClockRangeText, Mode=OneWay}" />
+
+                <!-- 右侧：倍速下拉 + 记录时间/采集时间药丸切换 -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <!-- 倍速按钮 (如 1x ˅) -->
+                    <Button Click="OnPlaybackSpeedClick" Style="{StaticResource EegInstrumentButtonStyle}" Height="28" Padding="8,0"
+                            Margin="0,0,10,0" ToolTip="切换回放速度">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PlaybackSpeedText, Mode=OneWay}" FontWeight="SemiBold" FontSize="12" Foreground="#334155" />
+                            <Path Data="M 0,0 L 3,3 L 6,0" Stroke="#64748B" StrokeThickness="1.2" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- 记录时间 / 采集时间 分段胶囊 -->
+                    <controls:RecordingTimeSelector DataContext="{Binding TimeDisplay}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </views:EegWorkspaceShell.BottomBar>
+    </views:EegWorkspaceShell>
+    </Grid>
+</UserControl>

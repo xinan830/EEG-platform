@@ -6,6 +6,16 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
 public sealed partial class HttpAlgorithmClient : IPreprocessingClient
 {
+    public Task<PreprocessingAnalysisChannels> GetPreprocessingAnalysisChannelsAsync(string recordingId,
+        OfflinePreprocessingConfigPayload preprocessing, string? montageId = null,
+        CancellationToken cancellationToken = default) => SendAsync<PreprocessingAnalysisChannels>(HttpMethod.Post,
+            $"api/recordings/{Uri.EscapeDataString(RequireId(recordingId))}/preprocessing/analysis-channels" +
+            (montageId is null ? "" : $"?montage_id={Uri.EscapeDataString(montageId)}"), preprocessing, cancellationToken);
+
+    public Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(string recordingId,
+        CancellationToken cancellationToken = default) => SendAsync<ArtifactReferenceCatalogue>(HttpMethod.Get,
+            $"api/recordings/{Uri.EscapeDataString(RequireId(recordingId))}/preprocessing/reference-channels",
+            null, cancellationToken);
     public Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
         string recordingId,
         double startSeconds = 0,
@@ -29,6 +39,8 @@ public sealed partial class HttpAlgorithmClient : IPreprocessingClient
         double? muscleZScoreThreshold = 4.0,
         IReadOnlyList<string>? badChannels = null,
         string badChannelPolicy = "none",
+        IReadOnlyList<string>? eogChannels = null,
+        IReadOnlyList<string>? ecgChannels = null,
         CancellationToken cancellationToken = default)
     {
         var parts = new List<string>
@@ -46,6 +58,10 @@ public sealed partial class HttpAlgorithmClient : IPreprocessingClient
             parts.Add($"muscle_zscore_threshold={Fmt(muscleZScoreThreshold.Value)}");
         if (badChannels is { Count: > 0 })
             parts.Add($"bad_channels={Uri.EscapeDataString(string.Join(",", badChannels))}");
+        if (eogChannels is { Count: > 0 })
+            parts.Add($"eog_channels={Uri.EscapeDataString(string.Join(",", eogChannels))}");
+        if (ecgChannels is { Count: > 0 })
+            parts.Add($"ecg_channels={Uri.EscapeDataString(string.Join(",", ecgChannels))}");
 
         return SendAsync<ArtifactSegmentInspectionResponse>(
             HttpMethod.Get,
@@ -68,6 +84,8 @@ public sealed partial class HttpAlgorithmClient : IPreprocessingClient
         bool allowFrontalEogProxy = true,
         int? icaComponentCount = null,
         double icaEogThreshold = 0.7,
+        IReadOnlyList<string>? eogChannels = null,
+        IReadOnlyList<string>? ecgChannels = null,
         CancellationToken cancellationToken = default)
     {
         var parts = new List<string>
@@ -91,6 +109,10 @@ public sealed partial class HttpAlgorithmClient : IPreprocessingClient
             parts.Add($"bad_channels={Uri.EscapeDataString(string.Join(",", badChannels))}");
         if (icaComponentCount is >= 2)
             parts.Add($"ica_n_components={icaComponentCount.Value}");
+        if (eogChannels is { Count: > 0 })
+            parts.Add($"eog_channels={Uri.EscapeDataString(string.Join(",", eogChannels))}");
+        if (ecgChannels is { Count: > 0 })
+            parts.Add($"ecg_channels={Uri.EscapeDataString(string.Join(",", ecgChannels))}");
 
         return SendAsync<IcaInspectionResponse>(
             HttpMethod.Get,

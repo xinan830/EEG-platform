@@ -11,7 +11,7 @@ from typing import Literal
 
 ArtifactRemovalMethod = Literal["none", "eog_regression", "ssp_eog", "ica_infomax"]
 _VALID_METHODS = frozenset({"none", "eog_regression", "ssp_eog", "ica_infomax"})
-ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v2-validity"
+ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v3-references"
 
 
 def _dedupe_labels(labels: tuple[str, ...]) -> tuple[str, ...]:
@@ -44,6 +44,14 @@ class ArtifactRemovalSpec:
         method = str(self.method).strip().casefold()
         if method not in _VALID_METHODS:
             raise ValueError(f"不支持的离线去伪迹方法：{self.method!r}")
+        eog_channels = _dedupe_labels(self.eog_channels)
+        ecg_channels = _dedupe_labels(self.ecg_channels)
+        if len(ecg_channels) > 1:
+            raise ValueError("ARTIFACT_REFERENCE_INVALID: 心电参考最多选择一路")
+        if ecg_channels and method not in {"none", "ica_infomax"}:
+            raise ValueError("ARTIFACT_REFERENCE_INVALID: 心电参考仅支持 ICA 去伪迹")
+        if {name.casefold() for name in eog_channels} & {name.casefold() for name in ecg_channels}:
+            raise ValueError("ARTIFACT_REFERENCE_INVALID: 同一路不能同时作为眼电和心电参考")
         if self.ica_n_components is not None:
             if (
                 isinstance(self.ica_n_components, bool)
@@ -72,8 +80,8 @@ class ArtifactRemovalSpec:
             return ArtifactRemovalSpec(method="none")
         return ArtifactRemovalSpec(
             method=method,  # type: ignore[arg-type]
-            eog_channels=_dedupe_labels(self.eog_channels),
-            ecg_channels=_dedupe_labels(self.ecg_channels),
+            eog_channels=eog_channels,
+            ecg_channels=ecg_channels,
             allow_frontal_eog_proxy=bool(self.allow_frontal_eog_proxy),
             ica_n_components=self.ica_n_components,
             ica_eog_threshold=float(self.ica_eog_threshold),

@@ -145,12 +145,11 @@ public sealed class IcaComponentCardViewModel : ObservableObject
         PreviewDurationSeconds = item.PreviewDurationSeconds;
         isExcluded = initialExcluded;
 
-        if (item.EogScore is { } eog && Math.Abs(eog) >= 0.5)
-            ScoreBadgeText = item.RecommendedExclude ? $"建议剔除 · EOG r={eog:+0.00;-0.00}" : $"EOG r={eog:+0.00;-0.00}";
-        else if (item.EcgScore is { } ecg && Math.Abs(ecg) >= 0.5)
-            ScoreBadgeText = item.RecommendedExclude ? $"建议剔除 · ECG {ecg:0.00}" : $"ECG {ecg:0.00}";
-        else
-            ScoreBadgeText = item.EogScore is { } eogVal ? $"EOG r={eogVal:+0.00;-0.00}" : "脑电/其他成分";
+        var scores = new List<string>();
+        if (item.EogScore is { } eog) scores.Add($"EOG r={eog:+0.00;-0.00}");
+        if (item.EcgScore is { } ecg) scores.Add($"ECG {ecg:0.00}");
+        ScoreBadgeText = (item.RecommendedExclude ? "建议剔除 · " : "") +
+            (scores.Count > 0 ? string.Join(" · ", scores) : "脑电/其他成分");
 
         EvrText = $"解释方差 {item.ExplainedVarianceRatio * 100:0.0}%";
     }

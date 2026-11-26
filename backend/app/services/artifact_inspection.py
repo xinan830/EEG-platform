@@ -24,6 +24,7 @@ def inspect_recording_artifact_segments(
     notch_hz: float | None = 50.0,
     notch_q: float = 30.0,
     max_cells: int = 4_000_000,
+    artifact_reference_channels: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Project the authoritative pre-removal report onto a bounded absolute span."""
     from app.scientific.contracts.preprocessing import OfflinePreprocessingSpec, ScientificFilterSpec
@@ -35,9 +36,16 @@ def inspect_recording_artifact_segments(
     norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
     filters = ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q,
                                  scope='whole_recording_before_window_slice')
+    if artifact_reference_channels:
+        from app.services.artifact_references import discover_artifact_references
+        catalogue = discover_artifact_references(recordings, recording)
+        available = {channel["name"].casefold() for channel in catalogue["channels"]}
+        if any(name.casefold() not in available for name in artifact_reference_channels):
+            raise ValueError("ARTIFACT_REFERENCE_UNAVAILABLE: 选择的辅助通道不存在或不是电压信号")
     prepared = recordings.offline_scientific_preprocessing.prepare_continuous(
         target_recording, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
         preprocessing_spec=OfflinePreprocessingSpec(filters, norm_bad, spec),
+        artifact_reference_channels=artifact_reference_channels,
     )
     sfreq, total = prepared.sfreq, len(prepared.data)
     start_sample = max(0, min(total, int(np.floor(float(start_s) * sfreq))))
@@ -80,7 +88,7 @@ def inspect_recording_ica_components(
     max_cells: int = 4_000_000,
 ) -> dict[str, object]:
     """Fit reproducible MNE infomax ICA and return reviewable IC scores bound to a fit fingerprint."""
-    from app.scientific.artifact_removal import fit_ica_model, inspect_ica_components
+    from app.scientific.artifact_removal import inspect_ica_components
     from app.scientific.contracts.artifact_removal import ArtifactRemovalSpec
     from app.services.ica_review_cache import compute_ica_fit_fingerprint
 
@@ -100,6 +108,8 @@ def inspect_recording_ica_components(
         with recordings.open_access_session(
             target_recording,
             bad_channel_spec=norm_bad if norm_bad.is_active else None,
+            **({"artifact_reference_channels": (*spec.eog_channels, *spec.ecg_channels)}
+               if spec.eog_channels or spec.ecg_channels else {}),
         ) as session:
             identity = session.identity
             sfreq = float(session.sampling_rate_hz)
@@ -127,12 +137,16 @@ def inspect_recording_ica_components(
             notch_hz=notch_hz,
             bad_channel_spec=norm_bad if norm_bad.is_active else None,
             artifact_rejection_spec=norm_art if norm_art.is_active else None,
+            artifact_reference_channels=(*spec.eog_channels, *spec.ecg_channels),
         )
         if cached is not None:
             fitted = cached
             cache_hit = True
         else:
-            fitted = fit_ica_model(pre_ica.data, pre_ica.sfreq, pre_ica.channel_names, spec)
+            from app.services.artifact_references import prepare_reviewed_ica
+            from app.scientific.contracts.preprocessing import ScientificFilterSpec
+            fitted = prepare_reviewed_ica(recordings, target_recording, pre_ica, spec,
+                ScientificFilterSpec(low_hz, high_hz, notch_hz))
             if ica_cache is not None:
                 ica_cache.put(fit_fp, fitted, recording_id=recording.id, token=ica_token)
             cache_hit = False
@@ -158,6 +172,8 @@ def inspect_recording_ica_components(
         })
         return report
 
+    if spec.eog_channels or spec.ecg_channels:
+        raise ValueError("ARTIFACT_REFERENCE_REQUIRES_CONTINUOUS_SCOPE: 专用辅助通道须使用整段 ICA 审查")
     raw_unprojected = montage_id is None
     with recordings.open_access_session(
         target_recording,

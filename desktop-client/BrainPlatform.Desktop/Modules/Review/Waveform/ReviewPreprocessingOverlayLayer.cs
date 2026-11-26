@@ -11,7 +11,7 @@ using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
-/// <summary>Renders mutually-exclusive paired scientific comparison traces (light-gray baseline + dark-gray processed) and floating legend.</summary>
+/// <summary>Renders mutually-exclusive paired scientific comparison traces (light-gray baseline + dark-gray processed).</summary>
 internal sealed class ReviewPreprocessingOverlayLayer
 {
     private static readonly Color ScientificBaselineGray = Color.FromRgb(186, 198, 212);
@@ -23,43 +23,11 @@ internal sealed class ReviewPreprocessingOverlayLayer
     private readonly SciChartSurface surface;
     private readonly List<OverlaySeries> baselineSeries = [];
     private readonly List<OverlaySeries> processedSeries = [];
-    private readonly Border legendBorder;
-    private readonly StackPanel baselineSwatch;
-    private readonly TextBlock legendText;
 
     public ReviewPreprocessingOverlayLayer(SciChartSurface surface)
     {
         this.surface = surface;
-        baselineSwatch = CreateSwatch(ScientificBaselineGray, "浅灰 科学滤波基线");
-        legendText = new TextBlock
-        {
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        var content = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        content.Children.Add(baselineSwatch);
-        content.Children.Add(CreateSwatch(ScientificProcessedDark, "深灰 科学处理后"));
-        content.Children.Add(legendText);
-
-        legendBorder = new Border
-        {
-            Child = content,
-            Background = new SolidColorBrush(Color.FromArgb(242, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 5, 10, 5),
-            Margin = new Thickness(0, 8, 12, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            Visibility = Visibility.Collapsed,
-        };
     }
-
-    public UIElement LegendElement => legendBorder;
 
     public void EnsureSeries(int channelCount)
     {
@@ -110,7 +78,6 @@ internal sealed class ReviewPreprocessingOverlayLayer
             item.Data.Clear();
             item.LineSeries.IsVisible = false;
         }
-        legendBorder.Visibility = Visibility.Collapsed;
     }
 
     public void ApplyVisuals(
@@ -158,12 +125,6 @@ internal sealed class ReviewPreprocessingOverlayLayer
             ApplySeriesData(processedSeries[i], projected.DrawProcessed, projected.ProcessedX, projected.ProcessedY,
                 dash: projected.IsInterpolated ? InterpolatedDash : null);
         }
-
-        baselineSwatch.Visibility = overlayWindow.EnhancedPreprocessingActive ? Visibility.Visible : Visibility.Collapsed;
-        legendText.Text = overlayWindow.EnhancedPreprocessingActive
-            ? "· 零相位 1–50 Hz，陷波 50 Hz（Q=30）；顶部滤波仅用于彩色阅图"
-            : "· 仅基础科学滤波（零相位 1–50 Hz，陷波 50 Hz Q=30，增强全关前后一致）；顶部滤波仅用于彩色阅图";
-        legendBorder.Visibility = Visibility.Visible;
     }
 
     private static void ApplySeriesData(OverlaySeries series, bool visible, double[]? xs, double[]? ys, double[]? dash)
@@ -181,25 +142,6 @@ internal sealed class ReviewPreprocessingOverlayLayer
             series.Data.Append(xs, ys);
         }
         series.LineSeries.IsVisible = true;
-    }
-
-    private static StackPanel CreateSwatch(Color color, string label)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-        panel.Children.Add(new Border
-        {
-            Width = 14, Height = 2, CornerRadius = new CornerRadius(1),
-            Background = new SolidColorBrush(color),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 5, 0),
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        return panel;
     }
 
     private static void UpdateChannelBadges(

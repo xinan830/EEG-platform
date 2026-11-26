@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D EEG Brain Viewer</title>
+<style>
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(circle at 50% 42%, #ffffff 0%, #f4f7fb 78%, #eaf0f7 100%);
+    font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    color: #0f172a;
+  }
+  #canvas-host { position: absolute; inset: 0; cursor: grab; }
+  #canvas-host.dragging { cursor: grabbing; }
+  #labels-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .elec-label {
+    position: absolute; transform: translate(-50%, -100%);
+    font-size: 11.5px; font-weight: 600; color: #1e293b;
+    text-shadow: 0 0 3px #fff, 0 0 6px #fff, 0 1px 2px rgba(255,255,255,0.95);
+    white-space: nowrap; will-change: transform, opacity;
+  }
+  .elec-label.selected {
+    font-size: 13px; font-weight: 700; color: #ea580c; z-index: 50;
+  }
+
+  /* Floating Top-Left Toolbar */
+  .top-left-bar {
+    position: absolute; top: 12px; left: 12px; z-index: 20;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .seg-group {
+    display: inline-flex; padding: 3px; gap: 2px;
+    background: rgba(241, 245, 249, 0.92); backdrop-filter: blur(8px);
+    border: 1px solid #cbd5e1; border-radius: 9px;
+  }
+  .seg-btn {
+    border: none; background: transparent; color: #475569;
+    font-size: 11.5px; font-weight: 500; padding: 5px 8px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s ease; font-family: inherit; white-space: nowrap;
+  }
+  .seg-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+  .seg-btn.active {
+    background: #ffffff; color: #1d4ed8; font-weight: 600;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  }
+  .glass-select {
+    height: 31px; padding: 0 26px 0 10px; font-size: 12px; font-weight: 500;
+    color: #1e293b; background: rgba(255,255,255,0.92); border: 1px solid #cbd5e1;
+    border-radius: 8px; outline: none; cursor: pointer; font-family: inherit;
+  }
+  .glass-select:hover { border-color: #93c5fd; }
+
+  /* Floating Top-Right Toolbar */
+  .top-right-bar {
+    position: absolute; top: 12px; right: 12px; z-index: 20;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .glass-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 31px; padding: 0 11px; font-size: 12px; font-weight: 500;
+    color: #1e293b; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;
+    transition: all 0.15s ease; font-family: inherit;
+  }
+  .glass-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .glass-btn svg { width: 13px; height: 13px; stroke: #2563eb; fill: none; stroke-width: 1.8; }
+
+  /* Right Colorbar & Atlas Legend */
+  .side-card {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%); z-index: 18;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    border: 1px solid #e2e8f0; border-radius: 11px; padding: 10px 11px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  }
+  .colorbar-title { font-size: 10.5px; font-weight: 600; color: #334155; text-align: center; margin-bottom: 7px; }
+  .colorbar-body { display: flex; align-items: stretch; gap: 7px; height: 168px; }
+  .colorbar-gradient { width: 14px; border-radius: 4px; border: 1px solid #cbd5e1; }
+  .colorbar-ticks { display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: #475569; min-width: 34px; }
+
+  .atlas-card { width: 146px; max-height: 290px; display: flex; flex-direction: column; }
+  .atlas-title { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 7px; }
+  .atlas-list { overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 3px; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.5) transparent; }
+  .atlas-list::-webkit-scrollbar { width: 4px; }
+  .atlas-list::-webkit-scrollbar-track { background: transparent; }
+  .atlas-list::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.55); border-radius: 99px; }
+  .atlas-list::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.8); }
+  .atlas-item {
+    display: flex; align-items: center; gap: 7px; padding: 3px 5px; border-radius: 5px;
+    font-size: 11px; color: #334155; cursor: pointer; transition: background 0.12s;
+  }
+  .atlas-item:hover, .atlas-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+  .atlas-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(15,23,42,0.12); }
+  .atlas-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Hover Region Tooltip */
+  #region-tooltip {
+    position: absolute; z-index: 30; pointer-events: none; display: none;
+    background: rgba(15, 23, 42, 0.9); color: #ffffff; padding: 6px 10px;
+    border-radius: 7px; font-size: 11.5px; line-height: 1.45;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22); white-space: nowrap;
+  }
+  #region-tooltip .sub { font-size: 10px; color: #cbd5e1; }
+
+  /* Bottom-Left Hint + Optional Window Badge */
+  .bottom-left-stack {
+    position: absolute; left: 12px; bottom: 14px; z-index: 18;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px; pointer-events: none;
+  }
+  .hint-pill {
+    background: rgba(255,255,255,0.88); border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 4px 11px; font-size: 11px; color: #475569;
+  }
+  .window-pill {
+    background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 2px 7px; font-size: 10.5px; color: #475569; display: none;
+  }
+
+  /* Bottom-Right 2D/3D Switcher (only shown when hosted in TopomapSwitchableView) */
+  #dim-switcher {
+    position: absolute; right: 10px; bottom: 8px; z-index: 25; display: none;
+  }
+
+  /* Bottom-Center Floating Control Pill (Connectome / Source / Tractography) */
+  .connectome-bar {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 22;
+    display: inline-flex; align-items: center; gap: 10px;
+    width: max-content; max-width: calc(100% - 28px); white-space: nowrap;
+    background: rgba(255,255,255,0.94); backdrop-filter: blur(8px);
+    border: 1px solid #cbd5e1; border-radius: 16px; padding: 6px 14px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07); font-size: 11.5px; color: #334155;
+  }
+  .connectome-bar input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 132px; height: 4px;
+    background: #dbeafe; border-radius: 99px; outline: none; cursor: pointer;
+  }
+  .connectome-bar input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: #2563eb; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(37,99,235,0.45);
+    cursor: pointer; transition: transform 0.12s;
+  }
+  .connectome-bar input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .connectome-val { font-weight: 700; color: #1d4ed8; min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+  .connectome-count { color: #64748b; font-size: 11px; border-left: 1px solid #e2e8f0; padding-left: 10px; white-space: nowrap; }
+
+  /* NiiVue MRI Host & Controls */
+  #mri-host {
+    position: absolute; inset: 0; z-index: 6; background: #0d121c;
+    padding: 54px 8px 40px 8px; display: flex; flex-direction: column;
+  }
+  #mri-canvas { width: 100%; height: 100%; flex: 1; min-height: 0; display: block; outline: none; border-radius: 6px; }
+  #mri-status {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10;
+    background: rgba(15, 23, 42, 0.86); color: #e2e8f0; padding: 10px 18px; border-radius: 10px;
+    font-size: 13px; border: 1px solid rgba(148, 163, 184, 0.25); pointer-events: none;
+  }
+  .mri-coord-pill {
+    background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 12px; padding: 4px 11px; font-size: 11px; color: #e2e8f0;
+    backdrop-filter: blur(6px); font-variant-numeric: tabular-nums;
+  }
+  .glass-btn.active { background: #eff6ff; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
+  .glass-btn.accent { background: #2563eb; border-color: #1d4ed8; color: #ffffff; font-weight: 600; }
+  .glass-btn.accent:hover { background: #1d4ed8; color: #ffffff; }
+  .dec-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+  .mini-chip {
+    border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; border-radius: 99px;
+    padding: 3px 10px; font-size: 11px; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex-shrink: 0; line-height: 1.3;
+  }
+  .mini-chip.active { background: #eff6ff; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
+
+  /* Loading / Status Center Message */
+  #center-status {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 13.5px; color: #64748b; z-index: 15;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div id="canvas-host"></div>
+  <div id="labels-layer"></div>
+  <div id="center-status">正在初始化三维脑模...</div>
+
+  <div id="mri-host" class="hidden">
+    <canvas id="mri-canvas"></canvas>
+    <div id="mri-status" class="hidden"></div>
+  </div>
+
+  <div class="top-left-bar">
+    <div class="seg-group" id="mode-group">
+      <button class="seg-btn active" data-mode="cortex">皮层投影</button>
+      <button class="seg-btn" data-mode="atlas">脑区图谱</button>
+      <button class="seg-btn" data-mode="scalp">头皮地形图</button>
+      <button class="seg-btn hidden" id="mode-connectome-btn" data-mode="connectome">功能连接</button>
+      <button class="seg-btn hidden" id="mode-source-btn" data-mode="source">源定位</button>
+      <button class="seg-btn hidden" id="mode-tract-btn" data-mode="tractography">白质纤维</button>
+      <button class="seg-btn hidden" id="mode-mri-btn" data-mode="mri">MRI 切片</button>
+    </div>
+    <select id="atlas-select" class="glass-select hidden" title="选择大脑皮层分区图谱">
+      <option value="lobes">大脑脑叶分区 (Lobes)</option>
+      <option value="dk">Desikan-Killiany (68区)</option>
+      <option value="yeo7">Yeo-7 功能网络</option>
+    </select>
+    <select id="tract-bundle-select" class="glass-select hidden" title="筛选白质纤维束">
+      <option value="all">全脑主要纤维束 (示意)</option>
+      <option value="cc">胼胝体 · 左右联合 (红)</option>
+      <option value="cst">皮质脊髓束 / 放射冠 (蓝)</option>
+      <option value="slf">上纵束 / 弓状束 (绿)</option>
+      <option value="ifof">下额枕束 (绿)</option>
+      <option value="cing">扣带束 · 边缘环路 (绿)</option>
+    </select>
+    <select id="mri-layout-select" class="glass-select hidden" title="选择 MRI 切片布局">
+      <option value="multiplanar">四视图（三切面 + 3D）</option>
+      <option value="render">纯 3D 立体剖面</option>
+      <option value="axial">轴位切片 (Axial)</option>
+      <option value="coronal">冠状位切片 (Coronal)</option>
+      <option value="sagittal">矢状位切片 (Sagittal)</option>
+    </select>
+  </div>
+
+  <div class="top-right-bar">
+    <button id="preset-btn" class="glass-btn hidden" title="切换示意分布">分布：额区激活</button>
+    <button id="colormap-btn" class="glass-btn" title="切换热力色带">色带：Turbo</button>
+    <button id="source-mri-btn" class="glass-btn accent hidden" title="将当前选中源点坐标同步定位到 MRI 三切面">在 MRI 中定位 →</button>
+    <button id="tract-open-btn" class="glass-btn hidden" title="导入本地 MRtrix (.tck) 或 TrackVis (.trk) 白质纤维文件">打开 .tck / .trk...</button>
+    <button id="tract-reset-file-btn" class="glass-btn hidden" title="恢复内置全脑示意纤维束">恢复模板</button>
+    <input id="tract-file-input" type="file" accept=".tck,.trk" class="hidden" />
+    <button id="mri-back-source-btn" class="glass-btn accent hidden" title="返回 3D 源定位视图">← 返回源定位</button>
+    <button id="mri-clip-btn" class="glass-btn active hidden" title="切换 3D 脑部剖切面">3D 剖切：开</button>
+    <button id="mri-atlas-btn" class="glass-btn hidden" title="叠加 FreeSurfer 皮层与深部核团标注">核团叠加：关</button>
+    <button id="mri-open-btn" class="glass-btn hidden" title="导入本地 .nii / .nii.gz / .mgz / .tck / .trk 文件">打开 MRI...</button>
+    <input id="mri-file-input" type="file" accept=".nii,.nii.gz,.mgz,.mgh,.tck,.trk" class="hidden" />
+    <button id="reset-btn" class="glass-btn" title="平滑恢复默认视角">
+      <svg viewBox="0 0 24 24"><path d="M 12 4 A 8 8 0 1 0 19.3 15 M 19 4 L 19 9 L 14 9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>复位视角</span>
+    </button>
+  </div>
+
+  <div id="colorbar-card" class="side-card hidden">
+    <div id="colorbar-unit" class="colorbar-title">相对功率 (%)</div>
+    <div class="colorbar-body">
+      <div id="colorbar-gradient" class="colorbar-gradient"></div>
+      <div class="colorbar-ticks">
+        <span id="tick-max">100%</span>
+        <span id="tick-mid">50%</span>
+        <span id="tick-min">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="atlas-card" class="side-card atlas-card hidden">
+    <div id="atlas-card-title" class="atlas-title">脑区 (Atlas)</div>
+    <div id="atlas-list" class="atlas-list"></div>
+  </div>
+
+  <div id="region-tooltip"></div>
+
+  <div id="connectome-bar" class="connectome-bar hidden">
+    <span>连接阈值</span>
+    <input id="connectome-threshold" type="range" min="0.20" max="0.92" step="0.02" value="0.50" />
+    <span id="connectome-threshold-val" class="connectome-val">0.50</span>
+    <span id="connectome-edge-count" class="connectome-count">0 条连边</span>
+  </div>
+
+  <div id="source-bar" class="connectome-bar hidden">
+    <span id="source-info-text" style="font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">主偶极子 · MNI (-46, -16, -14) mm</span>
+    <button id="source-toggle-dipole" class="mini-chip active">偶极子</button>
+    <button id="source-toggle-hotspot" class="mini-chip active">皮层激活</button>
+  </div>
+
+  <div id="tract-bar" class="connectome-bar hidden">
+    <span style="white-space:nowrap;"><span class="dec-dot" style="background:#ef4444"></span>左右</span>
+    <span style="white-space:nowrap;"><span class="dec-dot" style="background:#22c55e"></span>前后</span>
+    <span style="white-space:nowrap;"><span class="dec-dot" style="background:#3b82f6"></span>上下</span>
+    <input id="tract-opacity" type="range" min="0.25" max="1.00" step="0.05" value="0.88" style="width:92px;" title="纤维不透明度" />
+    <span id="tract-count" class="connectome-count">0 条纤维</span>
+  </div>
+
+  <div class="bottom-left-stack">
+    <div id="hint-pill" class="hint-pill">左键拖动：旋转 · Shift + 左键：平移 · 滚轮：缩放</div>
+    <div id="mri-coord-pill" class="mri-coord-pill hidden">模板参考：fsaverage T1 MRI（左键点选切片 · 右键拖拉窗宽窗位 · 滚轮翻层）</div>
+    <div id="window-pill" class="window-pill"></div>
+  </div>
+
+  <div id="dim-switcher" class="seg-group">
+    <button id="btn-2d" class="seg-btn">2D</button>
+    <button id="btn-3d" class="seg-btn active">3D</button>
+  </div>
+
+  <script type="module" src="./viewer.js"></script>
+</body>
+</html>

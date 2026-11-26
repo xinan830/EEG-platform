@@ -38,7 +38,7 @@ def compute_ica_fit_fingerprint(
     norm_rem = removal_spec.normalized()
     payload = json.dumps(
         {
-            "version": "ica-fit-v1",
+            "version": "ica-fit-v2-source-references",
             "artifact_detection_version": ARTIFACT_DETECTION_VERSION if norm_art.is_active else None,
             "recording_id": str(recording_id),
             "source_sha256": str(source_sha256),

@@ -212,11 +212,14 @@ class RecordingService:
     def open_access_session(
         self, recording: RecordingSummary, *, analysis_montage_id: str | None = None,
         verify_content_hash: bool = True, bad_channel_spec=None, raw_unprojected: bool = False,
+        raw_voltage_channels: bool = False,
+        artifact_reference_channels=(),
     ):
         return self._recording_access.open_session(
             recording, analysis_montage_id=analysis_montage_id,
             verify_content_hash=verify_content_hash, bad_channel_spec=bad_channel_spec,
-            raw_unprojected=raw_unprojected,
+            raw_unprojected=raw_unprojected, raw_voltage_channels=raw_voltage_channels,
+            artifact_reference_channels=artifact_reference_channels,
         )
 
     def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:

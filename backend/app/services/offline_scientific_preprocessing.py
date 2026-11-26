@@ -84,6 +84,7 @@ class OfflineScientificPreprocessingService:
         artifact_rejection_spec: ArtifactRejectionSpec | None = None,
         artifact_removal_spec: ArtifactRemovalSpec | None = None,
         preprocessing_spec: OfflinePreprocessingSpec | None = None,
+        artifact_reference_channels: tuple[str, ...] = (),
     ) -> PreprocessedRecording:
         """Full-recording continuous scientific preparation driven by OfflinePreprocessingSpec."""
         resolved_spec = preprocessing_spec or OfflinePreprocessingSpec(
@@ -117,6 +118,7 @@ class OfflineScientificPreprocessingService:
             execution_context,
             channels=channels,
             requested_channels_only=requested_channels_only,
+            _artifact_reference_channels=artifact_reference_channels,
         )
 
     def prepare_bounded_window(

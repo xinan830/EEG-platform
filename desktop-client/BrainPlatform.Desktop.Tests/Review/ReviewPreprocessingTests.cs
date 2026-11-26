@@ -275,6 +275,15 @@ public sealed partial class ReviewPreprocessingTests
 
     private class FakePreprocessingClient : IPreprocessingClient
     {
+        public virtual Task<PreprocessingAnalysisChannels> GetPreprocessingAnalysisChannelsAsync(string recordingId,
+            OfflinePreprocessingConfigPayload preprocessing, string? montageId, CancellationToken cancellationToken) =>
+            Task.FromResult(new PreprocessingAnalysisChannels(recordingId, ["F3", "F4"]));
+
+        public virtual Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(
+            string recordingId, CancellationToken cancellationToken) =>
+            Task.FromResult(new ArtifactReferenceCatalogue(recordingId, 500, 30000,
+                [new("Fp1", "V"), new("EOG1", "V"), new("EOG2", "V"), new("ECG1", "V")]));
+
         public virtual Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
             string recordingId, double startSeconds, double windowSeconds, CancellationToken cancellationToken) =>
             Task.FromResult(new BadChannelInspectionResponse(
@@ -294,7 +303,8 @@ public sealed partial class ReviewPreprocessingTests
         public virtual Task<ArtifactSegmentInspectionResponse> InspectArtifactSegmentsAsync(
             string recordingId, double startSeconds, double windowSeconds, string? montageId,
             double? peakToPeakUv, double? muscleZScoreThreshold, IReadOnlyList<string>? badChannels,
-            string badChannelPolicy, CancellationToken cancellationToken) =>
+            string badChannelPolicy, IReadOnlyList<string>? eogChannels,
+            IReadOnlyList<string>? ecgChannels, CancellationToken cancellationToken) =>
             Task.FromResult(new ArtifactSegmentInspectionResponse(
                 RecordingId: recordingId,
                 SamplingRateHz: 500,
@@ -315,7 +325,8 @@ public sealed partial class ReviewPreprocessingTests
             string recordingId, string? montageId, double lowHz, double highHz, double? notchHz,
             IReadOnlyList<string>? badChannels, string badChannelPolicy, string artifactPolicy,
             double? peakToPeakUv, double? muscleZScoreThreshold, bool allowFrontalEogProxy,
-            int? icaComponentCount, double icaEogThreshold, CancellationToken cancellationToken)
+            int? icaComponentCount, double icaEogThreshold, IReadOnlyList<string>? eogChannels,
+            IReadOnlyList<string>? ecgChannels, CancellationToken cancellationToken)
         {
             var grid = new TopomapGrid(
                 Method: "idw",

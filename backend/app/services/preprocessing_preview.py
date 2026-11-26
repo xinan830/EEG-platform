@@ -287,7 +287,8 @@ def build_preprocessing_preview_window(
             artifact_removal_spec=norm_rem if norm_rem.is_active else None,
             preprocessing_spec=processed_spec,
         )
-        _verify_paired_preparations(baseline, processed, bad_channel_active=norm_bad.is_active)
+        _verify_paired_preparations(baseline, processed,
+            bad_channel_active=norm_bad.is_active or bool(norm_rem.eog_channels or norm_rem.ecg_channels))
     else:
         processed = baseline
 
@@ -301,7 +302,8 @@ def build_preprocessing_preview_window(
     base_channels = [str(ch) for ch in baseline.channel_names]
     proc_channels = [str(ch) for ch in processed.channel_names]
     proc_col_lookup, excluded_output_channels = _match_processed_channels(
-        base_channels, proc_channels, allow_exclusions=(norm_bad.policy == "exclude"),
+        base_channels, proc_channels,
+        allow_exclusions=(norm_bad.policy == "exclude" or bool(norm_rem.eog_channels or norm_rem.ecg_channels)),
     )
 
     base_slice = np.asarray(baseline.data[s_idx:e_idx], dtype=np.float64)

@@ -122,14 +122,16 @@ class ArraySampleReader:
 
 
 class WpfSampleReader:
-    def __init__(self, source: str | Path | WpfRecordingFacts):
+    def __init__(self, source: str | Path | WpfRecordingFacts, *, voltage_channels: bool = False):
         self.facts = source if isinstance(source, WpfRecordingFacts) else inspect_wpf_recording(source)
         self.batches = self.facts.batches
         self.first_counter = self.batches[0][0]
         self.starts = [item[0] - self.first_counter for item in self.batches]
         self.sfreq = self.facts.sampling_rate_hz
         self.sample_count = self.facts.sample_count
-        self.names = tuple(self.facts.channels[i].label for i in self.facts.eeg_indexes)
+        self.stream_indexes = (tuple(ch.stream_index for ch in self.facts.channels if ch.unit == "V" and ch.label.strip())
+                               if voltage_channels else self.facts.eeg_indexes)
+        self.names = tuple(self.facts.channels[i].label for i in self.stream_indexes)
         self._maps: dict[Path, mmap.mmap] = {}
         self._map_lock = RLock()
 
@@ -151,7 +153,7 @@ class WpfSampleReader:
         if not 0 <= start <= stop <= self.sample_count:
             raise ValueError("sample range is outside the recording")
         selected = list(range(len(self.names))) if channels is None else channels
-        stream_indexes = [self.facts.eeg_indexes[i] for i in selected]
+        stream_indexes = [self.stream_indexes[i] for i in selected]
         values = np.full((stop - start, len(selected)), np.nan, dtype=float)
         first_batch = max(0, bisect_right(self.starts, start) - 1)
         group: list[tuple[int, int, int, int, int, Path]] = []
