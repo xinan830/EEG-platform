@@ -18,6 +18,8 @@ dependencies = [
     "threadpoolctl>=3.5",
     "specparam>=2.0.0rc6",
     "ai-edge-litert>=2.3.0,<2.4",
+    "mne-icalabel>=0.7",
+    "onnxruntime>=1.18",
 ]
 
 [project.optional-dependencies]

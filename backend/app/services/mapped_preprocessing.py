@@ -135,18 +135,26 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
             artifact_intervals = report.segments
             if norm_art.policy == "reject" and artifact_intervals:
                 apply_artifact_rejection_mask(target, artifact_intervals, names, in_place=True)
-        if source is not None:
+        norm_rem = artifact_removal_spec.normalized() if artifact_removal_spec is not None else None
+        keep_source_for_ica = source is not None and norm_rem is not None and norm_rem.method == "ica_infomax"
+        if source is not None and not keep_source_for_ica:
             owner.release(source)
+            source = None
         artifact_removal_evidence: dict[str, object] | None = None
-        if artifact_removal_spec is not None and artifact_removal_spec.normalized().is_active:
+        if norm_rem is not None and norm_rem.is_active:
             from app.services.artifact_removal_preparation import apply_prepared_removal
             from app.scientific.contracts.preprocessing import ScientificFilterSpec
             check_cancelled()
-            target[:], artifact_removal_evidence = apply_prepared_removal(
-                recordings, recording, session, target, names, artifact_removal_spec.normalized(),
-                filters=ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q),
-                bad_spec=bad_channel_spec, artifact_spec=artifact_rejection_spec,
-                owner=owner, check_cancelled=check_cancelled)
+            try:
+                target[:], artifact_removal_evidence = apply_prepared_removal(
+                    recordings, recording, session, target, names, norm_rem,
+                    filters=ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q),
+                    bad_spec=bad_channel_spec, artifact_spec=artifact_rejection_spec,
+                    owner=owner, check_cancelled=check_cancelled, raw_source=source)
+            finally:
+                if source is not None:
+                    owner.release(source)
+                    source = None
         session._validate_source()
         target.flush()
         return PreprocessedRecording(

@@ -180,11 +180,14 @@ def test_eog_proxy_safety_blocks_silent_frontal_eeg_regression_and_requires_conf
     with pytest.raises(ValueError, match="ARTIFACT_REMOVAL_EOG_CHANNEL_UNAVAILABLE"):
         apply_offline_artifact_removal(mixed, 250.0, _CHANNELS_10, ArtifactRemovalSpec(method="eog_regression"))
 
-    # SSP and ICA MUST require explicit allow_frontal_eog_proxy=True (or explicit eog_channels) on frontal EEG-only caps.
+    # SSP requires an EOG reference; ICA can fit without silently using frontal EEG.
     with pytest.raises(ValueError, match="ARTIFACT_REMOVAL_FRONTAL_PROXY_CONFIRMATION_REQUIRED"):
         apply_offline_artifact_removal(mixed, 250.0, _CHANNELS_10, ArtifactRemovalSpec(method="ssp_eog"))
-    with pytest.raises(ValueError, match="ARTIFACT_REMOVAL_FRONTAL_PROXY_CONFIRMATION_REQUIRED"):
-        apply_offline_artifact_removal(mixed, 250.0, _CHANNELS_10, ArtifactRemovalSpec(method="ica_infomax"))
+    result = apply_offline_artifact_removal(mixed, 250.0, _CHANNELS_10, ArtifactRemovalSpec(method="ica_infomax"))
+    assert result.eog_channels_used == ()
+    assert result.eog_channel_source is None
+    assert result.excluded_components == ()
+    np.testing.assert_array_equal(result.data_v, mixed)
 
     # With allow_frontal_eog_proxy=True, SSP & ICA succeed and honestly report eog_channel_source="frontal_eeg_proxy".
     res_ssp = apply_offline_artifact_removal(

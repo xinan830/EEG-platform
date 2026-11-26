@@ -106,8 +106,8 @@
                                  IsChecked="{Binding IsRemovalIca, Mode=TwoWay}"
                                  Style="{StaticResource PrepPolicyOptionCardStyle}" Padding="12,9">
                         <StackPanel>
-                            <TextBlock Text="可审查 Infomax ICA（推荐）" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" />
-                            <TextBlock Text="可视化 2D 头皮热力图与波形，手动确认剔除成分" FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            <TextBlock Text="可审查 Extended Infomax ICA（推荐）" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" />
+                            <TextBlock Text="CAR 下自动启用 ICLabel 7 类伪迹打标，结合热力图手动确认" FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Grid.Row="2" Grid.Column="0" GroupName="RemovalMethodGroup"
@@ -140,8 +140,10 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                                <TextBlock Text="ICA 成分可视化审查" FontSize="13.5" FontWeight="Bold" Foreground="#0F172A" />
+                                <TextBlock Text="ICA 成分可视化审查（Extended Infomax + ICLabel）" FontSize="13.5" FontWeight="Bold" Foreground="#0F172A" />
                                 <TextBlock Text="{Binding IcaSummaryText}" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                <TextBlock Text="平均参考 (CAR) 下自动启用 ICLabel 7 类伪迹识别（1–100 Hz 宽带拟合旁路），主分析链路仍严格保持 1–50 Hz。"
+                                           FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,3,0,0" />
                             </StackPanel>
                             <Button x:Name="OpenIcaReviewButton" Grid.Column="1" Content="拟合 ICA 并打开审查"
                                     Click="OnOpenIcaReviewClick" Style="{StaticResource PrepPrimaryButtonStyle}"

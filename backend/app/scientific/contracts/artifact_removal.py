@@ -6,12 +6,172 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
-from typing import Literal
+from typing import Any, Literal
+
+import mne
+import numpy as np
 
 
 ArtifactRemovalMethod = Literal["none", "eog_regression", "ssp_eog", "ica_infomax"]
 _VALID_METHODS = frozenset({"none", "eog_regression", "ssp_eog", "ica_infomax"})
-ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v4-channel-identities"
+ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v7-verified-icalabel"
+
+
+@dataclass(frozen=True)
+class FittedIcaModel:
+    """Reusable fitted MNE Extended Infomax ICA model + rank/convergence/ICLabel metadata."""
+
+    ica: Any
+    info: Any
+    channel_names: tuple[str, ...]
+    sampling_rate_hz: float
+    sample_count: int
+    eog_channels_used: tuple[str, ...]
+    eog_channel_source: str | None
+    ecg_channels_used: tuple[str, ...]
+    recommended_exclude_components: tuple[int, ...]
+    component_scores: tuple[dict[str, object], ...]
+    ica_algorithm: str = "extended_infomax"
+    fit_bandpass_hz: tuple[float, float] | None = None
+    fit_band_limited_by_nyquist: bool = False
+    classifier_method: str = "eog_ecg_correlation"
+    classifier_status: str = "fallback_eog_ecg"
+    classifier_unavailable_reason: str | None = None
+    classifier_version: str | None = None
+    onnxruntime_version: str | None = None
+    iclabel_model_sha256: str | None = None
+    recommendation_rule_version: str | None = None
+    iclabel_exclude_threshold: float = 0.75
+    iclabel_max_brain_probability: float = 0.25
+    effective_rank: int | None = None
+    n_components_requested: int | None = None
+    rank_capped: bool = False
+    ica_converged: bool = True
+    ica_n_iter: int | None = None
+    ica_max_iter: int = 500
+    fit_duration_s: float | None = None
+    fit_sample_sufficiency: str | None = None
+    fit_warnings: tuple[str, ...] = ()
+
+    def to_inspection_dict(self, selected_exclude: tuple[int, ...] | None = None) -> dict[str, object]:
+        excluded = set(self.recommended_exclude_components if selected_exclude is None else selected_exclude)
+        table = [{**row, "excluded": int(row["component_index"]) in excluded} for row in self.component_scores]
+        return {
+            "method": "ica_infomax", "ica_algorithm": self.ica_algorithm, "mne_version": mne.__version__,
+            "sampling_rate_hz": self.sampling_rate_hz, "sample_count": self.sample_count,
+            "n_components": int(self.ica.n_components_), "n_components_requested": self.n_components_requested,
+            "effective_rank": self.effective_rank, "rank_capped": self.rank_capped,
+            "ica_converged": self.ica_converged, "ica_n_iter": self.ica_n_iter, "ica_max_iter": self.ica_max_iter,
+            "fit_duration_s": self.fit_duration_s, "fit_sample_sufficiency": self.fit_sample_sufficiency,
+            "fit_warnings": list(self.fit_warnings),
+            "eog_channels_used": list(self.eog_channels_used),
+            "eog_channel_source": self.eog_channel_source, "ecg_channels_used": list(self.ecg_channels_used),
+            "fit_bandpass_hz": None if self.fit_bandpass_hz is None else [float(self.fit_bandpass_hz[0]), float(self.fit_bandpass_hz[1])],
+            "fit_band_limited_by_nyquist": self.fit_band_limited_by_nyquist,
+            "classifier_method": self.classifier_method, "classifier_status": self.classifier_status,
+            "classifier_unavailable_reason": self.classifier_unavailable_reason, "classifier_version": self.classifier_version,
+            "onnxruntime_version": self.onnxruntime_version, "iclabel_model_sha256": self.iclabel_model_sha256,
+            "recommendation_rule_version": self.recommendation_rule_version,
+            "iclabel_exclude_threshold": self.iclabel_exclude_threshold, "iclabel_max_brain_probability": self.iclabel_max_brain_probability,
+            "recommended_exclude_components": list(self.recommended_exclude_components),
+            "selected_exclude_components": sorted(excluded), "components": table,
+        }
+
+
+@dataclass(frozen=True)
+class ArtifactRemovalResult:
+    data_v: np.ndarray
+    method: str
+    applied: bool
+    status: str
+    eog_channels_used: tuple[str, ...] = ()
+    eog_channel_source: str | None = None
+    ecg_channels_used: tuple[str, ...] = ()
+    excluded_components: tuple[int, ...] = ()
+    component_scores: tuple[dict[str, object], ...] = ()
+    ssp_projectors_applied: int = 0
+    eog_events_detected: int = 0
+    regression_weights: dict[str, list[float]] | None = None
+    ica_fit_fingerprint: str | None = None
+    ica_model_reused: bool = False
+    application_validity: dict[str, object] | None = None
+    ica_algorithm: str | None = None
+    fit_bandpass_hz: tuple[float, float] | None = None
+    fit_band_limited_by_nyquist: bool | None = None
+    classifier_method: str | None = None
+    classifier_status: str | None = None
+    classifier_unavailable_reason: str | None = None
+    classifier_version: str | None = None
+    onnxruntime_version: str | None = None
+    iclabel_model_sha256: str | None = None
+    recommendation_rule_version: str | None = None
+    effective_rank: int | None = None
+    n_components_requested: int | None = None
+    rank_capped: bool | None = None
+    ica_converged: bool | None = None
+    ica_n_iter: int | None = None
+    fit_duration_s: float | None = None
+    fit_sample_sufficiency: str | None = None
+    fit_warnings: tuple[str, ...] = ()
+
+    def to_evidence(self) -> dict[str, object]:
+        return {
+            "method": self.method, "applied": self.applied, "status": self.status, "mne_version": mne.__version__,
+            "application_version": ARTIFACT_REMOVAL_APPLICATION_VERSION,
+            "eog_channels_used": list(self.eog_channels_used), "eog_channel_source": self.eog_channel_source,
+            "ecg_channels_used": list(self.ecg_channels_used), "excluded_components": list(self.excluded_components),
+            "component_scores": list(self.component_scores), "ssp_projectors_applied": self.ssp_projectors_applied,
+            "eog_events_detected": self.eog_events_detected, "regression_weights": self.regression_weights,
+            "ica_fit_fingerprint": self.ica_fit_fingerprint, "ica_model_reused": self.ica_model_reused,
+            "ica_algorithm": self.ica_algorithm,
+            "fit_bandpass_hz": None if self.fit_bandpass_hz is None else [float(self.fit_bandpass_hz[0]), float(self.fit_bandpass_hz[1])],
+            "fit_band_limited_by_nyquist": self.fit_band_limited_by_nyquist,
+            "classifier_method": self.classifier_method, "classifier_status": self.classifier_status,
+            "classifier_unavailable_reason": self.classifier_unavailable_reason, "classifier_version": self.classifier_version,
+            "onnxruntime_version": self.onnxruntime_version, "iclabel_model_sha256": self.iclabel_model_sha256,
+            "recommendation_rule_version": self.recommendation_rule_version,
+            "effective_rank": self.effective_rank, "n_components_requested": self.n_components_requested,
+            "rank_capped": self.rank_capped, "ica_converged": self.ica_converged, "ica_n_iter": self.ica_n_iter,
+            "fit_duration_s": self.fit_duration_s, "fit_sample_sufficiency": self.fit_sample_sufficiency,
+            "fit_warnings": list(self.fit_warnings),
+            "application_validity": self.application_validity,
+        }
+
+
+def build_ica_result_meta(
+    fitted: Any,
+    component_scores: tuple[dict[str, object], ...],
+    *,
+    ica_fit_fingerprint: str | None,
+    reused: bool,
+) -> dict[str, object]:
+    """Extract ArtifactRemovalResult metadata from FittedIcaModel or compatible stub."""
+    return {
+        "eog_channels_used": fitted.eog_channels_used,
+        "eog_channel_source": fitted.eog_channel_source,
+        "ecg_channels_used": fitted.ecg_channels_used,
+        "component_scores": component_scores,
+        "ica_fit_fingerprint": ica_fit_fingerprint,
+        "ica_model_reused": reused,
+        "ica_algorithm": getattr(fitted, "ica_algorithm", "extended_infomax"),
+        "fit_bandpass_hz": getattr(fitted, "fit_bandpass_hz", None),
+        "fit_band_limited_by_nyquist": getattr(fitted, "fit_band_limited_by_nyquist", None),
+        "classifier_method": getattr(fitted, "classifier_method", None),
+        "classifier_status": getattr(fitted, "classifier_status", None),
+        "classifier_unavailable_reason": getattr(fitted, "classifier_unavailable_reason", None),
+        "classifier_version": getattr(fitted, "classifier_version", None),
+        "onnxruntime_version": getattr(fitted, "onnxruntime_version", None),
+        "iclabel_model_sha256": getattr(fitted, "iclabel_model_sha256", None),
+        "recommendation_rule_version": getattr(fitted, "recommendation_rule_version", None),
+        "effective_rank": getattr(fitted, "effective_rank", None),
+        "n_components_requested": getattr(fitted, "n_components_requested", None),
+        "rank_capped": getattr(fitted, "rank_capped", None),
+        "ica_converged": getattr(fitted, "ica_converged", None),
+        "ica_n_iter": getattr(fitted, "ica_n_iter", None),
+        "fit_duration_s": getattr(fitted, "fit_duration_s", None),
+        "fit_sample_sufficiency": getattr(fitted, "fit_sample_sufficiency", None),
+        "fit_warnings": tuple(getattr(fitted, "fit_warnings", ())),
+    }
 
 
 def _dedupe_labels(labels: tuple[str, ...]) -> tuple[str, ...]:

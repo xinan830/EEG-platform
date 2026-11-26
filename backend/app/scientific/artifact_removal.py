@@ -6,78 +6,33 @@ All inputs/outputs are sample-major float64 arrays in SI volts (V); NaN gaps are
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Any, Sequence
+from dataclasses import replace
+from typing import Any, Mapping, Sequence
 import warnings
 
 import mne
 import numpy as np
 from scipy import signal
 
-from app.scientific.contracts.artifact_removal import ARTIFACT_REMOVAL_APPLICATION_VERSION, ArtifactRemovalSpec
+from app.scientific.contracts.artifact_removal import (
+    ARTIFACT_REMOVAL_APPLICATION_VERSION,
+    ArtifactRemovalResult,
+    ArtifactRemovalSpec,
+    FittedIcaModel,
+    build_ica_result_meta,
+)
 from app.scientific.artifact_removal_validity import build_application_validity
 from app.scientific.artifact_reference_signals import ArtifactReferenceSignals
+from app.scientific.ica_classifier import (
+    ICA_DEFAULT_MAX_ITER,
+    classify_ica_components,
+    compute_effective_rank,
+    fit_extended_infomax,
+    merge_ica_scores_with_classification,
+)
 
 
 _FRONTAL_EOG_PROXY_CANDIDATES = ("fp1", "fp2", "fpz")
-
-
-@dataclass(frozen=True)
-class FittedIcaModel:
-    """Reusable fitted MNE ICA model + review metadata bound to a verified preprocessing fingerprint."""
-    ica: Any
-    info: Any
-    channel_names: tuple[str, ...]
-    sampling_rate_hz: float
-    sample_count: int
-    eog_channels_used: tuple[str, ...]
-    eog_channel_source: str | None
-    ecg_channels_used: tuple[str, ...]
-    recommended_exclude_components: tuple[int, ...]
-    component_scores: tuple[dict[str, object], ...]
-
-    def to_inspection_dict(self, selected_exclude: tuple[int, ...] | None = None) -> dict[str, object]:
-        excluded = set(self.recommended_exclude_components if selected_exclude is None else selected_exclude)
-        table = [{**row, "excluded": int(row["component_index"]) in excluded} for row in self.component_scores]
-        return {
-            "method": "ica_infomax", "mne_version": mne.__version__,
-            "sampling_rate_hz": self.sampling_rate_hz, "sample_count": self.sample_count,
-            "n_components": int(self.ica.n_components_), "eog_channels_used": list(self.eog_channels_used),
-            "eog_channel_source": self.eog_channel_source, "ecg_channels_used": list(self.ecg_channels_used),
-            "recommended_exclude_components": list(self.recommended_exclude_components),
-            "selected_exclude_components": sorted(excluded), "components": table,
-        }
-
-
-@dataclass(frozen=True)
-class ArtifactRemovalResult:
-    data_v: np.ndarray
-    method: str
-    applied: bool
-    status: str
-    eog_channels_used: tuple[str, ...] = ()
-    eog_channel_source: str | None = None
-    ecg_channels_used: tuple[str, ...] = ()
-    excluded_components: tuple[int, ...] = ()
-    component_scores: tuple[dict[str, object], ...] = ()
-    ssp_projectors_applied: int = 0
-    eog_events_detected: int = 0
-    regression_weights: dict[str, list[float]] | None = None
-    ica_fit_fingerprint: str | None = None
-    ica_model_reused: bool = False
-    application_validity: dict[str, object] | None = None
-
-    def to_evidence(self) -> dict[str, object]:
-        return {
-            "method": self.method, "applied": self.applied, "status": self.status, "mne_version": mne.__version__,
-            "application_version": ARTIFACT_REMOVAL_APPLICATION_VERSION,
-            "eog_channels_used": list(self.eog_channels_used), "eog_channel_source": self.eog_channel_source,
-            "ecg_channels_used": list(self.ecg_channels_used), "excluded_components": list(self.excluded_components),
-            "component_scores": list(self.component_scores), "ssp_projectors_applied": self.ssp_projectors_applied,
-            "eog_events_detected": self.eog_events_detected, "regression_weights": self.regression_weights,
-            "ica_fit_fingerprint": self.ica_fit_fingerprint, "ica_model_reused": self.ica_model_reused,
-            "application_validity": self.application_validity,
-        }
 
 
 def _strip_montage_suffix(label: str) -> str:
@@ -282,11 +237,18 @@ def _apply_ssp_eog(
     )
 
 
+def _concat_demeaned_finite_spans(data_v: np.ndarray) -> np.ndarray:
+    pieces = [data_v[s:e] - np.mean(data_v[s:e], axis=0, keepdims=True) for s, e in _contiguous_finite_spans(data_v, 1)]
+    return np.vstack(pieces) if pieces else np.empty((0, data_v.shape[1]), dtype=np.float64)
+
+
 def fit_ica_model(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec | None = None,
-    *, references: ArtifactReferenceSignals | None = None,
+    *, references: ArtifactReferenceSignals | None = None, fit_values_v: np.ndarray | None = None,
+    signal_provenance: Mapping[str, object] | None = None, fit_bandpass_hz: tuple[float, float] | None = None,
+    fit_band_limited_by_nyquist: bool = False,
 ) -> FittedIcaModel:
-    """Fit reproducible MNE infomax ICA on 1 Hz span-highpassed copy and score components."""
+    """Fit reproducible MNE Extended Infomax ICA (on broadband copy if provided) and score components."""
     data = np.asarray(values_v, dtype=np.float64)
     if data.ndim != 2:
         raise ValueError("ICA 审查输入必须是二维样本矩阵 (samples, channels)")
@@ -298,59 +260,65 @@ def fit_ica_model(
         raise ValueError("采样率必须为有限正数")
     norm = (spec or ArtifactRemovalSpec(method="ica_infomax")).normalized()
     if norm.method != "ica_infomax":
-        norm = ArtifactRemovalSpec(
-            method="ica_infomax", eog_channels=norm.eog_channels, ecg_channels=norm.ecg_channels,
-            allow_frontal_eog_proxy=norm.allow_frontal_eog_proxy, ica_n_components=norm.ica_n_components,
-            ica_eog_threshold=norm.ica_eog_threshold, ica_exclude_components=norm.ica_exclude_components,
-            random_state=norm.random_state,
-        ).normalized()
+        norm = replace(norm, method="ica_infomax").normalized()
 
     n_channels = len(names)
     if n_channels < 4:
         raise ValueError("ARTIFACT_REMOVAL_INSUFFICIENT_CHANNELS: ICA 去伪迹至少需要 4 路 EEG 通道")
-    finite_rows = np.all(np.isfinite(data), axis=1)
+    fit_source = data if fit_values_v is None else np.asarray(fit_values_v, dtype=np.float64)
+    if fit_source.shape != data.shape:
+        raise ValueError("宽带 ICA 拟合矩阵形状必须与主信号一致")
+    finite_rows = np.all(np.isfinite(fit_source), axis=1)
     if int(np.count_nonzero(finite_rows)) < max(256, int(round(5.0 * rate))):
         raise ValueError("ARTIFACT_REMOVAL_INSUFFICIENT_FINITE_SAMPLES: 有效样本不足 5 秒，无法稳定拟合 ICA")
 
     ecg_names = (references.ecg_channels if references is not None and references.ecg_channels
                  else _resolve_ecg_channels(names, norm.ecg_channels))
-    eog_required = not ecg_names and norm.ica_exclude_components is None
     external_eog = references.eog_channels if references is not None else ()
     proxy_requests = tuple(name for name in norm.eog_channels if name not in external_eog)
     eog_names, eog_source = ((), None) if external_eog and not proxy_requests else _resolve_eog_channels(
-        names, replace(norm, eog_channels=proxy_requests), allow_frontal_fallback=True, required=eog_required and not external_eog, max_auto=2)
+        names, replace(norm, eog_channels=proxy_requests), allow_frontal_fallback=True, required=False, max_auto=2)
     if external_eog:
         eog_names, eog_source = (*external_eog, *eog_names), "explicit_channel"
-    n_components = min(norm.ica_n_components or min(n_channels - 1, 20), n_channels - 1)
-    fit_hp = _highpass_finite_spans(data, rate, cutoff_hz=1.0)
+    fit_hp = _highpass_finite_spans(data, rate, cutoff_hz=1.0) if fit_values_v is None else _concat_demeaned_finite_spans(fit_source)
+    effective_rank = compute_effective_rank(fit_hp)
+    if effective_rank < 3:
+        raise ValueError(f"ARTIFACT_REMOVAL_INSUFFICIENT_RANK: 有效信号秩（{effective_rank}）不足 3，无法稳定拟合 ICA")
+    n_components_requested = min(norm.ica_n_components or min(n_channels - 1, 20), n_channels - 1)
+    n_components = min(n_components_requested, effective_rank)
+    rank_capped = n_components < n_components_requested
     info = mne.create_info(list(names), sfreq=rate, ch_types="eeg")
     raw_fit = mne.io.RawArray(np.ascontiguousarray(fit_hp.T, dtype=np.float64), info, verbose=False)
 
-    ica = mne.preprocessing.ICA(
-        n_components=n_components, method="infomax", random_state=norm.random_state, max_iter=300, verbose=False,
+    max_iter = ICA_DEFAULT_MAX_ITER
+    ica, ica_converged, ica_n_iter = fit_extended_infomax(
+        raw_fit, n_components=n_components, random_state=norm.random_state, max_iter=max_iter,
     )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        ica.fit(raw_fit, verbose=False)
+    fit_duration_s = round(len(fit_hp) / rate, 3)
+    fit_sample_sufficiency = "sufficient" if len(fit_hp) >= (20 * n_components * n_components) else "short_recording"
+    fit_warnings: list[str] = []
+    if rank_capped:
+        fit_warnings.append("rank_capped_to_effective_rank")
+    if not ica_converged:
+        fit_warnings.append("ica_not_converged")
+    if fit_sample_sufficiency != "sufficient":
+        fit_warnings.append("short_recording_for_ica_components")
 
     scoring_raw, reference_lookup = raw_fit, {}
     if references is not None:
         scoring_raw, reference_lookup = references.scoring_raw(data, names, rate, finite_rows)
-    eog_scores = np.zeros(ica.n_components_, dtype=np.float64)
-    auto_eog: set[int] = set()
+    eog_scores, auto_eog = np.zeros(ica.n_components_, dtype=np.float64), set()
     for ch in eog_names:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             indices, scores = ica.find_bads_eog(
                 scoring_raw, ch_name=reference_lookup.get(ch, ch), threshold=norm.ica_eog_threshold,
-                measure="correlation", verbose=False,
-            )
+                measure="correlation", verbose=False)
         auto_eog.update(int(i) for i in indices)
         arr = np.asarray(scores, dtype=np.float64)
         eog_scores = np.where(np.abs(arr) > np.abs(eog_scores), arr, eog_scores)
 
-    ecg_scores = np.zeros(ica.n_components_, dtype=np.float64)
-    auto_ecg: set[int] = set()
+    ecg_scores, auto_ecg = np.zeros(ica.n_components_, dtype=np.float64), set()
     for ch in ecg_names:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
@@ -359,33 +327,49 @@ def fit_ica_model(
         arr = np.asarray(scores, dtype=np.float64)
         ecg_scores = np.where(np.abs(arr) > np.abs(ecg_scores), arr, ecg_scores)
 
-    recommended = tuple(sorted(auto_eog | auto_ecg))
-    table = tuple(
-        {
-            "component_index": idx,
-            "eog_score": round(float(eog_scores[idx]), 4) if eog_names else None,
-            "ecg_score": round(float(ecg_scores[idx]), 4) if ecg_names else None,
-            "explained_variance_ratio": round(
-                float(ica.get_explained_variance_ratio(raw_fit, components=[idx], ch_type="eeg").get("eeg", 0.0)), 6,
-            ),
-            "recommended_exclude": idx in recommended,
-            "excluded": idx in recommended,
-        }
-        for idx in range(ica.n_components_)
+    evr = [float(ica.get_explained_variance_ratio(raw_fit, components=[idx], ch_type="eeg").get("eeg", 0.0))
+           for idx in range(ica.n_components_)]
+    classification = classify_ica_components(
+        raw_fit, ica, names, rate, signal_provenance=signal_provenance,
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist, ica_converged=ica_converged,
     )
+    recommended, table = merge_ica_scores_with_classification(
+        n_components=int(ica.n_components_), eog_scores=eog_scores, eog_names=eog_names,
+        has_dedicated_eog=bool(external_eog),
+        auto_eog=auto_eog, ecg_scores=ecg_scores, ecg_names=ecg_names, auto_ecg=auto_ecg,
+        explained_variance_ratios=evr, classification=classification, ica_converged=ica_converged)
     return FittedIcaModel(
         ica=ica, info=info, channel_names=names, sampling_rate_hz=rate, sample_count=int(data.shape[0]),
         eog_channels_used=eog_names, eog_channel_source=eog_source, ecg_channels_used=ecg_names,
         recommended_exclude_components=recommended, component_scores=table,
+        ica_algorithm="extended_infomax", fit_bandpass_hz=fit_bandpass_hz,
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist,
+        classifier_method=classification.classifier_method, classifier_status=classification.classifier_status,
+        classifier_unavailable_reason=classification.classifier_unavailable_reason,
+        classifier_version=classification.classifier_version,
+        onnxruntime_version=classification.onnxruntime_version,
+        iclabel_model_sha256=classification.iclabel_model_sha256,
+        recommendation_rule_version=classification.recommendation_rule_version,
+        iclabel_exclude_threshold=classification.iclabel_exclude_threshold,
+        iclabel_max_brain_probability=classification.iclabel_max_brain_probability,
+        effective_rank=effective_rank, n_components_requested=n_components_requested,
+        rank_capped=rank_capped, ica_converged=ica_converged, ica_n_iter=ica_n_iter,
+        ica_max_iter=max_iter, fit_duration_s=fit_duration_s,
+        fit_sample_sufficiency=fit_sample_sufficiency, fit_warnings=tuple(fit_warnings),
     )
 
 
 def inspect_ica_components(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec | None = None,
+    *, signal_provenance: Mapping[str, object] | None = None, fit_values_v: np.ndarray | None = None,
+    fit_bandpass_hz: tuple[float, float] | None = None, fit_band_limited_by_nyquist: bool = False,
 ) -> dict[str, object]:
-    """Fit reproducible MNE infomax ICA on 1 Hz high-pass copy and return reviewable IC scores."""
+    """Fit reproducible MNE Extended Infomax ICA and return reviewable IC scores."""
     norm = (spec or ArtifactRemovalSpec(method="ica_infomax")).normalized()
-    fitted = fit_ica_model(values_v, sfreq_hz, channel_names, norm)
+    fitted = fit_ica_model(
+        values_v, sfreq_hz, channel_names, norm, fit_values_v=fit_values_v,
+        signal_provenance=signal_provenance, fit_bandpass_hz=fit_bandpass_hz,
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist)
     if norm.ica_exclude_components is not None:
         invalid = [idx for idx in norm.ica_exclude_components if idx >= fitted.ica.n_components_]
         if invalid:
@@ -396,7 +380,9 @@ def inspect_ica_components(
 def apply_offline_artifact_removal(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec, *,
     prefitted_ica: FittedIcaModel | None = None, ica_fit_fingerprint: str | None = None,
-    references: ArtifactReferenceSignals | None = None,
+    references: ArtifactReferenceSignals | None = None, fit_values_v: np.ndarray | None = None,
+    signal_provenance: Mapping[str, object] | None = None, fit_bandpass_hz: tuple[float, float] | None = None,
+    fit_band_limited_by_nyquist: bool = False,
 ) -> ArtifactRemovalResult:
     """Apply explicit offline artifact removal (EOG regression, MNE SSP, or reviewable ICA)."""
     norm, data = spec.normalized(), np.asarray(values_v, dtype=np.float64)
@@ -408,7 +394,6 @@ def apply_offline_artifact_removal(
     rate = float(sfreq_hz)
     if not np.isfinite(rate) or rate <= 0:
         raise ValueError("采样率必须为有限正数")
-
     if not norm.is_active:
         return ArtifactRemovalResult(data_v=data.copy(), method="none", applied=False, status="disabled")
 
@@ -423,7 +408,10 @@ def apply_offline_artifact_removal(
         return with_validity(_apply_ssp_eog(data, rate, names, norm, references))
 
     reused = prefitted_ica is not None
-    fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(data, rate, names, norm, references=references)
+    fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(
+        data, rate, names, norm, references=references, fit_values_v=fit_values_v,
+        signal_provenance=signal_provenance, fit_bandpass_hz=fit_bandpass_hz,
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist)
     if norm.ica_exclude_components is not None:
         invalid = [idx for idx in norm.ica_exclude_components if idx >= fitted.ica.n_components_]
         if invalid:
@@ -432,14 +420,11 @@ def apply_offline_artifact_removal(
     else:
         excluded = fitted.recommended_exclude_components
     table = tuple({**row, "excluded": int(row["component_index"]) in excluded} for row in fitted.component_scores)
-
+    ica_meta = build_ica_result_meta(fitted, table, ica_fit_fingerprint=ica_fit_fingerprint, reused=reused)
     if not excluded:
         return with_validity(ArtifactRemovalResult(
             data_v=data.copy(), method="ica_infomax", applied=False, status="skipped_no_artifact_components",
-            eog_channels_used=fitted.eog_channels_used, eog_channel_source=fitted.eog_channel_source,
-            ecg_channels_used=fitted.ecg_channels_used, excluded_components=(), component_scores=table,
-            ica_fit_fingerprint=ica_fit_fingerprint, ica_model_reused=reused,
-        ))
+            excluded_components=(), **ica_meta))
 
     output = data.copy()
     finite_rows = np.all(np.isfinite(data), axis=1)
@@ -451,7 +436,4 @@ def apply_offline_artifact_removal(
     output[~finite_rows] = np.nan
     return with_validity(ArtifactRemovalResult(
         data_v=output, method="ica_infomax", applied=True, status="applied",
-        eog_channels_used=fitted.eog_channels_used, eog_channel_source=fitted.eog_channel_source,
-        ecg_channels_used=fitted.ecg_channels_used, excluded_components=excluded, component_scores=table,
-        ica_fit_fingerprint=ica_fit_fingerprint, ica_model_reused=reused,
-    ))
+        excluded_components=excluded, **ica_meta))

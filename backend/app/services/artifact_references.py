@@ -145,14 +145,27 @@ def prepare_artifact_references(recordings, recording, spec, *, sample_count, sf
             release(target)
 
 
-def prepare_reviewed_ica(recordings, recording, pre_ica, spec, filters):
-    """Shared reference preparation for whole-recording ICA review and execution."""
+def prepare_reviewed_ica(
+    recordings, recording, pre_ica, spec, filters, *,
+    bad_spec=None, signal_provenance=None,
+):
+    """Shared reference & broadband-fit preparation for whole-recording ICA review and execution."""
     from app.scientific.artifact_removal import fit_ica_model
+    from app.services.artifact_removal_preparation import prepare_broadband_ica_fit_matrix
     from app.services.mapped_preprocessing import MappedArrays
     owner = MappedArrays()
     try:
         with prepare_artifact_references(recordings, recording, spec, sample_count=len(pre_ica.data),
                 sfreq=pre_ica.sfreq, filters=filters, allocate=owner.allocate, release=owner.release) as references:
-            return fit_ica_model(pre_ica.data, pre_ica.sfreq, pre_ica.channel_names, spec, references=references)
+            with prepare_broadband_ica_fit_matrix(
+                recordings, recording, target=pre_ica.data, names=tuple(pre_ica.channel_names),
+                sfreq=pre_ica.sfreq, filters=filters, bad_spec=bad_spec, spec=spec, owner=owner,
+            ) as (fit_values, fit_band, fit_limited):
+                return fit_ica_model(
+                    pre_ica.data, pre_ica.sfreq, pre_ica.channel_names, spec,
+                    references=references, fit_values_v=fit_values,
+                    signal_provenance=signal_provenance, fit_bandpass_hz=fit_band,
+                    fit_band_limited_by_nyquist=fit_limited,
+                )
     finally:
         owner.close()

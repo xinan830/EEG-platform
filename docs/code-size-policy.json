@@ -260,6 +260,11 @@
       "reason": "The acquisition lifecycle owner remains over 600 lines (843). It owns device lifecycle, sample-boundary serialization, and the live montage snapshot capture needed to keep waveform and algorithm batches on one revision. The live transport is created and closed at device stream boundaries; dispatchers own queueing and transport errors. Keep this cohesive lifecycle owner until the planned capture-loop and fault/stop boundaries can be extracted together.",
       "follow_up": "Extract capture-loop execution and fault/stop completion behind explicit lifecycle boundaries before further coordinator growth."
     },
+    "backend/app/scientific/ica_classifier.py": {
+      "decision": "keep",
+      "max_lines": 440,
+      "reason": "429-line cohesive scientific ICA classification owner: eligibility, exact solver stopping evidence, file-state keyed model hash, known runtime unavailability and conservative score merging share one review contract. Retain together for this correctness fix; reassess extracting solver diagnostics before further algorithm additions. No services, persistence or HTTP imports."
+    },
     "backend/app/scientific/artifact_removal.py": {
       "decision": "keep",
       "max_lines": 460,

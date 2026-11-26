@@ -61,7 +61,12 @@ public sealed record IcaComponentItem(
     [property: JsonPropertyName("preview_duration_s")] double PreviewDurationSeconds = 0,
     [property: JsonPropertyName("preview_times_s")] IReadOnlyList<double>? PreviewTimesSeconds = null,
     [property: JsonPropertyName("preview_unit")] string? PreviewUnit = null,
-    [property: JsonPropertyName("preview_compression")] PreviewDisplayCompression? PreviewCompression = null)
+    [property: JsonPropertyName("preview_compression")] PreviewDisplayCompression? PreviewCompression = null,
+    [property: JsonPropertyName("iclabel_label")] string? IclabelLabel = null,
+    [property: JsonPropertyName("iclabel_probability")] double? IclabelProbability = null,
+    [property: JsonPropertyName("iclabel_probabilities")] IReadOnlyDictionary<string, double>? IclabelProbabilities = null,
+    [property: JsonPropertyName("recommendation_reasons")] IReadOnlyList<string>? RecommendationReasons = null,
+    [property: JsonPropertyName("advisory_conflicts")] IReadOnlyList<string>? AdvisoryConflicts = null)
 {
     public void ValidatePreview()
     {
@@ -92,7 +97,28 @@ public sealed record IcaInspectionResponse(
     [property: JsonPropertyName("ica_fit_fingerprint")] string? IcaFitFingerprint,
     [property: JsonPropertyName("ica_cache_hit")] bool IcaCacheHit,
     [property: JsonPropertyName("can_apply_to_continuous")] bool CanApplyToContinuous,
-    [property: JsonPropertyName("components")] IReadOnlyList<IcaComponentItem> Components);
+    [property: JsonPropertyName("components")] IReadOnlyList<IcaComponentItem> Components,
+    [property: JsonPropertyName("ica_algorithm")] string? IcaAlgorithm = null,
+    [property: JsonPropertyName("fit_bandpass_hz")] IReadOnlyList<double>? FitBandpassHz = null,
+    [property: JsonPropertyName("fit_band_limited_by_nyquist")] bool FitBandLimitedByNyquist = false,
+    [property: JsonPropertyName("classifier_method")] string? ClassifierMethod = null,
+    [property: JsonPropertyName("classifier_status")] string? ClassifierStatus = null,
+    [property: JsonPropertyName("classifier_unavailable_reason")] string? ClassifierUnavailableReason = null,
+    [property: JsonPropertyName("classifier_version")] string? ClassifierVersion = null,
+    [property: JsonPropertyName("onnxruntime_version")] string? OnnxruntimeVersion = null,
+    [property: JsonPropertyName("iclabel_model_sha256")] string? IclabelModelSha256 = null,
+    [property: JsonPropertyName("recommendation_rule_version")] string? RecommendationRuleVersion = null,
+    [property: JsonPropertyName("iclabel_exclude_threshold")] double? IclabelExcludeThreshold = null,
+    [property: JsonPropertyName("iclabel_max_brain_probability")] double? IclabelMaxBrainProbability = null,
+    [property: JsonPropertyName("n_components_requested")] int? RequestedComponentCount = null,
+    [property: JsonPropertyName("effective_rank")] int? EffectiveRank = null,
+    [property: JsonPropertyName("rank_capped")] bool RankCapped = false,
+    [property: JsonPropertyName("ica_converged")] bool? IcaConverged = null,
+    [property: JsonPropertyName("ica_n_iter")] int? IcaIterations = null,
+    [property: JsonPropertyName("ica_max_iter")] int? IcaMaxIterations = null,
+    [property: JsonPropertyName("fit_duration_s")] double? FitDurationSeconds = null,
+    [property: JsonPropertyName("fit_sample_sufficiency")] string? FitSampleSufficiency = null,
+    [property: JsonPropertyName("fit_warnings")] IReadOnlyList<string>? FitWarnings = null);
 
 public sealed record BadChannelConfigPayload(
     [property: JsonPropertyName("policy")] string Policy,

@@ -90,7 +90,7 @@ def inspect_recording_ica_components(
     """Fit reproducible MNE infomax ICA and return reviewable IC scores bound to a fit fingerprint."""
     from app.scientific.artifact_removal import inspect_ica_components
     from app.scientific.contracts.artifact_removal import ArtifactRemovalSpec
-    from app.services.ica_review_cache import compute_ica_fit_fingerprint
+    from app.services.ica_review_cache import compute_recording_ica_fit_fingerprint
 
     target_recording = recording
     if montage_id is not None:
@@ -101,6 +101,7 @@ def inspect_recording_ica_components(
     spec = (removal_spec or ArtifactRemovalSpec(method="ica_infomax")).normalized()
     from app.services.recording_channel_roles import resolve_removal_references
     spec = resolve_removal_references(recordings, target_recording, spec)
+    signal_provenance = recordings.analysis_signal_provenance(target_recording)
 
     # Full-recording review uses the exact same continuous pre-ICA matrix as mapped_preprocess
     # and caches the fitted ICA model under a verified fingerprint so user-confirmed ICs never drift.
@@ -117,10 +118,8 @@ def inspect_recording_ica_components(
             sfreq = float(session.sampling_rate_hz)
             total = int(session.sample_count)
             channel_names = tuple(session.channel_names)
-        fit_fp = compute_ica_fit_fingerprint(
-            recording_id=identity.recording_id,
-            source_sha256=identity.source_sha256,
-            signal_view_sha256=identity.signal_view_sha256,
+        fit_fp = compute_recording_ica_fit_fingerprint(
+            identity=identity,
             channel_names=channel_names,
             sampling_rate_hz=sfreq,
             sample_count=total,
@@ -131,7 +130,7 @@ def inspect_recording_ica_components(
             artifact_rejection_spec=norm_art,
             removal_spec=spec,
         )
-        cached = ica_cache.get(fit_fp) if ica_cache is not None else None
+        cached = ica_cache.get(fit_fp, recording_id=recording.id) if ica_cache is not None else None
         pre_ica = recordings.offline_scientific_preprocessing.prepare_continuous(
             target_recording,
             low_hz=low_hz,
@@ -147,15 +146,18 @@ def inspect_recording_ica_components(
         else:
             from app.services.artifact_references import prepare_reviewed_ica
             from app.scientific.contracts.preprocessing import ScientificFilterSpec
-            fitted = prepare_reviewed_ica(recordings, target_recording, pre_ica, spec,
-                ScientificFilterSpec(low_hz, high_hz, notch_hz))
+            fitted = prepare_reviewed_ica(
+                recordings, target_recording, pre_ica, spec,
+                ScientificFilterSpec(low_hz, high_hz, notch_hz),
+                bad_spec=norm_bad if norm_bad.is_active else None,
+                signal_provenance=signal_provenance,
+            )
             if ica_cache is not None:
                 ica_cache.put(fit_fp, fitted, recording_id=recording.id, token=ica_token)
             cache_hit = False
         report = fitted.to_inspection_dict(spec.ica_exclude_components)
         from app.services.preprocessing_preview import attach_ica_component_visuals
-        attach_ica_component_visuals(report, fitted, pre_ica.data,
-                                     signal_provenance=recordings.analysis_signal_provenance(target_recording))
+        attach_ica_component_visuals(report, fitted, pre_ica.data, signal_provenance=signal_provenance)
         report.update({
             "recording_id": recording.id,
             "montage_id": montage_id,

@@ -59,7 +59,11 @@ class OfflineScientificPreprocessingService:
 
     @classmethod
     def for_recording_access(cls, open_access_session, analysis_signal_provenance, storage_dir=None):
-        access = PreprocessingRecordingAccess(open_access_session, analysis_signal_provenance, IcaReviewCache(), storage_dir)
+        from pathlib import Path
+        ica_store = (Path(storage_dir) / ".ica-review-models") if storage_dir is not None else None
+        access = PreprocessingRecordingAccess(
+            open_access_session, analysis_signal_provenance, IcaReviewCache(storage_dir=ica_store), storage_dir,
+        )
         return cls(ContinuousPreprocessingService(access, AnalysisPreprocessCache()))
 
     @property

@@ -128,6 +128,11 @@ public sealed class ArtifactSegmentRowViewModel
 
 public sealed class IcaComponentCardViewModel : ObservableObject
 {
+    private static readonly string[] IclabelOrder =
+    [
+        "brain", "eye blink", "muscle artifact", "heart beat", "line noise", "channel noise", "other"
+    ];
+
     private bool isExcluded;
 
     public IcaComponentCardViewModel(IcaComponentItem item, bool initialExcluded)
@@ -139,6 +144,11 @@ public sealed class IcaComponentCardViewModel : ObservableObject
         EcgScore = item.EcgScore;
         ExplainedVarianceRatio = item.ExplainedVarianceRatio;
         RecommendedExclude = item.RecommendedExclude;
+        IclabelLabel = item.IclabelLabel;
+        IclabelProbability = item.IclabelProbability;
+        IclabelProbabilities = item.IclabelProbabilities;
+        RecommendationReasons = item.RecommendationReasons ?? [];
+        AdvisoryConflicts = item.AdvisoryConflicts ?? [];
         Topomap = item.Topomap;
         PreviewWaveform = item.PreviewWaveform?.Select(value => value ?? double.NaN).ToArray() ?? [];
         PreviewTimesSeconds = item.PreviewTimesSeconds ?? [];
@@ -148,9 +158,19 @@ public sealed class IcaComponentCardViewModel : ObservableObject
         var scores = new List<string>();
         if (item.EogScore is { } eog) scores.Add($"EOG r={eog:+0.00;-0.00}");
         if (item.EcgScore is { } ecg) scores.Add($"ECG {ecg:0.00}");
-        ScoreBadgeText = (item.RecommendedExclude ? "建议剔除 · " : "") +
-            (scores.Count > 0 ? string.Join(" · ", scores) : "脑电/其他成分");
 
+        if (!string.IsNullOrWhiteSpace(item.IclabelLabel) && item.IclabelProbability is { } prob)
+        {
+            var shortName = FormatIclabelShort(item.IclabelLabel);
+            ScoreBadgeText = $"{shortName} {prob * 100:0}%";
+        }
+        else
+        {
+            ScoreBadgeText = (item.RecommendedExclude ? "建议剔除 · " : "") +
+                (scores.Count > 0 ? string.Join(" · ", scores) : "脑电/其他成分");
+        }
+
+        ScoreTooltip = BuildScoreTooltip(item, scores);
         EvrText = $"解释方差 {item.ExplainedVarianceRatio * 100:0.0}%";
     }
 
@@ -160,7 +180,14 @@ public sealed class IcaComponentCardViewModel : ObservableObject
     public double? EcgScore { get; }
     public double ExplainedVarianceRatio { get; }
     public bool RecommendedExclude { get; }
+    public string? IclabelLabel { get; }
+    public double? IclabelProbability { get; }
+    public IReadOnlyDictionary<string, double>? IclabelProbabilities { get; }
+    public IReadOnlyList<string> RecommendationReasons { get; }
+    public IReadOnlyList<string> AdvisoryConflicts { get; }
+    public bool HasIclabel => !string.IsNullOrWhiteSpace(IclabelLabel) && IclabelProbability is not null;
     public string ScoreBadgeText { get; }
+    public string ScoreTooltip { get; }
     public string EvrText { get; }
     public TopomapField? Topomap { get; }
     public IReadOnlyList<double> PreviewWaveform { get; }
@@ -171,5 +198,82 @@ public sealed class IcaComponentCardViewModel : ObservableObject
     {
         get => isExcluded;
         set => SetProperty(ref isExcluded, value);
+    }
+
+    public static string FormatIclabelShort(string? label) => (label ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "brain" => "大脑",
+        "eye blink" => "眼电",
+        "muscle artifact" => "肌电",
+        "heart beat" => "心电",
+        "line noise" => "工频",
+        "channel noise" => "单导噪声",
+        "other" => "其他",
+        _ => string.IsNullOrWhiteSpace(label) ? "未知" : label,
+    };
+
+    public static string FormatIclabelFull(string? label) => (label ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "brain" => "大脑脑电",
+        "eye blink" => "眼电伪迹",
+        "muscle artifact" => "肌电伪迹",
+        "heart beat" => "心电伪迹",
+        "line noise" => "工频噪声",
+        "channel noise" => "单导噪声",
+        "other" => "其他成分",
+        _ => string.IsNullOrWhiteSpace(label) ? "未知成分" : label,
+    };
+
+    private static string BuildScoreTooltip(IcaComponentItem item, List<string> correlationScores)
+    {
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(item.IclabelLabel) && item.IclabelProbability is { } prob)
+        {
+            lines.Add($"ICLabel 主分类：{FormatIclabelFull(item.IclabelLabel)}（{prob * 100:0.0}%）");
+            if (item.IclabelProbabilities is { Count: > 0 } dist)
+            {
+                lines.Add("7 类概率分布：");
+                foreach (var cls in IclabelOrder)
+                {
+                    if (dist.TryGetValue(cls, out var p))
+                        lines.Add($"  · {FormatIclabelFull(cls)}：{p * 100:0.0}%");
+                }
+            }
+        }
+        if (correlationScores.Count > 0)
+            lines.Add($"参考通道相关：{string.Join(" · ", correlationScores)}");
+        if (item.RecommendationReasons is { Count: > 0 } reasons)
+            lines.Add($"推荐依据：{string.Join("，", reasons.Select(FormatReasonCode))}");
+        if (item.AdvisoryConflicts is { Count: > 0 } conflicts)
+            lines.Add($"复核提示（已受保护，未自动勾选）：{string.Join("，", conflicts.Select(FormatConflictCode))}");
+        if (lines.Count == 0)
+            lines.Add("未启用 ICLabel 且未匹配参考通道，请结合头皮热力图与波形人工判断。");
+        return string.Join("\n", lines);
+    }
+
+    private static string FormatConflictCode(string conflict)
+    {
+        var parts = conflict.Split(':');
+        if (parts.Length == 2 && parts[0].StartsWith("eog_correlation_conflicts_with_", StringComparison.Ordinal))
+            return $"EOG 相关 |r|={parts[1]} 与 {FormatIclabelFull(parts[0].Replace("eog_correlation_conflicts_with_", "").Replace('_', ' '))} 分类冲突";
+        if (parts.Length == 2 && parts[0].StartsWith("ecg_correlation_conflicts_with_", StringComparison.Ordinal))
+            return $"ECG 相关 {parts[1]} 与 {FormatIclabelFull(parts[0].Replace("ecg_correlation_conflicts_with_", "").Replace('_', ' '))} 分类冲突";
+        if (parts.Length == 2 && parts[0] == "eog_correlation_requires_review")
+            return $"EOG 相关 |r|={parts[1]}（拟合未收敛，需人工复核）";
+        if (parts.Length == 2 && parts[0] == "ecg_correlation_requires_review")
+            return $"ECG 相关 {parts[1]}（拟合未收敛，需人工复核）";
+        return conflict;
+    }
+
+    private static string FormatReasonCode(string reason)
+    {
+        var parts = reason.Split(':');
+        if (parts.Length == 3 && parts[0] == "iclabel")
+            return $"ICLabel {FormatIclabelFull(parts[1].Replace('_', ' '))} ({parts[2]})";
+        if (parts.Length == 2 && parts[0] == "eog_correlation")
+            return $"EOG 相关 |r|={parts[1]}";
+        if (parts.Length == 2 && parts[0] == "ecg_correlation")
+            return $"ECG 相关 {parts[1]}";
+        return reason;
     }
 }

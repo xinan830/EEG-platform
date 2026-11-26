@@ -143,7 +143,7 @@ public sealed partial class ReviewPreprocessingViewModel
         pendingIca = null;
         var operation = BeginInspection();
         var token = operation.Token;
-        StatusMessage = "正在整段连续拟合 Infomax ICA 并生成各成分 2D 头皮热力图与波形（约 5~20 秒）…";
+        StatusMessage = "正在整段连续拟合 Extended Infomax ICA 并执行 ICLabel 分类与 2D 热力图生成…";
         try
         {
             var (recId, montageId, _) = await ensureBackendRecordingAsync(token);

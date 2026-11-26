@@ -23,17 +23,35 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="0,0,0,1" Padding="22,15">
-            <DockPanel>
-                <StackPanel>
-                    <TextBlock Text="ICA 生理伪迹成分审查" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
-                    <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="780" />
-                </StackPanel>
-                <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
-                        CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
-                    <TextBlock x:Name="FingerprintText" FontFamily="Consolas" FontSize="11.5" Foreground="#475569" />
-                </Border>
-            </DockPanel>
+        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="0,0,0,1" Padding="22,14">
+            <StackPanel>
+                <DockPanel>
+                    <StackPanel>
+                        <TextBlock Text="ICA 生理伪迹成分审查" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
+                        <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="740" />
+                    </StackPanel>
+                    <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
+                            CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
+                        <TextBlock x:Name="FingerprintText" FontFamily="Consolas" FontSize="11.5" Foreground="#475569" />
+                    </Border>
+                </DockPanel>
+
+                <!-- Classifier status + quick filter bar -->
+                <DockPanel Margin="0,10,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <RadioButton x:Name="FilterAllRadio" GroupName="IcaCardFilter" Content="全部成分" IsChecked="True"
+                                     Checked="OnFilterChanged" Style="{StaticResource PrepPolicyOptionCardStyle}"
+                                     Padding="10,5" FontSize="11.5" Margin="0,0,6,0" />
+                        <RadioButton x:Name="FilterRecommendedRadio" GroupName="IcaCardFilter" Content="仅看建议剔除"
+                                     Checked="OnFilterChanged" Style="{StaticResource PrepPolicyOptionCardStyle}"
+                                     Padding="10,5" FontSize="11.5" />
+                    </StackPanel>
+                    <Border x:Name="ClassifierBanner" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
+                            CornerRadius="8" Padding="10,6" VerticalAlignment="Center">
+                        <TextBlock x:Name="ClassifierStatusText" FontSize="11.5" Foreground="#475569" TextWrapping="Wrap" />
+                    </Border>
+                </DockPanel>
+            </StackPanel>
         </Border>
 
         <!-- Component Cards Grid -->
@@ -60,11 +78,12 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <DockPanel Margin="0,0,0,8">
+                                <DockPanel Margin="0,0,0,8" ToolTip="{Binding ScoreTooltip}">
                                     <CheckBox IsChecked="{Binding IsExcluded, Mode=TwoWay}"
                                               Content="{Binding Title}" FontWeight="Bold" FontSize="13" Foreground="#0F172A"
                                               VerticalAlignment="Center" Checked="OnSelectionChanged" Unchecked="OnSelectionChanged" />
-                                    <Border DockPanel.Dock="Right" CornerRadius="6" Padding="7,2" VerticalAlignment="Center">
+                                    <Border DockPanel.Dock="Right" CornerRadius="6" Padding="7,2" VerticalAlignment="Center"
+                                            ToolTip="{Binding ScoreTooltip}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="#F1F5F9" />
