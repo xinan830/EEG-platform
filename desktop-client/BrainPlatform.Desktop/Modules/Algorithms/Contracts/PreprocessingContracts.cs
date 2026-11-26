@@ -118,7 +118,8 @@ public sealed record IcaInspectionResponse(
     [property: JsonPropertyName("ica_max_iter")] int? IcaMaxIterations = null,
     [property: JsonPropertyName("fit_duration_s")] double? FitDurationSeconds = null,
     [property: JsonPropertyName("fit_sample_sufficiency")] string? FitSampleSufficiency = null,
-    [property: JsonPropertyName("fit_warnings")] IReadOnlyList<string>? FitWarnings = null);
+    [property: JsonPropertyName("fit_warnings")] IReadOnlyList<string>? FitWarnings = null,
+    [property: JsonPropertyName("fit_notch_hz")] double? FitNotchHz = null);
 
 public sealed record BadChannelConfigPayload(
     [property: JsonPropertyName("policy")] string Policy,

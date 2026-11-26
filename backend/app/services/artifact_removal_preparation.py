@@ -29,7 +29,7 @@ def prepare_broadband_ica_fit_matrix(
     session=None,
     check_cancelled=lambda: None,
 ):
-    """Build temporary broadband (1–100 Hz, no notch) ICA fit copy sharing target's NaN mask."""
+    """Build temporary broadband (1–100 Hz, synced notch) ICA fit copy sharing target's NaN mask."""
     fit_low_hz, fit_high_hz, fit_limited = compute_ica_fit_bandpass_hz(
         sfreq, main_low_hz=filters.low_hz, main_high_hz=filters.high_hz,
     )
@@ -65,7 +65,7 @@ def prepare_broadband_ica_fit_matrix(
         broadband = owner.allocate(target.shape)
         preprocess_blocks(
             src, broadband, sfreq, owner.allocate,
-            low_hz=fit_low_hz, high_hz=fit_high_hz, notch_hz=None, notch_q=filters.notch_q,
+            low_hz=fit_low_hz, high_hz=fit_high_hz, notch_hz=filters.notch_hz, notch_q=filters.notch_q,
             check_cancelled=check_cancelled, release=owner.release, block_samples=block_samples,
         )
         if allocated_source is not None:
@@ -135,6 +135,7 @@ def apply_prepared_removal(
                         target, session.sampling_rate_hz, names, spec, references=references,
                         fit_values_v=fit_values, signal_provenance=provenance,
                         fit_bandpass_hz=fit_band, fit_band_limited_by_nyquist=fit_limited,
+                        fit_notch_hz=filters.notch_hz,
                     )
                 if cache is not None:
                     cache.put(fingerprint, fitted, recording_id=recording.id, token=token)

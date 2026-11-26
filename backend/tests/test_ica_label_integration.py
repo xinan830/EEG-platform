@@ -259,6 +259,7 @@ def test_review_and_continuous_execution_share_cache_on_car_and_fallback_on_ref(
     assert car_report["classifier_unavailable_reason"] is None
     assert car_report["fit_bandpass_hz"] == [1.0, 100.0]
     assert car_report["fit_band_limited_by_nyquist"] is False
+    assert car_report["fit_notch_hz"] == 50.0
     assert car_report["ica_cache_hit"] is False
     fit_fp = car_report["ica_fit_fingerprint"]
     assert isinstance(fit_fp, str) and len(fit_fp) == 24
@@ -409,6 +410,7 @@ def test_persisted_reviewed_ica_survives_memory_eviction_and_rejects_expired_mod
     service.offline_scientific_preprocessing.prepared_cache.clear_recording(rec.id)
     restored_model = service.ica_review_cache.get(fit_fp, recording_id=rec.id)
     assert restored_model is not None
+    assert restored_model.fit_notch_hz == 50.0
     assert np.array_equal(original_model.ica.unmixing_matrix_, restored_model.ica.unmixing_matrix_)
     np.testing.assert_allclose(original_model.ica.mixing_matrix_, restored_model.ica.mixing_matrix_, rtol=1e-12, atol=1e-15)
     car_v = raw_v - raw_v.mean(axis=1, keepdims=True)

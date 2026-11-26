@@ -116,6 +116,7 @@ public sealed class ReviewIcaLabelDialogTests
                 Assert.Contains("ICLabel 智能分类已就绪", statusText.Text);
                 Assert.Contains("1–100 Hz 宽带拟合", statusText.Text);
                 Assert.Contains("Extended Infomax", statusText.Text);
+                Assert.Contains("含 50 Hz 陷波", IcaReviewDialog.FormatClassifierStatusMessage(readyResponse with { FitNotchHz = 50.0 }));
 
                 var filterAll = (RadioButton)dialog.FindName("FilterAllRadio");
                 var filterRec = (RadioButton)dialog.FindName("FilterRecommendedRadio");

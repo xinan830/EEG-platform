@@ -49,6 +49,10 @@ public partial class IcaReviewDialog : Window
             ? $"{inspection.FitBandpassHz[0]:0.#}–{inspection.FitBandpassHz[1]:0.#} Hz"
             : "1–100 Hz";
 
+        var notchNote = inspection.FitNotchHz is { } notch && notch > 0
+            ? $"，含 {notch:0.#} Hz 陷波"
+            : "";
+
         if (string.Equals(inspection.ClassifierStatus, "advisory_only", StringComparison.OrdinalIgnoreCase)
             || inspection.IcaConverged == false)
         {
@@ -59,7 +63,7 @@ public partial class IcaReviewDialog : Window
         }
 
         if (string.Equals(inspection.ClassifierStatus, "ready", StringComparison.OrdinalIgnoreCase))
-            return $"ICLabel 智能分类已就绪（{band} 宽带拟合，Extended Infomax）· 已按高置信度预勾选疑似伪迹，请复核确认{diagSuffix}。";
+            return $"ICLabel 智能分类已就绪（{band} 宽带拟合{notchNote}，Extended Infomax）· 已按高置信度预勾选疑似伪迹，请复核确认{diagSuffix}。";
 
         if (string.Equals(inspection.ClassifierStatus, "ready_limited", StringComparison.OrdinalIgnoreCase))
             return $"受采样率限制（仅拟合至 {band}），ICLabel 仅提供人工参考分类、未自动预勾选（高频肌电灵敏度可能下降），请结合热力图与波形复核{diagSuffix}。";

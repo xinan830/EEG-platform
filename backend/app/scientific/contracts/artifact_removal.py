@@ -14,7 +14,7 @@ import numpy as np
 
 ArtifactRemovalMethod = Literal["none", "eog_regression", "ssp_eog", "ica_infomax"]
 _VALID_METHODS = frozenset({"none", "eog_regression", "ssp_eog", "ica_infomax"})
-ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v7-verified-icalabel"
+ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v8-notched-broadband-ica"
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,7 @@ class FittedIcaModel:
     ica_algorithm: str = "extended_infomax"
     fit_bandpass_hz: tuple[float, float] | None = None
     fit_band_limited_by_nyquist: bool = False
+    fit_notch_hz: float | None = None
     classifier_method: str = "eog_ecg_correlation"
     classifier_status: str = "fallback_eog_ecg"
     classifier_unavailable_reason: str | None = None
@@ -68,6 +69,7 @@ class FittedIcaModel:
             "eog_channel_source": self.eog_channel_source, "ecg_channels_used": list(self.ecg_channels_used),
             "fit_bandpass_hz": None if self.fit_bandpass_hz is None else [float(self.fit_bandpass_hz[0]), float(self.fit_bandpass_hz[1])],
             "fit_band_limited_by_nyquist": self.fit_band_limited_by_nyquist,
+            "fit_notch_hz": None if self.fit_notch_hz is None else float(self.fit_notch_hz),
             "classifier_method": self.classifier_method, "classifier_status": self.classifier_status,
             "classifier_unavailable_reason": self.classifier_unavailable_reason, "classifier_version": self.classifier_version,
             "onnxruntime_version": self.onnxruntime_version, "iclabel_model_sha256": self.iclabel_model_sha256,
@@ -98,6 +100,7 @@ class ArtifactRemovalResult:
     ica_algorithm: str | None = None
     fit_bandpass_hz: tuple[float, float] | None = None
     fit_band_limited_by_nyquist: bool | None = None
+    fit_notch_hz: float | None = None
     classifier_method: str | None = None
     classifier_status: str | None = None
     classifier_unavailable_reason: str | None = None
@@ -126,6 +129,7 @@ class ArtifactRemovalResult:
             "ica_algorithm": self.ica_algorithm,
             "fit_bandpass_hz": None if self.fit_bandpass_hz is None else [float(self.fit_bandpass_hz[0]), float(self.fit_bandpass_hz[1])],
             "fit_band_limited_by_nyquist": self.fit_band_limited_by_nyquist,
+            "fit_notch_hz": None if self.fit_notch_hz is None else float(self.fit_notch_hz),
             "classifier_method": self.classifier_method, "classifier_status": self.classifier_status,
             "classifier_unavailable_reason": self.classifier_unavailable_reason, "classifier_version": self.classifier_version,
             "onnxruntime_version": self.onnxruntime_version, "iclabel_model_sha256": self.iclabel_model_sha256,
@@ -156,6 +160,7 @@ def build_ica_result_meta(
         "ica_algorithm": getattr(fitted, "ica_algorithm", "extended_infomax"),
         "fit_bandpass_hz": getattr(fitted, "fit_bandpass_hz", None),
         "fit_band_limited_by_nyquist": getattr(fitted, "fit_band_limited_by_nyquist", None),
+        "fit_notch_hz": getattr(fitted, "fit_notch_hz", None),
         "classifier_method": getattr(fitted, "classifier_method", None),
         "classifier_status": getattr(fitted, "classifier_status", None),
         "classifier_unavailable_reason": getattr(fitted, "classifier_unavailable_reason", None),

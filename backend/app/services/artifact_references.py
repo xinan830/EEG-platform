@@ -165,7 +165,7 @@ def prepare_reviewed_ica(
                     pre_ica.data, pre_ica.sfreq, pre_ica.channel_names, spec,
                     references=references, fit_values_v=fit_values,
                     signal_provenance=signal_provenance, fit_bandpass_hz=fit_band,
-                    fit_band_limited_by_nyquist=fit_limited,
+                    fit_band_limited_by_nyquist=fit_limited, fit_notch_hz=filters.notch_hz,
                 )
     finally:
         owner.close()

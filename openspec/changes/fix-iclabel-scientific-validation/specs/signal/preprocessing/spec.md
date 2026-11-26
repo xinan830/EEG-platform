@@ -31,3 +31,14 @@ Missing classifier assets and known inference-runtime failures SHALL return a st
 #### Scenario: Model asset is restored or replaced without restarting
 - **WHEN** a previously missing model asset is restored, deleted or replaced between review requests
 - **THEN** subsequent requests report the current availability and model identity rather than reusing stale hash evidence
+
+### Requirement: Synchronize scientific notch settings with broadband ICA fitting
+Broadband ICA fitting SHALL use the selected scientific notch frequency and Q, including disabled notch. Review and execution SHALL share preparation and cache identity, expose and persist `fit_notch_hz`, and invalidate old identities. Recording data and independent display filtering SHALL remain unchanged.
+
+#### Scenario: Selected 50 Hz notch during ICA review
+- **WHEN** ICA review uses a 50 Hz scientific notch
+- **THEN** broadband fit preparation applies that notch and its Q, reports 50 Hz in fit evidence, and retains the same evidence after persisted model restoration
+
+#### Scenario: Scientific notch disabled
+- **WHEN** ICA review is prepared with no scientific notch
+- **THEN** broadband fit preparation omits notch filtering, reports a null fit notch, and uses a different identity from the notched request

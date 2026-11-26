@@ -42,3 +42,17 @@ The original interpolation/rank fixture is now named as brain rhythms with indep
 - Strict OpenSpec validation and whitespace checks pass.
 
 This follow-up does not modify desktop source and does not rerun the earlier 81 desktop tests. It does not run the full backend suite, packaged deployment or real EEG/UI/hardware acceptance. These synthetic cases are limited regression controls, not population accuracy or false-deletion-rate estimates. No automatic exclusion threshold was changed to obtain these results.
+
+## Broadband fit notch follow-up — 2026-11-26
+
+ICA broadband preparation now applies the selected scientific notch frequency and Q. A disabled notch remains disabled. Review/application metadata and persisted models carry `fit_notch_hz`; the desktop response consumes it and the ready status displays the selected frequency. Fit identity is `ica-fit-v6-notched-broadband-fit`; application identity is `artifact-removal-application-v8-notched-broadband-ica`. Previous v5/v7 statements above describe historical checks. Existing model selections require a fresh review under the new identity.
+
+Executed against this follow-up:
+- Backend ICA validation/integration, synthetic preservation, offline removal and file-size policy: **39 passed**, 2 dependency deprecation warnings, 50.66 s. Includes strong synthetic 50 Hz noise with notch enabled/disabled and persisted fit-notch restoration.
+- Backend classifier, removal runs/preview APIs, reference overlap, validity and reference-channel suites: **44 passed**, 2 dependency deprecation warnings, 25.95 s.
+- Scientific/service dependency boundaries: **2 passed**, 22 deselected, 0.28 s.
+- Desktop Release ICA/preprocessing tests: **81 passed**, 0 failed, 0 skipped; build succeeded with existing xUnit2013 and CA2022 warnings.
+- Source file-size checker passes with registered review warnings.
+- Strict OpenSpec validation and `git diff --check` pass.
+
+No full backend suite, packaged application, new real-recording scientific comparison, manual desktop acceptance or hardware run was performed for this commit. Regression success does not establish optimal ICA fitting or guarantee artifact-free physiological signals. Unrelated UI assets/user-guide edits and private EEG artifacts are outside this commit.

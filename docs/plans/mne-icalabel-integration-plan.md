@@ -39,7 +39,7 @@
   │       └──▶ 04 坏段掩膜 (NaN) ──▶ 应用已确认 ICA 解混矩阵 ──▶ 下游 PSD / RBP / FAA / 科学对比预览
   │
   └──▶ [临时 ICA 拟合 & ICLabel 旁路副本]（仅启用 ica_infomax 且缓存未命中时创建，用完立即释放）
-          ├── 1–high_fit_hz 零相位带通（统一公式 high_fit_hz = min(100.0, sfreq/2 - 2.0)，无 50 Hz 陷波以保留工频/肌电特征）
+          ├── 1–high_fit_hz 零相位带通（统一公式 high_fit_hz = min(100.0, sfreq/2 - 2.0)，同步应用主链路选定的 notch_hz 陷波防止强工频挤爆 ICA 成分自由度）
           ├── 同步套用相同的 04 坏段 NaN 掩膜（防大爆幅带偏 ICA 权重）
           ├── 有效秩封顶：通过去均值协方差特征值计算 effective_rank，自动将成分数封顶为 min(requested, effective_rank)
           ├── Extended Infomax 拟合：ICA(method="infomax", fit_params={"extended": True}, max_iter=500, random_state=...)，显式记录收敛状态与样本充分性
@@ -113,12 +113,12 @@
 ### 2.4 指纹、可审计版本证据与模型持久化/过期防漂移契约
 
 - [ica_review_cache.py](../../backend/app/services/ica_review_cache.py)：
-  - 将 `compute_ica_fit_fingerprint` 升级为 **`"ica-fit-v5-verified-reference-convergence"`**，由审查与执行共用单一入口 `compute_recording_ica_fit_fingerprint`；
+  - 将 `compute_ica_fit_fingerprint` 升级为 **`"ica-fit-v6-notched-broadband-fit"`**，由审查与执行共用单一入口 `compute_recording_ica_fit_fingerprint`；
   - 纳入 `ica_extended: True`、`ica_max_iter`、`fit_low_hz`、`fit_high_hz`、`classifier_version`、`onnxruntime_version`、`iclabel_model_sha256`（`ICLabelNet.onnx` 权重 SHA-256）、`recommendation_rule_version`；
   - 内存 LRU（容量 16）+ 磁盘原子持久化（MNE 公开 `ica.save` / `read_ica` 生成 `<fingerprint>-ica.fif` + `.meta.json` + `.fif` SHA-256 校验，零 `pickle`，随 `invalidate_recording` 同步清理）；
   - **严格过期守门（消除静默重拟合编号漂移）**：当执行请求携带已确认的 `ica_fit_fingerprint`，若内存与磁盘均无法恢复该已审查模型，**严禁静默重拟合盲套旧成分编号**，必须显式抛出 `ICA_REVIEW_MODEL_EXPIRED` 引导重新审查。
 - [contracts/artifact_removal.py](../../backend/app/scientific/contracts/artifact_removal.py)：
-  - 将 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 升级为 **`"artifact-removal-application-v7-verified-icalabel"`**。
+  - 将 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 升级为 **`"artifact-removal-application-v8-notched-broadband-ica"`**。
 
 ---
 
@@ -213,8 +213,8 @@
 | 后端依赖 | `backend/pyproject.toml` | 修改 | 新增 `mne-icalabel`、`onnxruntime`（无 `torch`） |
 | 后端科学 | `backend/app/scientific/ica_classifier.py` | **新增** | 封装准入条件门控、3D Montage 绑定、ONNX 后端 `mne-icalabel` 推理、7 类概率格式化、保守推荐判定与优雅降级（按当前规模评审登记上限） |
 | 后端科学 | `backend/app/scientific/artifact_removal.py` | 修改 | 升级为 `fit_params={"extended": True}`，支持接收可选宽带拟合输入与 `signal_provenance`，调用 `ica_classifier.py` 合并打分与推荐，**严格控制在 ≤ 460 行（目标缩减）** |
-| 后端契约 | `backend/app/scientific/contracts/artifact_removal.py` | 修改 | 升级 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 至 `artifact-removal-application-v7-verified-icalabel` |
-| 后端服务 | `backend/app/services/ica_review_cache.py` | 修改 | 升级指纹版本至 `ica-fit-v5-verified-reference-convergence` 并纳入宽带拟合与分类器版本字段 |
+| 后端契约 | `backend/app/scientific/contracts/artifact_removal.py` | 修改 | 升级 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 至 `artifact-removal-application-v8-notched-broadband-ica` |
+| 后端服务 | `backend/app/services/ica_review_cache.py` | 修改 | 升级指纹版本至 `ica-fit-v6-notched-broadband-fit` 并纳入宽带拟合与分类器版本字段 |
 | 后端服务 | `backend/app/services/artifact_removal_preparation.py` & `artifact_references.py` | 修改 | 统一审查（`prepare_reviewed_ica`）与执行（`apply_prepared_removal`）的宽带拟合副本构造与 `signal_provenance` 传递，**两条路径复用同一审查指纹与模型；持久化恢复按数值容差验证输出一致性** |
 | 后端服务 | `backend/app/services/mapped_preprocessing.py` & `artifact_inspection.py` | 修改 | 仅在启用 `ica_infomax` 且缓存未命中时准备临时宽带副本（`1–min(100, sfreq/2-1) Hz` + 同坏段掩膜）并在拟合后立即释放；返回新增分类器与 7 类概率字段 |
 | 桌面契约 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Contracts/PreprocessingContracts.cs` | 修改 | 扩展 `IcaInspectionResponse` 与 `IcaComponentItem` 新增字段 |
@@ -237,7 +237,7 @@
 ### 阶段 3：宽带拟合旁路、Extended Infomax、有效秩与持久化防漂移
 - [x] **3.1** 在 `artifact_removal.py` 升级为 `fit_params={"extended": True}, max_iter=500`，实现有效秩自动封顶、显式收敛/样本充分性诊断，并支持宽带拟合副本仅将解混矩阵应用回 `1–50 Hz` 主信号。
 - [x] **3.2** 更新 `artifact_removal_preparation.py`、`artifact_references.py`、`mapped_preprocessing.py` 与 `artifact_inspection.py`：仅在启用 `ica_infomax` 且缓存未命中时构建临时 `1–min(100, sfreq/2-2) Hz` 宽带副本，同步施加相同坏段 `NaN` 掩膜，拟合完毕立即释放临时 mmap。
-- [x] **3.3** 升级 `ica_review_cache.py` 指纹版本（`ica-fit-v5-verified-reference-convergence`）与 `ARTIFACT_REMOVAL_APPLICATION_VERSION`（`artifact-removal-application-v7-verified-icalabel`），实现 `.fif + .meta.json` 原子持久化与 `ICA_REVIEW_MODEL_EXPIRED` 过期防漂移守门。
+- [x] **3.3** 升级 `ica_review_cache.py` 指纹版本（`ica-fit-v6-notched-broadband-fit`）与 `ARTIFACT_REMOVAL_APPLICATION_VERSION`（`artifact-removal-application-v8-notched-broadband-ica`），实现 `.fif + .meta.json` 原子持久化与 `ICA_REVIEW_MODEL_EXPIRED` 过期防漂移守门。
 - [x] **3.4** 新增后端集成回归测试（`backend/tests/test_ica_label_integration.py`），覆盖多伪迹 1–50 Hz 无泄漏、插值+CAR 秩封顶、含传感器噪声夹具的实际推荐剔除与 α/β 保留，以及三组无伪迹空间源的空剔除列表、全信号误差与 α/β 功率保留（不等同于真实 EEG 误删率验证）、跨重启持久化恢复与过期拒收。
 
 ### 阶段 4：桌面端契约、审查弹窗与回归测试

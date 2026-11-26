@@ -9,6 +9,7 @@ See proposal.md. Scientific classification shares fitted ICA with review/applica
 - Check the exact runtime model path on every metadata request. Cache successful SHA-256 only by resolved path, size and modification/change timestamps; missing files are not cached. This permits restoration/replacement without restart.
 - Apply actual recommendations to deterministic synthetic inputs. Check selected indices and posterior alpha/central beta retention independently of predicted labels, with a forced-removal control. The existing rank fixture contains independent broadband sensor noise and is not evidence of physiological clean-EEG false-positive rates.
 - Bump fit/application identities because recommendations change. Keep existing service cache ownership and persistence. No new cache or fallback model.
+- The temporary broadband ICA fit copy uses the selected scientific notch frequency and Q, including no notch when disabled. Review and execution share this preparation; report and persist `fit_notch_hz`, advance fit identity to v6 and application identity to v8. The main analysis passband and independent display filters are unchanged.
 
 # Risks and Verification
 MNE log structure is dependency-specific: exercise real cap termination, precise threshold, small-angle stops and unknown evidence. Validate full/partial CAR, no-reference API, runtime fault injection and restored output tolerance. Lock updates must preserve existing dependency versions where possible. Scientific clean-signal accuracy and hardware/UI validation remain separate from regression tests.

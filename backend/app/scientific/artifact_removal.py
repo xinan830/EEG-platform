@@ -246,7 +246,7 @@ def fit_ica_model(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec | None = None,
     *, references: ArtifactReferenceSignals | None = None, fit_values_v: np.ndarray | None = None,
     signal_provenance: Mapping[str, object] | None = None, fit_bandpass_hz: tuple[float, float] | None = None,
-    fit_band_limited_by_nyquist: bool = False,
+    fit_band_limited_by_nyquist: bool = False, fit_notch_hz: float | None = None,
 ) -> FittedIcaModel:
     """Fit reproducible MNE Extended Infomax ICA (on broadband copy if provided) and score components."""
     data = np.asarray(values_v, dtype=np.float64)
@@ -343,7 +343,7 @@ def fit_ica_model(
         eog_channels_used=eog_names, eog_channel_source=eog_source, ecg_channels_used=ecg_names,
         recommended_exclude_components=recommended, component_scores=table,
         ica_algorithm="extended_infomax", fit_bandpass_hz=fit_bandpass_hz,
-        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist,
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist, fit_notch_hz=fit_notch_hz,
         classifier_method=classification.classifier_method, classifier_status=classification.classifier_status,
         classifier_unavailable_reason=classification.classifier_unavailable_reason,
         classifier_version=classification.classifier_version,
@@ -363,13 +363,14 @@ def inspect_ica_components(
     values_v: np.ndarray, sfreq_hz: float, channel_names: Sequence[str], spec: ArtifactRemovalSpec | None = None,
     *, signal_provenance: Mapping[str, object] | None = None, fit_values_v: np.ndarray | None = None,
     fit_bandpass_hz: tuple[float, float] | None = None, fit_band_limited_by_nyquist: bool = False,
+    fit_notch_hz: float | None = None,
 ) -> dict[str, object]:
     """Fit reproducible MNE Extended Infomax ICA and return reviewable IC scores."""
     norm = (spec or ArtifactRemovalSpec(method="ica_infomax")).normalized()
     fitted = fit_ica_model(
         values_v, sfreq_hz, channel_names, norm, fit_values_v=fit_values_v,
         signal_provenance=signal_provenance, fit_bandpass_hz=fit_bandpass_hz,
-        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist)
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist, fit_notch_hz=fit_notch_hz)
     if norm.ica_exclude_components is not None:
         invalid = [idx for idx in norm.ica_exclude_components if idx >= fitted.ica.n_components_]
         if invalid:
@@ -382,7 +383,7 @@ def apply_offline_artifact_removal(
     prefitted_ica: FittedIcaModel | None = None, ica_fit_fingerprint: str | None = None,
     references: ArtifactReferenceSignals | None = None, fit_values_v: np.ndarray | None = None,
     signal_provenance: Mapping[str, object] | None = None, fit_bandpass_hz: tuple[float, float] | None = None,
-    fit_band_limited_by_nyquist: bool = False,
+    fit_band_limited_by_nyquist: bool = False, fit_notch_hz: float | None = None,
 ) -> ArtifactRemovalResult:
     """Apply explicit offline artifact removal (EOG regression, MNE SSP, or reviewable ICA)."""
     norm, data = spec.normalized(), np.asarray(values_v, dtype=np.float64)
@@ -411,7 +412,7 @@ def apply_offline_artifact_removal(
     fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(
         data, rate, names, norm, references=references, fit_values_v=fit_values_v,
         signal_provenance=signal_provenance, fit_bandpass_hz=fit_bandpass_hz,
-        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist)
+        fit_band_limited_by_nyquist=fit_band_limited_by_nyquist, fit_notch_hz=fit_notch_hz)
     if norm.ica_exclude_components is not None:
         invalid = [idx for idx in norm.ica_exclude_components if idx >= fitted.ica.n_components_]
         if invalid:

@@ -246,3 +246,49 @@ def test_ica_review_api_scientific_and_runtime_regressions(tmp_path, monkeypatch
             "inference_failure": "icalabel_inference_unavailable",
         }[scenario]
         assert all(not row["recommended_exclude"] for row in report["components"])
+
+
+def test_broadband_ica_fit_applies_synced_notch_for_strong_50hz_line_noise(tmp_path):
+    from test_ica_label_integration import _import_with_car_and_ref_montages, _synthesize_multiclass_artifact_eeg
+
+    sfreq = 250.0
+    samples = _synthesize_multiclass_artifact_eeg(sfreq=sfreq, duration_s=24.0, seed=19)
+    t = np.arange(len(samples), dtype=np.float64) / sfreq
+    rng = np.random.default_rng(7)
+    phases = rng.uniform(0.0, 2.0 * np.pi, size=samples.shape[1])
+    amps = rng.uniform(140e-6, 240e-6, size=samples.shape[1])
+    noisy = samples + amps[None, :] * np.sin(2.0 * np.pi * 50.0 * t[:, None] + phases[None, :])
+
+    client, _, recording = _import_with_car_and_ref_montages(tmp_path, noisy, sfreq)
+    notched_resp = client.get(f"/api/recordings/{recording.id}/preprocessing/ica-components", params={
+        "montage_id": "montage-car", "low_hz": 1, "high_hz": 50, "notch_hz": 50,
+        "allow_frontal_eog_proxy": "true", "ica_n_components": 12,
+    })
+    assert notched_resp.status_code == 200, notched_resp.text
+    notched = notched_resp.json()
+    assert notched["fit_notch_hz"] == 50.0
+    assert notched["classifier_status"] == "ready"
+    top = notched["components"][0]
+    assert top["iclabel_label"] != "line noise"
+    assert any(row["iclabel_label"] == "brain" and row["explained_variance_ratio"] >= 0.03 for row in notched["components"])
+
+    unnotched_resp = client.get(f"/api/recordings/{recording.id}/preprocessing/ica-components", params={
+        "montage_id": "montage-car", "low_hz": 1, "high_hz": 50, "notch_hz": "",
+        "allow_frontal_eog_proxy": "true", "ica_n_components": 12,
+    })
+    # FastAPI treats empty notch_hz query or omitted? Verify explicit None via service path if needed.
+    if unnotched_resp.status_code == 422:
+        from app.scientific.contracts.preprocessing import ArtifactRemovalSpec
+        from app.services.artifact_inspection import inspect_recording_ica_components
+        # Obtain RecordingService via client app state
+        svc = client.app.state.recording_service
+        unnotched = inspect_recording_ica_components(
+            svc, recording, montage_id="montage-car", low_hz=1.0, high_hz=50.0, notch_hz=None,
+            removal_spec=ArtifactRemovalSpec(method="ica_infomax", allow_frontal_eog_proxy=True, ica_n_components=12),
+        )
+    else:
+        assert unnotched_resp.status_code == 200, unnotched_resp.text
+        unnotched = unnotched_resp.json()
+    assert unnotched["fit_notch_hz"] is None
+    assert unnotched["components"][0]["iclabel_label"] == "line noise"
+    assert unnotched["components"][0]["explained_variance_ratio"] > 0.40

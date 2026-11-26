@@ -57,7 +57,7 @@ def compute_ica_fit_fingerprint(
     norm_rem = removal_spec.normalized()
     payload = json.dumps(
         {
-            "version": "ica-fit-v5-verified-reference-convergence",
+            "version": "ica-fit-v6-notched-broadband-fit",
             "ica_extended": True,
             "ica_max_iter": int(ica_max_iter),
             "artifact_detection_version": ARTIFACT_DETECTION_VERSION if norm_art.is_active else None,
@@ -165,6 +165,7 @@ def _persist_fitted_model(target_dir: Path, fingerprint: str, model: FittedIcaMo
             "ica_algorithm": model.ica_algorithm,
             "fit_bandpass_hz": None if model.fit_bandpass_hz is None else list(model.fit_bandpass_hz),
             "fit_band_limited_by_nyquist": bool(model.fit_band_limited_by_nyquist),
+            "fit_notch_hz": model.fit_notch_hz,
             "classifier_method": model.classifier_method,
             "classifier_status": model.classifier_status,
             "classifier_unavailable_reason": model.classifier_unavailable_reason,
@@ -233,6 +234,7 @@ def _load_persisted_model(target_dir: Path, fingerprint: str) -> FittedIcaModel 
             ica_algorithm=str(meta.get("ica_algorithm") or "extended_infomax"),
             fit_bandpass_hz=band,
             fit_band_limited_by_nyquist=bool(meta.get("fit_band_limited_by_nyquist", False)),
+            fit_notch_hz=meta.get("fit_notch_hz"),
             classifier_method=str(meta.get("classifier_method") or "eog_ecg_correlation"),
             classifier_status=str(meta.get("classifier_status") or "fallback_eog_ecg"),
             classifier_unavailable_reason=meta.get("classifier_unavailable_reason"),
