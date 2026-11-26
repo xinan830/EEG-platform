@@ -105,7 +105,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.state.recording_service = RecordingService()
-app.state.recording_signal_exporter = RecordingSignalExporter(STORAGE_DIR / "signal-exports")
+app.state.recording_signal_exporter = RecordingSignalExporter(
+    STORAGE_DIR / "signal-exports", recording_storage=app.state.recording_service.storage_dir)
 app.state.waveform_playback_service = WaveformPlaybackService(app.state.recording_service)
 app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()

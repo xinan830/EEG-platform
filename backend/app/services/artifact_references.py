@@ -25,10 +25,13 @@ def voltage_source_indexes(raw, path) -> list[int]:
 
 
 def discover_artifact_references(recordings, recording) -> dict:
+    from app.services.recording_channel_roles import source_channel_identities
+    roles = source_channel_identities(recordings.storage_dir, recording)
     with recordings.open_access_session(recording, raw_voltage_channels=True) as session:
-        return {"recording_id": recording.id, "sampling_rate_hz": session.sampling_rate_hz,
+        return {"recording_id": recording.id, "source_sha256": recording.source_sha256, "sampling_rate_hz": session.sampling_rate_hz,
                 "sample_count": session.sample_count, "channels": [
-                    {"name": name, "unit": "V"} for name in session.channel_names]}
+                    {"name": name, "unit": "V", "identity": roles.get(name, ("unconfirmed",))[0],
+                     "identity_source": roles.get(name, (None, "unconfirmed"))[1]} for name in session.channel_names]}
 
 
 def resolve_preprocessing_analysis_channels(recordings, recording, preprocessing, montage_id=None):
@@ -65,7 +68,7 @@ def exclude_reference_outputs(channel_names, source_names, selected, provenance=
     return tuple(name for name in channel_names if name.casefold() not in {n.casefold() for n in aliases})
 
 
-def isolate_reference_sources(reader, selected, *, source_names=None, view=None):
+def isolate_reference_sources(reader, selected, *, source_names=None, view=None, bad_spec=None):
     """Remove auxiliary sources before interpolation/CAR; leave underlying source identities intact."""
     from app.scientific.contracts.preprocessing import BadChannelSpec
     from app.services.bad_channel_reader import BadChannelExcludingSampleReader, apply_bad_channel_policy_to_montage_view
@@ -73,11 +76,17 @@ def isolate_reference_sources(reader, selected, *, source_names=None, view=None)
     selected = {name.casefold() for name in selected}
     excluded = {i for i, name in enumerate(source_names) if name.casefold() in selected}
     aliases = tuple(reader.names[i] for i in excluded)
+    # A source assigned a physiological role is no longer an EEG bad-channel target.
+    if bad_spec is not None and selected:
+        from dataclasses import replace
+        reference_labels = selected | {name.casefold() for name in aliases}
+        bad_spec = replace(bad_spec, channels=tuple(name for name in bad_spec.channels
+            if name.casefold() not in reference_labels)).normalized()
     if view is not None and aliases:
         view = apply_bad_channel_policy_to_montage_view(view, BadChannelSpec(policy="exclude", channels=aliases))
     if excluded:
         reader = BadChannelExcludingSampleReader(reader, [i for i in range(len(reader.names)) if i not in excluded])
-    return reader, view
+    return reader, view, bad_spec
 
 
 @contextmanager
@@ -85,7 +94,19 @@ def prepare_artifact_references(recordings, recording, spec, *, sample_count, sf
                                 filters: ScientificFilterSpec, allocate, release,
                                 check_cancelled=lambda: None):
     """Read bounded blocks on the verified recording clock; allocate within caller budget."""
+    from app.services.recording_channel_roles import source_identity_lookup, dedicated_reference_sources
     selected = (*spec.eog_channels, *spec.ecg_channels)
+    storage_dir = getattr(recordings, "storage_dir", None)
+    dedicated_reference_sources(storage_dir, recording, selected)
+    lookup_roles = source_identity_lookup(storage_dir, recording)
+    if any(lookup_roles[name.casefold()] != "ecg" for name in spec.ecg_channels):
+        raise ValueError("ARTIFACT_REFERENCE_INVALID: 心电参考必须确认是专用 ECG 通道")
+    if any(lookup_roles[name.casefold()] not in {"eeg", "eog"} for name in spec.eog_channels):
+        raise ValueError("ARTIFACT_REFERENCE_INVALID: 眼电参考必须是 EEG 代理或专用 EOG")
+    eog_channels = tuple(name for name in spec.eog_channels if lookup_roles[name.casefold()] == "eog")
+    if spec.method == "eog_regression" and len(eog_channels) != len(spec.eog_channels):
+        raise ValueError("ARTIFACT_REFERENCE_INVALID: EOG 回归只接受专用 EOG；EEG 代理请使用 ICA 或 SSP")
+    selected = (*eog_channels, *spec.ecg_channels)
     if not selected:
         yield None
         return
@@ -116,7 +137,7 @@ def prepare_artifact_references(recordings, recording, spec, *, sample_count, sf
                     sfreq, allocate, low_hz=filters.low_hz, high_hz=filters.high_hz,
                     notch_hz=filters.notch_hz, notch_q=filters.notch_q,
                     check_cancelled=check_cancelled, release=release)
-        yield ArtifactReferenceSignals(target, names, names[:len(spec.eog_channels)], names[len(spec.eog_channels):])
+        yield ArtifactReferenceSignals(target, names, names[:len(eog_channels)], names[len(eog_channels):])
     finally:
         if source is not None:
             release(source)

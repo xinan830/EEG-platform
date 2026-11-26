@@ -199,7 +199,7 @@ class WaveformPlaybackSession:
     def _run(self) -> None:
         access_session = None
         try:
-            access_session = self._recordings.open_access_session(self._recording)
+            access_session = self._recordings.open_access_session(self._recording, scientific_channels=False)
             sfreq = access_session.sampling_rate_hz
             all_names = list(access_session.channel_names)
             events = access_session.events

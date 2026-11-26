@@ -100,10 +100,7 @@ public sealed partial class RecordingReviewViewModel
         RegisteredRecording recording, HistoricalMontageDescriptor? montage, AlgorithmCatalogItem algorithm, CancellationToken token)
     {
         var payload = Preprocessing.BuildPayload(algorithm.SupportsArtifactRemoval);
-        if (payload.ArtifactRemoval.EogChannels.Count == 0 && (payload.ArtifactRemoval.EcgChannels?.Count ?? 0) == 0)
-            return (recording, montage);
-        var client = preprocessingAlgorithmClient as IPreprocessingClient
-            ?? throw new InvalidOperationException("专用参考通道需要后端确认分析输入。");
+        if (preprocessingAlgorithmClient is not IPreprocessingClient client) return (recording, montage);
         var resolved = await client.GetPreprocessingAnalysisChannelsAsync(recording.Id, payload, montage?.Id, token);
         token.ThrowIfCancellationRequested();
         if (resolved.RecordingId != recording.Id || resolved.Channels.Count == 0)

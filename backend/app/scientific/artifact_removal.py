@@ -19,9 +19,7 @@ from app.scientific.artifact_removal_validity import build_application_validity
 from app.scientific.artifact_reference_signals import ArtifactReferenceSignals
 
 
-_DEDICATED_EOG_CANDIDATES = ("veog", "heog", "eog", "eog1", "eog2")
 _FRONTAL_EOG_PROXY_CANDIDATES = ("fp1", "fp2", "fpz")
-_DEFAULT_ECG_CANDIDATES = ("ecg", "ekg", "ecg1")
 
 
 @dataclass(frozen=True)
@@ -104,9 +102,8 @@ def _resolve_explicit_channels(
     lookup = {name.casefold(): name for name in channel_names}
     resolved: list[str] = []
     for req in explicit:
-        match = lookup.get(req.casefold()) or next(
-            (n for n in channel_names if _strip_montage_suffix(n) == req.casefold()), None,
-        )
+        candidates = [n for n in channel_names if _strip_montage_suffix(n) == req.casefold()]
+        match = lookup.get(req.casefold()) or (candidates[0] if len(candidates) == 1 else None)
         if match is None:
             raise ValueError(f"{error_code}: 通道 {req} 不存在于当前信号中")
         if match not in resolved:
@@ -123,9 +120,6 @@ def _resolve_eog_channels(
             _resolve_explicit_channels(channel_names, spec.eog_channels, "ARTIFACT_REMOVAL_EOG_CHANNEL_UNAVAILABLE"),
             "explicit_channel",
         )
-    dedicated = _match_candidates(channel_names, _DEDICATED_EOG_CANDIDATES, max_auto)
-    if dedicated:
-        return dedicated, "dedicated_eog"
     frontal = _match_candidates(channel_names, _FRONTAL_EOG_PROXY_CANDIDATES, max_auto)
     if frontal:
         if allow_frontal_fallback and spec.allow_frontal_eog_proxy:
@@ -147,7 +141,7 @@ def _resolve_eog_channels(
 def _resolve_ecg_channels(channel_names: tuple[str, ...], explicit: tuple[str, ...]) -> tuple[str, ...]:
     if explicit:
         return _resolve_explicit_channels(channel_names, explicit, "ARTIFACT_REMOVAL_ECG_CHANNEL_UNAVAILABLE")
-    return _match_candidates(channel_names, _DEFAULT_ECG_CANDIDATES, 1)
+    return ()
 
 
 def _contiguous_finite_spans(data_v: np.ndarray, min_samples: int) -> list[tuple[int, int]]:
@@ -239,9 +233,12 @@ def _apply_ssp_eog(
     data_v: np.ndarray, sfreq_hz: float, channel_names: tuple[str, ...], spec: ArtifactRemovalSpec,
     references: ArtifactReferenceSignals | None = None,
 ) -> ArtifactRemovalResult:
-    eog_names, eog_source = ((references.eog_channels, "explicit_channel")
-        if references is not None and references.eog_channels else _resolve_eog_channels(
-            channel_names, spec, allow_frontal_fallback=True, required=True, max_auto=1))
+    external = references.eog_channels if references is not None else ()
+    proxies = tuple(name for name in spec.eog_channels if name not in external)
+    eog_names, eog_source = ((), None) if external and not proxies else _resolve_eog_channels(
+        channel_names, replace(spec, eog_channels=proxies), allow_frontal_fallback=True, required=not external, max_auto=2)
+    if external:
+        eog_names, eog_source = (*external, *eog_names), "explicit_channel"
     span_values = data_v if references is None else np.column_stack((data_v, references.values_v))
     spans = _contiguous_finite_spans(span_values, max(64, int(round(3.0 * sfreq_hz))))
     if not spans:
@@ -318,9 +315,12 @@ def fit_ica_model(
     ecg_names = (references.ecg_channels if references is not None and references.ecg_channels
                  else _resolve_ecg_channels(names, norm.ecg_channels))
     eog_required = not ecg_names and norm.ica_exclude_components is None
-    eog_names, eog_source = ((references.eog_channels, "explicit_channel")
-        if references is not None and references.eog_channels else _resolve_eog_channels(
-            names, norm, allow_frontal_fallback=True, required=eog_required, max_auto=2))
+    external_eog = references.eog_channels if references is not None else ()
+    proxy_requests = tuple(name for name in norm.eog_channels if name not in external_eog)
+    eog_names, eog_source = ((), None) if external_eog and not proxy_requests else _resolve_eog_channels(
+        names, replace(norm, eog_channels=proxy_requests), allow_frontal_fallback=True, required=eog_required and not external_eog, max_auto=2)
+    if external_eog:
+        eog_names, eog_source = (*external_eog, *eog_names), "explicit_channel"
     n_components = min(norm.ica_n_components or min(n_channels - 1, 20), n_channels - 1)
     fit_hp = _highpass_finite_spans(data, rate, cutoff_hz=1.0)
     info = mne.create_info(list(names), sfreq=rate, ch_types="eeg")

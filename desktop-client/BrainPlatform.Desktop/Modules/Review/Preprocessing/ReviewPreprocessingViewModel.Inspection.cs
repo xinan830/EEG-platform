@@ -96,6 +96,7 @@ public sealed partial class ReviewPreprocessingViewModel
 
     public async Task InspectArtifactSegmentsAsync()
     {
+        var payload = BuildPayload(allowArtifactRemoval: true);
         var client = RequireClient();
         var operation = BeginInspection();
         var token = operation.Token;
@@ -105,20 +106,26 @@ public sealed partial class ReviewPreprocessingViewModel
             var (recId, montageId, duration) = await ensureBackendRecordingAsync(token);
             var response = await client.InspectArtifactSegmentsAsync(
                 recId, 0, Math.Min(Math.Max(duration, 4), 180), montageId,
-                PeakToPeakUv, MuscleZScoreThreshold, SelectedBadChannels, BadChannelPolicy,
-                RemovalMethod != "none" ? SelectedEogChannels : [],
-                RemovalMethod == "ica_infomax" ? SelectedEcgChannels : [], token);
+                PeakToPeakUv, MuscleZScoreThreshold, payload.BadChannels.Channels, payload.BadChannels.Policy,
+                payload.ArtifactRemoval.EogChannels, payload.ArtifactRemoval.EcgChannels, token);
             EnsureInspectionCurrent(operation);
+            if (response.Segments.Count > 0 && ArtifactPolicy == "none")
+            {
+                ArtifactPolicy = "reject";
+                var effective = BuildPayload(allowArtifactRemoval: true).ArtifactRemoval;
+                if (!payload.ArtifactRemoval.EogChannels.SequenceEqual(effective.EogChannels) ||
+                    !(payload.ArtifactRemoval.EcgChannels ?? []).SequenceEqual(effective.EcgChannels ?? []))
+                {
+                    StatusMessage = "坏段拒收已启用，原 ICA 确认已失效且通道范围已改变，请重新扫描坏段并审查 ICA。";
+                    return;
+                }
+            }
             ArtifactSegments.Clear();
             foreach (var seg in response.Segments)
                 ArtifactSegments.Add(new ArtifactSegmentRowViewModel(seg));
 
             ArtifactMarkers = ArtifactSegments.Select(s => s.ToMarker()).ToArray();
             CleanRatioSummary = $"整段统一检测 · 当前列出 {response.StartSeconds:0.###}–{response.EndSeconds:0.###} s · 干净率 {response.CleanRatio * 100:0.0}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
-            if (response.Segments.Count > 0 && ArtifactPolicy == "none")
-            {
-                ArtifactPolicy = "reject";
-            }
             StatusMessage = response.Segments.Count == 0
                 ? $"坏段扫描完成：{response.StartSeconds:0.###}–{response.EndSeconds:0.###} s 范围内未检出超限坏段。"
                 : $"坏段扫描完成（{response.StartSeconds:0.###}–{response.EndSeconds:0.###} s）：检出 {response.Segments.Count} 段，点击列表可一键跳转定位。";
@@ -182,6 +189,7 @@ public sealed partial class ReviewPreprocessingViewModel
             excludedIndices.Any(index => !pending.Components.Any(c => c.ComponentIndex == index)))
             throw new InvalidOperationException("ICA 选择与当前已审查模型不匹配，请重新审查。");
         icaFitFingerprint = fitFingerprint;
+        if (SelectedEogChannels.Count > 0 || SelectedEcgChannels.Count > 0) InvalidateArtifactInspection();
         confirmedIcaExcluded = excludedIndices.Distinct().OrderBy(i => i).ToArray();
         icaInvalidatedPendingReview = false;
         removalMethod = "ica_infomax";

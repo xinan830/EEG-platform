@@ -28,14 +28,16 @@ public sealed partial class ReviewPreprocessingTests
     }
 
     [Fact]
-    public async Task TreatmentPolicyChanges_PreserveCurrentDetectionReport()
+    public async Task ArtifactTreatmentPreservesReport_ButRemovalMethodInvalidatesIt()
     {
         using var vm = CreateViewModel(new FakePreprocessingClient(), out _);
         await vm.InspectArtifactSegmentsAsync();
         var rows = vm.ArtifactSegments.ToArray();
         vm.ArtifactPolicy = "annotate";
-        vm.RemovalMethod = "ssp_eog";
         Assert.Equal(rows, vm.ArtifactSegments.ToArray());
         Assert.NotEmpty(vm.ArtifactMarkers);
+        vm.RemovalMethod = "ssp_eog";
+        Assert.Empty(vm.ArtifactSegments);
+        Assert.Empty(vm.ArtifactMarkers);
     }
 }

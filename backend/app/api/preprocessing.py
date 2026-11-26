@@ -11,7 +11,7 @@ from app.models.preprocessing_preview import (
     PreprocessingPreviewWindowRequest,
     PreprocessingPreviewWindowResponse,
 )
-from app.models.artifact_references import ArtifactReferenceCatalogue, PreprocessingAnalysisChannels
+from app.models.artifact_references import ArtifactReferenceCatalogue, PreprocessingAnalysisChannels, ChannelIdentityUpdate
 from app.models.analysis_config import OfflinePreprocessingRequest
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
 from app.services.artifact_inspection import inspect_recording_artifact_segments, inspect_recording_ica_components
@@ -45,6 +45,20 @@ def reference_channels(recording_id: str, request: Request):
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
         return error_response(request, 422, "ARTIFACT_REFERENCE_INVALID", str(exc))
+
+
+@router.put("/{recording_id}/preprocessing/channel-identities", response_model=ArtifactReferenceCatalogue)
+def update_channel_identities(recording_id: str, request: Request, body: ChannelIdentityUpdate):
+    try:
+        from app.services.recording_channel_roles import save_recording_identities
+        service = _service(request)
+        payload = save_recording_identities(service, service.require_recording(recording_id), body)
+        _record_audit(request, "preprocessing.channel_identities", recording_id, {"channels": [row.model_dump() for row in body.channels]})
+        return payload
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "CHANNEL_IDENTITY_INVALID", str(exc))
 
 
 @router.post("/{recording_id}/preprocessing/analysis-channels", response_model=PreprocessingAnalysisChannels)

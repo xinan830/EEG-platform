@@ -54,6 +54,46 @@ public sealed partial class RecordingReviewViewModelTests
         if (panelId == "spectral-values") Assert.Equal("F7" + suffix, Assert.Single(vm.SpectralValues.Rows).Channel);
     }
 
+    [Fact]
+    public async Task ConflictingReferences_CancelActiveAnalysisAndBlockRefreshUntilResolved()
+    {
+        var configuration = Configuration();
+        var recording = new RegisteredRecording("references", "record.edf", ".edf", "now", 500, 100, ["F3", "F7"], "sha");
+        var catalogue = new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
+            new RawSignalViewDefinition(["F3", "F7"]), [], []);
+        var handler = new AnalysisLayoutHandler("F7");
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        var provider = new PanelProvider("psd", deferWindow: true) { SupportsArtifactRemoval = true };
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalogue,
+            registeredAnalysisRecording: recording, algorithmClient: new HttpAlgorithmClient(http),
+            analysisCoordinators: [new ReviewAnalysisCoordinator(provider)]);
+        await vm.InitializeAsync();
+        await vm.Preprocessing.LoadReferenceChannelsAsync();
+        vm.Preprocessing.ReferenceChannels.Single(c => c.Name == "F3").IsEog = true;
+        vm.Preprocessing.RemovalMethod = "eog_regression";
+        await vm.SeekAsync(10);
+        var opening = vm.OpenAnalysisAsync("psd");
+        try
+        {
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            vm.Preprocessing.SelectedEcgChannel = "F3";
+            Assert.True(provider.PendingToken.IsCancellationRequested);
+            Assert.Equal(vm.Preprocessing.ReferenceStatusText, vm.AnalysisPreparationText);
+        }
+        finally { provider.Release.TrySetResult(); }
+        await opening;
+        await Task.Delay(450);
+        Assert.Equal(1, provider.Loads);
+        Assert.Equal(1, handler.LayoutRequests);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vm.OpenAnalysisAsync("psd"));
+        Assert.Equal(1, provider.Loads);
+        Assert.Equal(1, handler.LayoutRequests);
+        vm.Preprocessing.SelectedEcgChannel = "";
+        await vm.OpenAnalysisAsync("psd");
+        Assert.Equal(2, provider.Loads);
+        Assert.Equal(2, handler.LayoutRequests);
+    }
+
     private sealed class AnalysisLayoutHandler(string channel) : HttpMessageHandler
     {
         public int LayoutRequests { get; private set; }
@@ -61,7 +101,7 @@ public sealed partial class RecordingReviewViewModelTests
         {
             object response;
             if (request.RequestUri!.AbsolutePath.EndsWith("reference-channels", StringComparison.Ordinal))
-                response = new ArtifactReferenceCatalogue("references", 500, 50000, [new("F3", "V"), new("F7", "V")]);
+                response = new ArtifactReferenceCatalogue("references", 500, 50000, [new("F3", "V", "eog"), new("F7", "V", "eeg")]);
             else
             {
                 LayoutRequests++;

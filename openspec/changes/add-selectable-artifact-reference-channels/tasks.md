@@ -4,3 +4,10 @@
 - [x] 3. Wire selections through review, preparation, evidence and cache identity.
 - [x] 4. Add desktop selectors, HTTP propagation and ICA invalidation behavior/tests.
 - [x] 5. Run backend/desktop regressions, size policy, strict OpenSpec validation and record limits.
+- [x] 6. Fix reference/bad-channel overlap and keep aliases, readers and evidence aligned.
+- [x] 7. Unify effective scan configuration, invalidate stale reports and block conflicting roles.
+- [x] 8. Show excluded-reference badges and style explicit automatic ECG selection; verify regressions.
+- [x] 9. Persist explicit EEG/EOG/ECG identities independently of selected scoring references and preserve export/import identities.
+- [x] 10. Resolve automatic and manual EEG proxies through one effective scientific path without removing EEG inputs.
+- [x] 11. Add per-recording identity controls, propagate confirmed reference roles and invalidate stale work.
+- [x] 12. Verify proxy equivalence, dedicated-channel isolation, persistence/roundtrip, desktop behavior and document limits.

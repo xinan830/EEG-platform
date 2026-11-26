@@ -20,7 +20,9 @@ class _RecordingAlgorithmContext:
         self._recordings = recordings
         self._recording = recording
         self.id = recording.id
-        self.channel_names = list(recording.channels)
+        from app.services.recording_channel_roles import scientific_channel_names, identity_signature
+        self._channel_role_identity = identity_signature(getattr(recordings, "storage_dir", None), recording)
+        self.channel_names = list(scientific_channel_names(recordings, recording))
         self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
         self.duration_s = float(recording.duration_s or 0.0)
         self.execution_context = execution_context
@@ -30,6 +32,12 @@ class _RecordingAlgorithmContext:
         )
         self._prepared_faa_source: PreprocessedRecording | None = None
         self._access_session: Any = None
+
+    def validate_source_identity(self) -> None:
+        from app.services.recording_channel_roles import identity_signature
+        if identity_signature(
+                getattr(self._recordings, "storage_dir", None), self._recording) != self._channel_role_identity:
+            raise ValueError("CHANNEL_IDENTITY_CHANGED: 通道身份已变化，请重新开始分析")
 
     def close(self) -> None:
         self._prepared_faa_source = None

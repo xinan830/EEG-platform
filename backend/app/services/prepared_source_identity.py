@@ -9,6 +9,7 @@ def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz
                              channel_names=None, bad_channel_spec=None, preprocessing_spec=None,
                              artifact_reference_channels=()):
     selected_channels = tuple(channel_names) if channel_names is not None else None
+    from app.services.recording_channel_roles import role_fingerprint
     payload = {
         "schema_version": "continuous-prepared-source-v1",
         "source_sha256": recording.source_sha256,
@@ -17,6 +18,8 @@ def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz
         "channel_order": recording.channels,
         "selected_channels": list(selected_channels) if selected_channels is not None else None,
         "raw_labels": recording.raw_channel_labels,
+        "channel_identities": getattr(recording, "channel_identities", ()),
+        "channel_identity_sha256": role_fingerprint(getattr(recordings, "storage_dir", None), recording) if hasattr(recording, "extension") else None,
         "canonical_labels": recording.canonical_channel_labels,
         "channel_types": recording.channel_types,
         "channel_units": recording.channel_units,

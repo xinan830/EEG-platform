@@ -181,8 +181,9 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
     private sealed record ExportChannelMapping(
         [property: JsonPropertyName("export_label")] string ExportLabel,
         [property: JsonPropertyName("source_label")] string SourceLabel,
-        [property: JsonPropertyName("native_channel_index")] int NativeChannelIndex,
-        [property: JsonPropertyName("kind")] JsonElement Kind);
+        [property: JsonPropertyName("native_channel_index")] int? NativeChannelIndex,
+        [property: JsonPropertyName("kind")] JsonElement Kind,
+        [property: JsonPropertyName("physiological_identity")] string? PhysiologicalIdentity = null);
 
     private sealed record ExportChannelIdentity(
         [property: JsonPropertyName("exported_signal_sha256")] string ExportedSignalSha256,

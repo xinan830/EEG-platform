@@ -305,6 +305,11 @@ def build_preprocessing_preview_window(
         base_channels, proc_channels,
         allow_exclusions=(norm_bad.policy == "exclude" or bool(norm_rem.eog_channels or norm_rem.ecg_channels)),
     )
+    if hasattr(recording, "extension"):
+        from app.services.recording_channel_roles import scientific_channel_names
+        scientific_names = {name.casefold() for name in scientific_channel_names(recordings, target_recording)}
+        excluded_output_channels.extend(name for name in target_recording.channels
+            if name.casefold() not in scientific_names and name not in excluded_output_channels)
 
     base_slice = np.asarray(baseline.data[s_idx:e_idx], dtype=np.float64)
     proc_slice = base_slice if processed is baseline else np.asarray(processed.data[s_idx:e_idx], dtype=np.float64)

@@ -198,6 +198,11 @@ public sealed partial class RecordingReviewViewModel
         foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
         AnalysisPreparationText = "参数已改变，等待自动分析。";
         RaiseAnalysisPropertiesChanged();
+        if (Preprocessing.AreScientificInputsBlocked)
+        {
+            AnalysisPreparationText = Preprocessing.HasUnsavedChannelIdentities ? "通道身份尚未保存，分析已暂停。" : Preprocessing.ReferenceStatusText;
+            return;
+        }
         if (activeAnalysisId is not { } algorithmId || analysisLifetime.IsCancellationRequested) return;
         var revision = analysisConfigurationRevision;
         analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>

@@ -31,10 +31,11 @@ internal static class ReviewPreprocessingProjection
         string badChannelPolicy,
         PreprocessingPreviewWindowResponse? preview)
     {
-        if (badChannelPolicy == "exclude" &&
-            preview?.Processed.ExcludedOutputChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
+        if (preview?.Processed.ExcludedOutputChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
             return new ChannelVisualBadge(ChannelVisualPreprocessingState.Excluded,
-                "该输出依赖已排除的电极或参考输入；浅灰为科学滤波基线，处理后输出已排除，原始记录未改变。");
+                preview.Baseline.Channels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase)
+                    ? "该输出因坏导策略或专用眼电/心电分离而已排除；浅灰为科学滤波基线，处理后不输出，原始记录未改变。"
+                    : "该输出因专用眼电/心电或待确认通道身份而已排除；科学基线和处理侧均不输出，原始记录未改变。");
         if (badChannelPolicy == "interpolate" &&
             preview?.Processed.InterpolatedChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
             return new ChannelVisualBadge(ChannelVisualPreprocessingState.Interpolated,

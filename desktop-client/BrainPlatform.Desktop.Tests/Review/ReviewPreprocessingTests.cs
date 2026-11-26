@@ -282,7 +282,7 @@ public sealed partial class ReviewPreprocessingTests
         public virtual Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(
             string recordingId, CancellationToken cancellationToken) =>
             Task.FromResult(new ArtifactReferenceCatalogue(recordingId, 500, 30000,
-                [new("Fp1", "V"), new("EOG1", "V"), new("EOG2", "V"), new("ECG1", "V")]));
+                [new("Fp1", "V", "eeg"), new("EOG1", "V", "eog"), new("EOG2", "V", "eog"), new("ECG1", "V", "ecg")]));
 
         public virtual Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
             string recordingId, double startSeconds, double windowSeconds, CancellationToken cancellationToken) =>

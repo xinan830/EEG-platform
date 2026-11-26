@@ -22,12 +22,16 @@ Auxiliary references SHALL remain V/float64 on the recording absolute sample clo
 - **WHEN** a selected auxiliary reference is unavailable during a sample interval
 - **THEN** those values are not replaced with zeros or treated as valid scoring samples
 
+#### Scenario: A reference was previously selected as a bad EEG channel
+- **WHEN** a dedicated/non-EEG reference or its verified canonical alias also occurs in the bad-channel specification
+- **THEN** source partition removes only that overlap from the effective EEG bad-channel policy before interpolation or montage projection, while unrelated invalid bad-channel names still fail validation
+
 #### Scenario: Different native voltage clocks
 - **WHEN** EDF/BDF voltage sources have different native sample rates
 - **THEN** reference discovery/preparation fails explicitly with an alignment error and performs no implicit resampling
 
 #### Scenario: Algorithms consume the effective EEG layout
-- **WHEN** selected auxiliary sources also occur in raw EEG or montage inputs
+- **WHEN** dedicated auxiliary sources also occur in raw source columns or montage inputs
 - **THEN** the shared analysis entry obtains channel availability from the execution reader and all algorithm panels request that EEG layout without reintroducing auxiliary sources or unavailable derived outputs
 
 ### Requirement: Artifact reference selection invalidates reviewed identity
@@ -36,3 +40,49 @@ Changing reference selection SHALL invalidate pending and confirmed ICA choices 
 #### Scenario: Selection changes during review
 - **WHEN** the user changes auxiliary selection while an ICA request is pending
 - **THEN** the old response cannot confirm or overwrite the new selection
+
+#### Scenario: Bad-segment inspection follows effective reference roles
+- **WHEN** the user scans before ICA confirmation, switches removal method, confirms ICA, or invalidates a confirmed model
+- **THEN** the scan uses the effective preview payload and reports from a different reference population cannot remain visible
+
+#### Scenario: Reference roles conflict
+- **WHEN** the same source is selected for both EOG and ECG
+- **THEN** stale scientific work is canceled, new preview, bad-segment, ICA and algorithm requests are blocked, and normal preparation resumes after reselection
+
+#### Scenario: Reference output is absent in a scientific comparison
+- **WHEN** the backend lists an output as excluded because of reference partitioning
+- **THEN** the desktop displays its excluded badge regardless of the bad-channel policy
+
+#### Scenario: Automatic ECG selection is displayed
+- **WHEN** no explicit ECG source is selected
+- **THEN** the rounded selector displays an explicit automatic-selection label while retaining the existing empty selection in the request contract
+
+### Requirement: Physiological identity is separate from scoring use
+Each recorded voltage source SHALL have a source-bound identity: EEG, dedicated EOG, dedicated ECG or unconfirmed. Review SHALL allow saving that declaration for the current recording. Scoring selection SHALL NOT change identity. Dedicated and unconfirmed sources SHALL stay outside scientific EEG even when removal is disabled. Recorded EEG membership SHALL NOT be inferred solely from channel names.
+
+#### Scenario: The same EEG proxies are chosen automatically or manually
+- **WHEN** the same recording, montage, filters and ICA settings select the same EEG proxies automatically or explicitly
+- **THEN** EEG fitting channels, component scores, recommendations and reconstructed samples are numerically identical and those proxies remain EEG outputs
+
+#### Scenario: Dedicated physiological electrodes are declared
+- **WHEN** a raw voltage source is saved as dedicated EOG or ECG
+- **THEN** EEG fitting, interpolation donors, CAR and derived outputs exclude that source while separate scoring retains its aligned samples; ECG scoring requires dedicated ECG identity
+
+#### Scenario: Identity edits have not been saved
+- **WHEN** a user changes identity without a successful save or selects incompatible scoring roles
+- **THEN** stale work is canceled and new preview, scan, ICA and algorithm requests are blocked until inputs are valid and saved
+
+#### Scenario: Identity changes while work is queued or running
+- **WHEN** saved physiological identities differ from the scientific input snapshot
+- **THEN** old sessions and queued/running work cannot publish under the obsolete identity
+
+### Requirement: Recording identities survive reopen and signal roundtrip
+Saved identities SHALL be source-bound metadata separate from acquired samples. EDF/BDF export SHALL retain voltage auxiliary sources and per-column identities in accompanying metadata. Import SHALL validate source hash, columns, roles and voltage units before publication.
+
+#### Scenario: EEG and auxiliary sources are exported and imported
+- **WHEN** exported EDF/BDF and matching labels metadata are imported
+- **THEN** identities, raw column order and common sample clock are restored, including an auxiliary voltage source confirmed as EEG
+
+#### Scenario: Scientific comparison contains a display-only auxiliary row
+- **WHEN** an ordinary display row is absent from both scientific sides because of validated identity partition
+- **THEN** the backend declares that row excluded and other EEG comparisons stay available with an excluded badge and no fabricated auxiliary trace

@@ -173,9 +173,13 @@ def validate_imported_raw_analysis_channels(recording: RecordingSummary, request
         return
     if not getattr(recording, "import_channel_configuration_snapshot_json", None):
         return
+    from app.services.recording_channel_roles import source_identity_lookup
+    identities = source_identity_lookup(None, recording)
+    promoted = {name.casefold() for name, kind in zip(recording.channels, recording.channel_types, strict=True)
+                if kind.casefold() != "eeg" and identities.get(name.casefold()) == "eeg"}
     allowed = {str(channel).casefold() for channel in getattr(recording, "analysis_channels", ())}
     existing = {str(channel).casefold() for channel in getattr(recording, "channels", ())}
     for channel in requested_channels:
         folded = str(channel).casefold()
-        if folded in existing and folded not in allowed:
+        if folded in existing and folded not in allowed and not (folded in promoted and identities.get(folded) == "eeg"):
             raise ValueError(f"RECORDING_CHANNEL_UNAVAILABLE: 通道 {channel} 已禁用或非 EEG，不能用于离线分析")

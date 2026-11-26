@@ -23,6 +23,7 @@ class PreprocessingRecordingAccess:
     open_access_session: Callable
     analysis_signal_provenance: Callable
     ica_review_cache: IcaReviewCache
+    storage_dir: object = None
 
 
 class ContinuousPreprocessingService:
@@ -46,19 +47,28 @@ class ContinuousPreprocessingService:
         from app.services.prepared_source_identity import prepared_source_identity
 
         started = time.perf_counter()
+        from app.services.recording_channel_roles import attach_recording_identities, resolve_removal_references, identity_signature
+        role_signature = identity_signature(self.recordings.storage_dir, recording)
+        recording = attach_recording_identities(self.recordings.storage_dir, recording)
+        if preprocessing_spec.artifact_removal.is_active:
+            preprocessing_spec = replace(preprocessing_spec, artifact_removal=resolve_removal_references(
+                self.recordings, recording, preprocessing_spec.artifact_removal))
         filters = preprocessing_spec.filter_spec
         low_hz, high_hz, notch_hz = filters.low_hz, filters.high_hz, filters.notch_hz
         norm_bad, norm_art, norm_rem = (preprocessing_spec.bad_channels,
                                        preprocessing_spec.artifact_rejection,
                                        preprocessing_spec.artifact_removal)
         bad_active, art_active, rem_active = norm_bad.is_active, norm_art.is_active, norm_rem.is_active
-        reference_channels = _artifact_reference_channels or (*norm_rem.eog_channels, *norm_rem.ecg_channels)
+        from app.services.recording_channel_roles import dedicated_reference_sources, scientific_channel_names
+        scientific_names = scientific_channel_names(self.recordings, recording)
+        reference_channels = dedicated_reference_sources(self.recordings.storage_dir, recording,
+            (*norm_rem.eog_channels, *norm_rem.ecg_channels))
         selected_channels = None
         if channels and (requested_channels_only or getattr(execution_context, "select_requested_channels", False)):
             # An explicit projection policy may opt into a smaller source.
             # Ordinary on-demand work first shares the canonical full source
             # with waveform and other algorithms when the resource budget fits.
-            available = {name.casefold(): name for name in recording.channels}
+            available = {name.casefold(): name for name in scientific_names}
             selected_channels = tuple(available[item.casefold()] for item in channels)
         elif channels:
             policy = getattr(execution_context, "preparation_resource_policy", None)
@@ -66,10 +76,10 @@ class ContinuousPreprocessingService:
                 sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
                 all_channel_bytes = sample_count * len(recording.channels) * np.dtype("float64").itemsize * 2
                 if all_channel_bytes > policy.max_preparation_bytes:
-                    available = {name.casefold(): name for name in recording.channels}
+                    available = {name.casefold(): name for name in scientific_names}
                     selected_channels = tuple(available[item.casefold()] for item in channels)
         # Artifact z-scores and interval boundaries belong to the complete channel population.
-        if art_active or reference_channels:
+        if art_active or reference_channels or rem_active:
             selected_channels = None
         effective_notch_q = float(filters.notch_q)
         signal_provenance = self.recordings.analysis_signal_provenance(recording)
@@ -80,7 +90,7 @@ class ContinuousPreprocessingService:
         expected_contract = None
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
-            contract_channels = selected_channels or tuple(recording.channels)
+            contract_channels = selected_channels or scientific_names
             if reference_channels:
                 from app.services.artifact_references import exclude_reference_outputs
                 raw_labels = () if recording.extension == ".wpf" else recording.raw_channel_labels
@@ -135,7 +145,7 @@ class ContinuousPreprocessingService:
                 artifact_rejection_spec=norm_art if art_active else None,
                 artifact_removal_spec=norm_rem if rem_active else None,
                 annotated_source=annotated,
-                artifact_reference_channels=reference_channels,
+                artifact_reference_channels=(*norm_rem.eog_channels, *norm_rem.ecg_channels),
             )
             if expected_contract is not None:
                 actual_contract = replace(
@@ -148,6 +158,9 @@ class ContinuousPreprocessingService:
         cached = self.preprocess_cache.get_or_create(
             recording.id, identity, create_preprocessed, expected_contract=expected_contract,
         )
+        if identity_signature(self.recordings.storage_dir, recording) != role_signature:
+            self.invalidate_recording(recording.id)
+            raise ValueError("CHANNEL_IDENTITY_CHANGED: 准备期间通道身份已变化，请重新开始分析")
         completed = getattr(execution_context, "source_preparation_completed", None)
         if completed is not None and _notify_prepared:
             completed()

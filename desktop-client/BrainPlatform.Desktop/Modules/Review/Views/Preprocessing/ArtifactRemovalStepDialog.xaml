@@ -8,6 +8,7 @@
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Modules/Review/Views/Preprocessing/PreprocessingDialogStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
@@ -90,19 +91,35 @@
 
                 <Border Background="White" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,14">
                     <StackPanel>
-                        <TextBlock Text="专用辅助通道（来自当前录音）" FontWeight="SemiBold" Margin="0,0,0,8" />
-                        <TextBlock Text="眼电 EOG：可多选" Margin="0,0,0,5" />
+                        <TextBlock Text="通道身份与评分用途（来自当前录音）" FontSize="13" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock Text="先按实际接线确认身份并保存；勾选眼电用途不会改变通道身份。EEG 代理仍参与脑电拟合，专用 EOG/ECG 独立处理。" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <TextBlock Text="眼电 EOG：可多选" FontSize="12" Foreground="#475569" Margin="0,0,0,5" />
                         <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
                             <ItemsControl x:Name="EogReferenceChoices" ItemsSource="{Binding ReferenceChannels}">
-                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate><DataTemplate>
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEog, Mode=TwoWay}" Margin="0,3,15,3" />
+                                    <Grid Margin="0,3"><Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#334155" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1" Style="{StaticResource AppRoundedFilterComboBoxStyle}" ItemsSource="{Binding IdentityOptions}" SelectedValuePath="Key" DisplayMemberPath="Value" SelectedValue="{Binding Identity, Mode=TwoWay}" Margin="0,0,12,0" />
+                                        <CheckBox Grid.Column="2" Content="用于眼电评分" IsChecked="{Binding IsEog, Mode=TwoWay}" FontSize="12" Foreground="#334155" VerticalAlignment="Center" />
+                                    </Grid>
                                 </DataTemplate></ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
-                        <TextBlock Text="心电 ECG（仅 ICA）：留空为自动识别" Margin="0,10,0,5" />
-                        <ComboBox x:Name="EcgReferenceChoice" ItemsSource="{Binding EcgChannelOptions}" SelectedItem="{Binding SelectedEcgChannel, Mode=TwoWay}" IsEnabled="{Binding IsRemovalIca}" MinHeight="30" />
-                        <TextBlock Text="{Binding ReferenceStatusText}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0" />
+                        <Button Content="保存通道身份" Command="{Binding SaveChannelIdentitiesCommand}" IsEnabled="{Binding HasUnsavedChannelIdentities}" Style="{StaticResource PrepPrimaryButtonStyle}" HorizontalAlignment="Right" Margin="0,8,0,0" />
+                        <TextBlock Text="心电 ECG（仅 ICA）" FontSize="12" Foreground="#475569" Margin="0,10,0,5" />
+                        <ComboBox x:Name="EcgReferenceChoice" Style="{StaticResource AppRoundedFilterComboBoxStyle}" ItemsSource="{Binding EcgChannelOptions}" SelectedItem="{Binding SelectedEcgChannel, Mode=TwoWay}" IsEnabled="{Binding IsRemovalIca}">
+                            <ComboBox.ItemTemplate><DataTemplate>
+                                <TextBlock><TextBlock.Style><Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding}" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding}" Value="">
+                                        <Setter Property="Text" Value="自动识别（不指定）" />
+                                    </DataTrigger></Style.Triggers>
+                                </Style></TextBlock.Style></TextBlock>
+                            </DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding ReferenceStatusText}" FontSize="12" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
                 <!-- Parameters Card -->

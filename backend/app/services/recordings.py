@@ -33,7 +33,7 @@ class RecordingService:
         self._wpf_recording_facts = WpfRecordingFactsCache()
         self._offline_scientific_preprocessing = OfflineScientificPreprocessingService.for_recording_access(
             lambda *args, **kwargs: self.open_access_session(*args, **kwargs),
-            lambda recording: self.analysis_signal_provenance(recording))
+            lambda recording: self.analysis_signal_provenance(recording), self.storage_dir)
         self._spectral_analysis = SpectralAnalysisService(self, self._offline_scientific_preprocessing)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
@@ -196,7 +196,8 @@ class RecordingService:
             row = connection.execute("SELECT * FROM recordings WHERE id = ?", (recording_id,)).fetchone()
         if row is None:
             raise KeyError("录制文件不存在")
-        summary = self._row_to_summary(row)
+        from app.services.recording_channel_roles import attach_recording_identities
+        summary = attach_recording_identities(self.storage_dir, self._row_to_summary(row))
         if summary.stored_name.startswith("wpf-montage:"):
             directory = summary.stored_name.removeprefix("wpf-montage:")
             catalogue = self._analysis_montage_snapshots.catalogue(summary.id, directory)
@@ -214,12 +215,14 @@ class RecordingService:
         verify_content_hash: bool = True, bad_channel_spec=None, raw_unprojected: bool = False,
         raw_voltage_channels: bool = False,
         artifact_reference_channels=(),
+        scientific_channels: bool = True,
     ):
         return self._recording_access.open_session(
             recording, analysis_montage_id=analysis_montage_id,
             verify_content_hash=verify_content_hash, bad_channel_spec=bad_channel_spec,
             raw_unprojected=raw_unprojected, raw_voltage_channels=raw_voltage_channels,
             artifact_reference_channels=artifact_reference_channels,
+            scientific_channels=scientific_channels,
         )
 
     def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:
@@ -239,6 +242,14 @@ class RecordingService:
         })
 
     def analysis_signal_provenance(self, recording: RecordingSummary) -> dict:
+        from app.services.recording_channel_roles import role_fingerprint
+        if not hasattr(recording, "stored_name"):
+            recording = self.require_recording(recording.id)
+        provenance = self._analysis_signal_provenance(recording)
+        fingerprint = role_fingerprint(self.storage_dir, recording) if hasattr(recording, "extension") else None
+        return {**provenance, "channel_identity_sha256": fingerprint} if fingerprint else provenance
+
+    def _analysis_signal_provenance(self, recording: RecordingSummary) -> dict:
         if not hasattr(recording, "stored_name"):
             recording = self.require_recording(recording.id)
         if recording.stored_name.startswith("wpf-montage:"):
@@ -259,7 +270,7 @@ class RecordingService:
         window_s: float,
     ) -> tuple[object, float, list[str], list[dict[str, object]], float]:
         """只读取预览所需的时间窗，避免为查看波形加载完整记录。"""
-        with self.open_access_session(recording) as session:
+        with self.open_access_session(recording, scientific_channels=False) as session:
             sfreq = session.sampling_rate_hz
             sample_count = session.sample_count
             duration_s = sample_count / sfreq
@@ -417,7 +428,7 @@ class RecordingService:
         if notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
 
-        access_session = self.open_access_session(recording)
+        access_session = self.open_access_session(recording, scientific_channels=False)
         try:
             sfreq = access_session.sampling_rate_hz
             nyquist = sfreq / 2.0
@@ -566,11 +577,13 @@ class RecordingService:
         return self._offline_scientific_preprocessing
 
     def _delete_recording(self, recording: RecordingSummary) -> None:
+        from app.services.recording_channel_roles import identity_path
         self._filter_checkpoints.clear_recording(recording.id)
         self._offline_scientific_preprocessing.invalidate_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))
+        identity_path(self.storage_dir, recording).unlink(missing_ok=True)
 
     def delete_import_if_unreferenced(self, recording_id: str) -> bool:
         """Delete an imported EDF/BDF blob only after its project and analysis references are gone."""

@@ -31,6 +31,7 @@ class RecordingSummary:
     import_montage_configuration_snapshot_json: str | None = None
     import_montage_catalogue_snapshot_json: str | None = None
     analysis_channels: tuple[str, ...] = ()
+    channel_identities: tuple[tuple[str, str], ...] = ()
 
 
 class ImportedProjectRecordingResponse(BaseModel):

@@ -99,6 +99,8 @@ def inspect_recording_ica_components(
     norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
     norm_art = artifact_rejection_spec.normalized() if artifact_rejection_spec is not None else ArtifactRejectionSpec()
     spec = (removal_spec or ArtifactRemovalSpec(method="ica_infomax")).normalized()
+    from app.services.recording_channel_roles import resolve_removal_references
+    spec = resolve_removal_references(recordings, target_recording, spec)
 
     # Full-recording review uses the exact same continuous pre-ICA matrix as mapped_preprocess
     # and caches the fitted ICA model under a verified fingerprint so user-confirmed ICs never drift.

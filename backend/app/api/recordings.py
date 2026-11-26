@@ -130,7 +130,7 @@ def get_raw_samples(
 ) -> RawSampleRangeResponse | dict:
     try:
         recording = _service(request).require_recording(recording_id)
-        with _service(request).open_access_session(recording) as session:
+        with _service(request).open_access_session(recording, scientific_channels=False) as session:
             channel_count = len(session.channel_names)
             if (end_sample > session.sample_count or end_sample <= start_sample
                     or (end_sample - start_sample) * channel_count > MAX_RAW_SAMPLE_CELLS):

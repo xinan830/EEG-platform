@@ -452,7 +452,8 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
         def __init__(self, raw):
             self.raw = raw
 
-        def open_access_session(self, recording):
+        def open_access_session(self, recording, *, scientific_channels=True):
+            assert not scientific_channels
             from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
             return RecordingAccessSession(
                 RecordingSourceIdentity(recording.id, "test", "test"), self.raw,

@@ -31,7 +31,8 @@ public sealed partial class ReviewPreprocessingViewModel
         PreprocessingPreviewWindowResponse preview, IReadOnlyList<string> displayedChannels) =>
         displayedChannels.Count > 0 &&
         displayedChannels.Distinct(StringComparer.OrdinalIgnoreCase).Count() == displayedChannels.Count &&
-        displayedChannels.All(channel => preview.Baseline.Channels.Contains(channel, StringComparer.OrdinalIgnoreCase));
+        displayedChannels.All(channel => preview.Baseline.Channels.Contains(channel, StringComparer.OrdinalIgnoreCase) ||
+            preview.Processed.ExcludedOutputChannels.Contains(channel, StringComparer.OrdinalIgnoreCase));
 
     public string ScientificComparisonLegendText
     {
@@ -100,6 +101,11 @@ public sealed partial class ReviewPreprocessingViewModel
     {
         ClearOverlayWindow();
         if (!IsOverlayCompareEnabled || lifetime.IsCancellationRequested) return;
+        if (AreScientificInputsBlocked)
+        {
+            OverlayStatusText = HasUnsavedChannelIdentities ? "通道身份尚未保存，科学对比已暂停。" : ReferenceValidationMessage!;
+            return;
+        }
         if (!IsDisplayMontageCompatible || isPlaybackActive)
         {
             OverlayStatusText = !IsDisplayMontageCompatible

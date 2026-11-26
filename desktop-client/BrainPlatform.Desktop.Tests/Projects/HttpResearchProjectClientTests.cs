@@ -301,7 +301,7 @@ public sealed class HttpResearchProjectClientTests
         await File.WriteAllBytesAsync(path, [1, 2, 3]);
         await File.WriteAllTextAsync(sidecarPath, """
             {"exported_signal_sha256":"abc","hardware":{"channel_configuration_snapshot_json":{"Channels":[]}},
-             "channels":[{"export_label":"CH0001","source_label":"Fz","native_channel_index":8,"kind":"2"}],
+             "channels":[{"export_label":"CH0001","source_label":"Fz","native_channel_index":8,"kind":"2","physiological_identity":"eeg"}],
              "events":[{"large":"ignored"}]}
             """);
         string? requestBody = null;
@@ -327,6 +327,7 @@ public sealed class HttpResearchProjectClientTests
                 null, null, CancellationToken.None);
             using var request = JsonDocument.Parse(ExtractMultipartField(requestBody!, "export_channel_identity_json"));
             Assert.Equal("abc", request.RootElement.GetProperty("exported_signal_sha256").GetString());
+            Assert.Equal("eeg", request.RootElement.GetProperty("channels")[0].GetProperty("physiological_identity").GetString());
             Assert.True(request.RootElement.TryGetProperty("channel_configuration_snapshot_json", out _));
             Assert.False(request.RootElement.ToString().Contains("events", StringComparison.Ordinal));
         }

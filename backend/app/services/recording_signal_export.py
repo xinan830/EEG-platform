@@ -68,8 +68,9 @@ def record_layout(count: int, rate: float, channel_count: int, bytes_per_sample:
 
 
 class RecordingSignalExporter:
-    def __init__(self, output_root: Path):
+    def __init__(self, output_root: Path, *, recording_storage: Path | None = None):
         self.output_root = Path(output_root)
+        self.recording_storage = recording_storage
         self.gate = Lock()
 
     def export(self, recording: RecordingSummary, format: str, cancelled: Event, request_id: str = "unknown") -> SignalExportPackage:
@@ -108,16 +109,18 @@ class RecordingSignalExporter:
         event_signature = event_path.read_bytes() if event_path.exists() else None
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8-sig"))
         channels = sorted([item for item in manifest["Channels"] if
-                           str(item["Kind"]).casefold() in {"1", "2", "reference", "bipolar"}],
+                           item.get("Unit") == "V" or str(item["Kind"]).casefold() in {"1", "2", "reference", "bipolar"}],
                           key=lambda item: item["StreamIndex"])
         if (manifest.get("EegSignalUnit") != "V" or not channels or
                 any(item.get("Unit") != "V" for item in channels)):
             raise SignalExportError("RECORDING_EXPORT_UNIT_UNSUPPORTED", "所有原始脑电源通道单位必须为 V。")
-        indexes = [facts.eeg_indexes.index(item["StreamIndex"]) for item in channels]
+        indexes = list(range(len(channels)))
         samples, duration = record_layout(facts.sample_count, facts.sampling_rate_hz, len(channels), 3 if format == "bdf" else 2)
         events = recording_events(root, facts.session_id, facts.sample_count)
         labels = channel_labels(channels)
-        reader = WpfSampleReader(facts)
+        from app.services.recording_channel_roles import source_channel_identities
+        identities = source_channel_identities(self.recording_storage, recording)
+        reader = WpfSampleReader(facts, stream_indexes=tuple(item["StreamIndex"] for item in channels))
         try:
             if reader.source_gaps(0, facts.sample_count):
                 raise SignalExportError("RECORDING_EXPORT_SOURCE_GAP", "录音包含采样缺口，不能导出为连续 EDF/BDF。")
@@ -130,6 +133,8 @@ class RecordingSignalExporter:
                     minimum, maximum = minimum - .5, maximum + .5
                 minimum, maximum = header_bound(minimum, upper=False), header_bound(maximum, upper=True)
                 mappings.append({"export_label": labels[index], "source_label": channel.get("Label"),
+                                 "physiological_identity": identities.get(channel.get("Label"),
+                                     ("eeg" if channel["StreamIndex"] in facts.eeg_indexes else "unconfirmed",))[0],
                                  "stream_index": channel["StreamIndex"], "native_channel_index": channel.get("NativeChannelIndex"),
                                  "kind": channel["Kind"], "source_unit": "V", "export_unit": "uV",
                                  "source_minimum_uv": float(minima[index]), "source_maximum_uv": float(maxima[index]),
@@ -147,6 +152,8 @@ class RecordingSignalExporter:
             check()
             if signature != wpf_source_signature(root) or event_signature != (event_path.read_bytes() if event_path.exists() else None):
                 raise SignalExportError("RECORDING_EXPORT_SOURCE_CHANGED", "导出期间录音或事件发生变化，请重试。")
+            if identities != source_channel_identities(self.recording_storage, recording):
+                raise SignalExportError("CHANNEL_IDENTITY_CHANGED", "导出期间通道身份发生变化，请重试。")
             metadata = {"schema_version": "recording-signal-export-v2", "recording_id": recording.id,
                         "exported_signal_sha256": _file_sha256(signal),
                         "source_sha256": facts.source_sha256, "session_id": facts.session_id,

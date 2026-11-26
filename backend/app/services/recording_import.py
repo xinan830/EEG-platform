@@ -172,6 +172,16 @@ class EdfBdfImportService:
             raise RecordingImportError("RECORDING_CHANNEL_METADATA_INVALID", "EDF/BDF 通道顺序或元数据无效。")
         acquisition_snapshot = montage_snapshot = montage_catalogue = None
         if export_channel_identity_json is not None:
+            try:
+                entries = json.loads(export_channel_identity_json)["channels"]
+                if len(entries) != len(channels):
+                    raise ValueError
+                for column, entry in enumerate(entries):
+                    if str(entry.get("kind", "")).casefold() not in {"1", "2", "reference", "bipolar"}:
+                        role = entry.get("physiological_identity", "unconfirmed")
+                        channel_types[column] = role if role in {"eog", "ecg"} else "misc"
+            except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                raise RecordingImportError("RECORDING_EXPORT_METADATA_INVALID", "导出通道身份或数量无效。") from exc
             (snapshot, column_mapping, acquisition_snapshot, montage_snapshot,
              montage_catalogue) = _bind_export_channel_identity(
                 export_channel_identity_json, source_sha256, channels, channel_types
@@ -181,6 +191,12 @@ class EdfBdfImportService:
                 channel_configuration_snapshot_json, channels, channel_types
             )
         display_channels = list(raw_channels)
+        if snapshot is not None:
+            from app.services.recording_channel_roles import validated_import_identities
+            try:
+                validated_import_identities(json.loads(snapshot), raw_channels, channel_units)
+            except ValueError as exc:
+                raise RecordingImportError("CHANNEL_IDENTITY_INVALID", str(exc)) from exc
         if snapshot is not None and column_mapping is not None:
             configured = json.loads(snapshot)["Channels"]
             configured_by_index = {item["NativeChannelIndex"]: item["ElectrodeLabel"].strip() for item in configured}
@@ -313,7 +329,9 @@ def _bind_export_channel_identity(identity_json: str, source_sha256: str | None,
 
     eeg_columns = [index for index, channel_type in enumerate(channel_types)
                    if channel_type.casefold() == "eeg"]
-    if len(channels) != len(eeg_columns):
+    eeg_channels = [entry for entry in channels if isinstance(entry, dict) and
+                    str(entry.get("kind", "")).casefold() in {"1", "2", "reference", "bipolar"}]
+    if len(channels) != len(labels) or len(eeg_channels) != len(eeg_columns):
         raise RecordingImportError("RECORDING_EXPORT_METADATA_MISMATCH", "导出身份信息中的 EEG 通道数量不匹配。")
     configured_by_index: dict[int, dict] = {}
     configured_display_orders: set[int] = set()
@@ -342,7 +360,7 @@ def _bind_export_channel_identity(identity_json: str, source_sha256: str | None,
 
     mapping = []
     used_native_indexes = set()
-    for column, item in zip(eeg_columns, channels, strict=True):
+    for column, item in zip(eeg_columns, eeg_channels, strict=True):
         if not isinstance(item, dict):
             raise RecordingImportError("RECORDING_EXPORT_METADATA_INVALID", "导出通道映射无效。")
         native_index = item.get("native_channel_index")
@@ -367,7 +385,7 @@ def _bind_export_channel_identity(identity_json: str, source_sha256: str | None,
             raise RecordingImportError("RECORDING_EXPORT_METADATA_MISMATCH", "导出身份信息与文件通道或通道配置不匹配。")
         used_native_indexes.add(native_index)
         mapping.append({"source_column": column, "native_channel_index": native_index})
-    if len(used_native_indexes) != len(channels):
+    if len(used_native_indexes) != len(eeg_channels):
         raise RecordingImportError("RECORDING_EXPORT_METADATA_MISMATCH", "导出身份信息包含重复 EEG 通道。")
     if montage_snapshot is not None:
         montage = json.loads(montage_snapshot)
@@ -379,6 +397,18 @@ def _bind_export_channel_identity(identity_json: str, source_sha256: str | None,
         profiles = json.loads(montage_catalogue)
         if any(not isinstance(item, dict) or not isinstance(item.get("Id"), str) for item in profiles):
             raise RecordingImportError("RECORDING_EXPORT_METADATA_INVALID", "导出导联目录快照无效。")
+    identities = []
+    for column, item in enumerate(channels):
+        if not isinstance(item, dict) or str(item.get("export_label", "")).strip().casefold() != labels[column].strip().casefold():
+            raise RecordingImportError("RECORDING_EXPORT_METADATA_MISMATCH", "导出通道身份与源列不符。")
+        role = item.get("physiological_identity")
+        if role is not None:
+            if not isinstance(role, str) or role not in {"eeg", "eog", "ecg", "unconfirmed"}:
+                raise RecordingImportError("CHANNEL_IDENTITY_INVALID", "导出通道生理身份无效。")
+            identities.append({"SourceColumn": column, "Identity": role})
+    if identities:
+        snapshot["PhysiologicalIdentities"] = identities
+        snapshot_json = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
     return (snapshot_json, json.dumps(mapping, separators=(",", ":")), acquisition_snapshot,
             montage_snapshot, montage_catalogue)
 

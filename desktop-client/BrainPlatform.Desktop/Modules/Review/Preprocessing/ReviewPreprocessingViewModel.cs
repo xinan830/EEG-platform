@@ -57,6 +57,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         InspectArtifactSegmentsCommand = new AsyncRelayCommand(InspectArtifactSegmentsAsync, ReportError);
         JumpToSegmentCommand = new SegmentJumpCommand(seekToSeconds);
         ResetAllCommand = new RelayCommand(ResetAll);
+        SaveChannelIdentitiesCommand = new AsyncRelayCommand(SaveChannelIdentitiesAsync, ReportError);
     }
 
     public event EventHandler? VisualStateChanged;
@@ -156,6 +157,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         set
         {
             if (!SetProperty(ref removalMethod, value)) return;
+            InvalidateArtifactInspection();
             NotifyConfigAndVisuals();
         }
     }
@@ -215,11 +217,14 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
     public ChannelVisualBadge ResolveChannelBadge(string displayedChannelName) =>
         ReviewPreprocessingProjection.ResolveChannelBadge(displayedChannelName, BadChannelRows, BadChannelPolicy, CurrentOverlayWindow);
 
-    public OfflinePreprocessingConfigPayload BuildPayload(bool allowArtifactRemoval) =>
-        ReviewPreprocessingProjection.BuildPayload(
+    public OfflinePreprocessingConfigPayload BuildPayload(bool allowArtifactRemoval)
+    {
+        ValidateReferenceSelection();
+        return ReviewPreprocessingProjection.BuildPayload(
             BadChannelPolicy, SelectedBadChannels, ArtifactPolicy, PeakToPeakUv, MuscleZScoreThreshold,
             RemovalMethod, AllowFrontalEogProxy, IcaComponentCount, confirmedIcaExcluded, icaFitFingerprint,
             allowArtifactRemoval, SelectedEogChannels, SelectedEcgChannels);
+    }
 
     public Dictionary<string, object?>? BuildAlgorithmConfigDictionary(bool allowArtifactRemoval) =>
         ReviewPreprocessingProjection.ToAlgorithmConfigDictionary(BuildPayload(allowArtifactRemoval));
@@ -282,6 +287,8 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
 
     private void InvalidateIcaFingerprint(string reason, bool markPendingReview = true)
     {
+        if (icaFitFingerprint is not null && RemovalMethod == "ica_infomax" &&
+            (SelectedEogChannels.Count > 0 || SelectedEcgChannels.Count > 0)) InvalidateArtifactInspection();
         var hadReview = pendingIca is not null || icaFitFingerprint is not null || IcaComponents.Count > 0;
         CancelInspection();
         pendingIca = null;
@@ -305,7 +312,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         RaisePipelineNodeProperties();
         VisualStateChanged?.Invoke(this, EventArgs.Empty);
         ConfigurationChanged?.Invoke(this, EventArgs.Empty);
-        if (IsOverlayCompareEnabled)
+        if (IsOverlayCompareEnabled && !AreScientificInputsBlocked)
             _ = RefreshOverlayWindowAsync();
     }
 

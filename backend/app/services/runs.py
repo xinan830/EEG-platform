@@ -232,7 +232,8 @@ class RunService:
             duration = float(recording.duration_s or 0.0)
             if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
                 raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
-            available_channels = {str(item).casefold() for item in recording.channels}
+            from app.services.recording_channel_roles import scientific_channel_names
+            available_channels = {str(item).casefold() for item in scientific_channel_names(self.recordings, recording)}
             assert self.executor.algorithm_runtime is not None
             typed_runtime_config = self.executor.algorithm_runtime.validate_config(
                 module=module,

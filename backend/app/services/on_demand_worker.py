@@ -121,6 +121,9 @@ def execute_window_job(
                 raise WindowLeaseLost("dynamic window worker stopped or lease was lost")
             if state != "active":
                 raise WindowLeaseLost("dynamic window worker stopped or lease was lost")
+            validate_source = getattr(inputs.payload, "validate_source_identity", None)
+            if validate_source is not None:
+                validate_source()
 
     def heartbeat() -> None:
         while not heartbeat_stop.wait(max(0.05, lease_seconds / 3)):

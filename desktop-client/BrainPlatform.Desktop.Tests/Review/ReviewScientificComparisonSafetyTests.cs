@@ -115,7 +115,11 @@ public sealed partial class ReviewPreprocessingTests
         vm.BadChannelPolicy = "exclude";
         var preview = await new FakePreprocessingClient().PreviewPreprocessedWindowAsync(
             "rec", new(0, 1, "montage", 1, 50, 50, 1200, vm.BuildPayload(true)), CancellationToken.None);
-        preview = preview with { Processed = preview.Processed with { ExcludedOutputChannels = ["F4-C4", "C4-P4"] } };
+        preview = preview with
+        {
+            Baseline = preview.Baseline with { Channels = ["F4-C4", "C4-P4"] },
+            Processed = preview.Processed with { ExcludedOutputChannels = ["F4-C4", "C4-P4"] },
+        };
         foreach (var name in new[] { "F4-C4", "c4-p4" })
         {
             var badge = ReviewPreprocessingProjection.ResolveChannelBadge(name, vm.BadChannelRows, "exclude", preview);

@@ -122,14 +122,15 @@ class ArraySampleReader:
 
 
 class WpfSampleReader:
-    def __init__(self, source: str | Path | WpfRecordingFacts, *, voltage_channels: bool = False):
+    def __init__(self, source: str | Path | WpfRecordingFacts, *, voltage_channels: bool = False,
+                 stream_indexes: tuple[int, ...] | None = None):
         self.facts = source if isinstance(source, WpfRecordingFacts) else inspect_wpf_recording(source)
         self.batches = self.facts.batches
         self.first_counter = self.batches[0][0]
         self.starts = [item[0] - self.first_counter for item in self.batches]
         self.sfreq = self.facts.sampling_rate_hz
         self.sample_count = self.facts.sample_count
-        self.stream_indexes = (tuple(ch.stream_index for ch in self.facts.channels if ch.unit == "V" and ch.label.strip())
+        self.stream_indexes = stream_indexes if stream_indexes is not None else (tuple(ch.stream_index for ch in self.facts.channels if ch.unit == "V" and ch.label.strip())
                                if voltage_channels else self.facts.eeg_indexes)
         self.names = tuple(self.facts.channels[i].label for i in self.stream_indexes)
         self._maps: dict[Path, mmap.mmap] = {}

@@ -11,7 +11,7 @@ from typing import Literal
 
 ArtifactRemovalMethod = Literal["none", "eog_regression", "ssp_eog", "ica_infomax"]
 _VALID_METHODS = frozenset({"none", "eog_regression", "ssp_eog", "ica_infomax"})
-ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v3-references"
+ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v4-channel-identities"
 
 
 def _dedupe_labels(labels: tuple[str, ...]) -> tuple[str, ...]:

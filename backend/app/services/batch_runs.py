@@ -97,7 +97,8 @@ class BatchRunService:
     def _preflight(self, recording_id: str, config: dict[str, object]) -> str | None:
         recording = self.queue.recordings.require_recording(recording_id)
         requested = [str(name).casefold() for name in config.get("channels", [])] if isinstance(config.get("channels", []), list) else []
-        available = {name.casefold() for name in recording.channels}
+        from app.services.recording_channel_roles import scientific_channel_names
+        available = {name.casefold() for name in scientific_channel_names(self.queue.recordings, recording)}
         if requested and not set(requested).issubset(available):
             return "missing_channel"
         time = config.get("time", {})

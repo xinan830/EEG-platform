@@ -138,6 +138,8 @@ class PersistentRunQueue:
                                        definition_id=run.definition_id, definition_version=run.definition_version)
             recording = self.base._recording_for_request(request, recording)
             resolved = self.base._resolve_request(request, recording)
+            if resolved["channel_mapping"] != run.channel_mapping:
+                raise ValueError("CHANNEL_IDENTITY_CHANGED: 排队期间通道或导联身份已变化，请重新提交分析")
             actual_range = resolved["actual_range"]
             total = self._progress_total(run, recording)
             self.repository.update_progress(run.run_id, 0, total, stage="analysis", message="准备分析")
@@ -160,6 +162,8 @@ class PersistentRunQueue:
                 return self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=cached.actual_range,
                                                      result_summary=cached.result_summary, reused_from_run_id=artifact_source_run_id)
             result, arrays, unit = self.base.executor.execute(run.analysis_type, recording, resolved)
+            if self.recordings.analysis_signal_provenance(recording) != resolved["channel_mapping"]["signal_source"]:
+                raise ValueError("CHANNEL_IDENTITY_CHANGED: 分析期间通道身份已变化，请重新提交分析")
             coverage, window_ranges = self._validate_full_coverage(
                 run, recording, resolved, result, execution_context, total,
             )

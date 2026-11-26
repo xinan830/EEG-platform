@@ -147,6 +147,7 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                 filters=ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q),
                 bad_spec=bad_channel_spec, artifact_spec=artifact_rejection_spec,
                 owner=owner, check_cancelled=check_cancelled)
+        session._validate_source()
         target.flush()
         return PreprocessedRecording(
             target, session.sampling_rate_hz, names, owner,

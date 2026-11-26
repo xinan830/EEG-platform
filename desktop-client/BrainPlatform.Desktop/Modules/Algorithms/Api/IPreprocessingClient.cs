@@ -4,6 +4,9 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
 public interface IPreprocessingClient
 {
+    Task<ArtifactReferenceCatalogue> SaveChannelIdentitiesAsync(string recordingId, ChannelIdentityUpdate update,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException("当前后端客户端不支持保存通道身份。");
+
     Task<PreprocessingAnalysisChannels> GetPreprocessingAnalysisChannelsAsync(string recordingId,
         OfflinePreprocessingConfigPayload preprocessing, string? montageId = null,
         CancellationToken cancellationToken = default);

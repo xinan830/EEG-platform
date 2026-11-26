@@ -216,8 +216,9 @@ def test_step3_end_to_end_ica_api_continuous_pipeline_composition_and_bounded_wi
 
     # 5) Continuous pipeline: baseline vs EOG regression vs Step 1 + Step 2 + Step 3 ICA composition.
     prep_none = offline.prepare_continuous(recording, low_hz=0.5, high_hz=45.0, notch_hz=None)
+    from dataclasses import replace
     prep_eog = offline.prepare_continuous(
-        recording,
+        replace(recording, channel_identities=(("Fp1", "eog"),)),
         low_hz=0.5,
         high_hz=45.0,
         notch_hz=None,

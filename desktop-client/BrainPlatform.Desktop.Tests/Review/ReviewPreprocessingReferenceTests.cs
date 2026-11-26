@@ -124,6 +124,16 @@ public sealed partial class ReviewPreprocessingTests
                     var eog = (System.Windows.Controls.ItemsControl)dialog.FindName("EogReferenceChoices");
                     Assert.Equal(4, eog.Items.Count);
                     Assert.True(ecg.IsEnabled);
+                    Assert.Same(dialog.FindResource("AppRoundedFilterComboBoxStyle"), ecg.Style);
+                    Assert.Equal("", ecg.SelectedItem);
+                    Assert.Contains(ReferenceVisuals<System.Windows.Controls.TextBlock>(ecg),
+                        text => text.Text == "自动识别（不指定）");
+                    var automaticItem = (System.Windows.FrameworkElement)ecg.ItemTemplate.LoadContent();
+                    automaticItem.DataContext = ecg.Items[0];
+                    automaticItem.Measure(new System.Windows.Size(300, 40));
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { },
+                        System.Windows.Threading.DispatcherPriority.DataBind);
+                    Assert.Equal("自动识别（不指定）", ((System.Windows.Controls.TextBlock)automaticItem).Text);
                     ecg.SelectedItem = "ECG1";
                     Assert.Equal("ECG1", vm.SelectedEcgChannel);
                     vm.LoadReferenceChannelsAsync().GetAwaiter().GetResult();
@@ -153,6 +163,16 @@ public sealed partial class ReviewPreprocessingTests
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static IEnumerable<T> ReferenceVisuals<T>(System.Windows.DependencyObject root) where T : System.Windows.DependencyObject
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match) yield return match;
+            foreach (var descendant in ReferenceVisuals<T>(child)) yield return descendant;
+        }
     }
 
     private sealed class ReferenceClient : FakePreprocessingClient

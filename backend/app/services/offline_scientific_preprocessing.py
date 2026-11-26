@@ -58,8 +58,8 @@ class OfflineScientificPreprocessingService:
         self._window_coalesced = 0
 
     @classmethod
-    def for_recording_access(cls, open_access_session, analysis_signal_provenance):
-        access = PreprocessingRecordingAccess(open_access_session, analysis_signal_provenance, IcaReviewCache())
+    def for_recording_access(cls, open_access_session, analysis_signal_provenance, storage_dir=None):
+        access = PreprocessingRecordingAccess(open_access_session, analysis_signal_provenance, IcaReviewCache(), storage_dir)
         return cls(ContinuousPreprocessingService(access, AnalysisPreprocessCache()))
 
     @property

@@ -32,7 +32,7 @@ def make_recording(tmp_path, *, reference_gap=False):
     manifest = dict(SessionId="reference-fixture", RecordingStartUtc="2026-11-26T00:00:00+00:00",
         SamplingRateHz=rate, Channels=[dict(StreamIndex=i, Label=name,
             Kind="Reference" if i < 4 else "Auxiliary" if i < 6 else "SampleCounter",
-            Unit="V" if i < 6 else "count") for i, name in enumerate(labels)])
+            Unit="V" if i < 6 else "count", PhysiologicalIdentity="eeg" if i < 4 else "eog" if i == 4 else "ecg" if i == 5 else "unconfirmed") for i, name in enumerate(labels)])
     (root/"manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (root/"recording-summary.json").write_text(json.dumps(dict(status="completed")), encoding="utf-8")
     with (root/"samples-000001.bin").open("wb") as stream:
@@ -96,6 +96,7 @@ def test_reference_allocation_failure_releases_already_allocated_map(tmp_path):
 
 def test_ecg_only_selection_does_not_require_frontal_proxy(tmp_path):
     service, recording, _ = make_recording(tmp_path)
+    recording = replace(recording, channel_identities=(("AUX_Eye", "unconfirmed"),))
     report = inspect_recording_ica_components(service, recording, low_hz=1, high_hz=50, notch_hz=50,
         removal_spec=ArtifactRemovalSpec(method="ica_infomax", ecg_channels=("AUX_Heart",), ica_n_components=3))
     assert report["eog_channels_used"] == []
@@ -126,17 +127,20 @@ def test_dedicated_reference_ica_review_and_execution_reuse_without_eeg_pollutio
     baseline = service.offline_scientific_preprocessing.prepare_continuous(recording, **filters)
     assert np.isfinite(output.data).all()
     assert not np.array_equal(output.data, baseline.data)
+    automatic_ecg = service.offline_scientific_preprocessing.prepare_continuous(recording,
+        artifact_removal_spec=replace(applied, ecg_channels=()), artifact_rejection_spec=qc, **filters)
+    assert automatic_ecg is output
     with pytest.raises(ValueError, match="ICA_FIT_FINGERPRINT_MISMATCH"):
         service.offline_scientific_preprocessing.prepare_continuous(recording,
-            artifact_removal_spec=replace(applied, ecg_channels=()), artifact_rejection_spec=qc, **filters)
+            artifact_removal_spec=replace(applied, eog_channels=("F3",)), artifact_rejection_spec=qc, **filters)
 
 
-def test_selecting_existing_eeg_as_reference_removes_it_from_fitting_and_output(tmp_path):
+def test_selecting_existing_eeg_proxy_preserves_fitting_and_output(tmp_path):
     service, recording, _ = make_recording(tmp_path)
-    spec = ArtifactRemovalSpec(method="eog_regression", eog_channels=("F3",))
+    spec = ArtifactRemovalSpec(method="ica_infomax", eog_channels=("F3",), ica_n_components=3, ica_exclude_components=())
     output = service.offline_scientific_preprocessing.prepare_continuous(recording,
         low_hz=1, high_hz=50, notch_hz=50, artifact_removal_spec=spec)
-    assert output.channel_names == ("F4", "C3", "C4")
+    assert output.channel_names == ("F3", "F4", "C3", "C4")
     assert output.artifact_removal_evidence["eog_channels_used"] == ["F3"]
 
 
@@ -145,6 +149,7 @@ def test_reference_partition_precedes_car_and_bad_channel_exclusion_and_hits_cac
     from app.services.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
     from app.services.artifact_references import exclude_reference_outputs
     service, recording, values = make_recording(tmp_path)
+    recording = replace(recording, channel_identities=(("F3", "eog"),))
     names = recording.channels
     signals = tuple(AcquisitionSignal(n+"-AVG", n, names, "mean") for n in names)
     provenance = {"snapshot_sha256": "original-view", "formulas": [
@@ -197,16 +202,21 @@ def test_imported_reference_api_review_preview_and_spectrum(tmp_path, extension)
     assert imported.status_code == 201, imported.text
     recording_id = imported.json()["id"]
     route = f"/api/recordings/{recording_id}"
+    saved = client.put(route+"/preprocessing/channel-identities", json=dict(source_sha256=imported.json()["source_sha256"],
+        channels=[dict(name="EOG1", identity="eog"), dict(name="ECG1", identity="ecg")]))
+    assert saved.status_code == 200, saved.text
     catalog = client.get(route+"/preprocessing/reference-channels")
     assert catalog.status_code == 200, catalog.text
     assert [c["name"] for c in catalog.json()["channels"]] == list(labels)
     reviewed = client.get(route+"/preprocessing/ica-components", params=dict(
-        low_hz=1, high_hz=50, notch_hz=50, eog_channels="EOG1", ecg_channels="ECG1", ica_n_components=3))
+        low_hz=1, high_hz=50, notch_hz=50, eog_channels="EOG1", ecg_channels="ECG1", ica_n_components=3,
+        bad_channels="EOG1,ECG1", bad_channel_policy="interpolate"))
     assert reviewed.status_code == 200, reviewed.text
     review = reviewed.json()
     assert review["channels"] == list(labels[:4])
     assert review["ecg_channels_used"] == ["ECG1"]
-    preprocessing = {"artifact_removal": dict(method="ica_infomax", eog_channels=["EOG1"],
+    preprocessing = {"bad_channels": dict(policy="interpolate", channels=["EOG1", "ECG1"]),
+        "artifact_removal": dict(method="ica_infomax", eog_channels=["EOG1"],
         ecg_channels=["ECG1"], ica_n_components=3, ica_exclude_components=[],
         ica_fit_fingerprint=review["ica_fit_fingerprint"])}
     preview = client.post(route+"/preprocessing/preview-window", json=dict(
@@ -283,6 +293,7 @@ def test_reference_gap_preserved_without_poisoning_finite_runs_and_maps_released
 
 def test_multiple_eog_ssp_uses_public_api_and_only_emits_eeg(tmp_path):
     service, recording, _ = make_recording(tmp_path)
+    recording = replace(recording, channel_identities=(("AUX_Heart", "eog"),))
     output = service.offline_scientific_preprocessing.prepare_continuous(recording,
         low_hz=1, high_hz=50, notch_hz=50,
         artifact_removal_spec=ArtifactRemovalSpec(method="ssp_eog", eog_channels=("AUX_Eye", "AUX_Heart")))
@@ -314,6 +325,7 @@ def test_edf_physical_units_and_native_rates_are_verified(tmp_path, mixed_rate):
 def test_explicit_references_are_not_interpolation_donors(tmp_path):
     from app.scientific.contracts.preprocessing import BadChannelSpec
     service, recording, _ = make_recording(tmp_path)
+    recording = replace(recording, channel_identities=(("F3", "eog"),))
     # Removing F3 leaves only two healthy scalp donors for C4: reject, never borrow F3 or AUX.
     with pytest.raises(ValueError, match="BAD_CHANNEL_INSUFFICIENT_GOOD_DONORS"):
         service.open_access_session(recording, artifact_reference_channels=("F3",),
@@ -339,14 +351,24 @@ def test_export_aliases_resolve_to_canonical_montage_inputs_before_car(tmp_path)
         AverageReferenceLabels=list(canonical), DerivedChannels=[dict(Name=n+"-AVG", PositiveLabel=n,
             NegativeKind=2, NegativeLabels=list(canonical), DisplayOrder=i) for i, n in enumerate(canonical)])
     record = replace(record, selected_montage_id="car", channels=tuple(n+"-AVG" for n in canonical),
+        channel_identities=(("CH0000", "eog"),),
         import_channel_configuration_snapshot_json=json.dumps(snapshot),
         import_channel_column_mapping_json=json.dumps([dict(source_column=i,native_channel_index=10+i) for i in range(4)]),
         import_montage_configuration_snapshot_json=json.dumps(montage))
     pre = service.offline_scientific_preprocessing
     options = dict(low_hz=1, high_hz=50, notch_hz=50,
         artifact_removal_spec=ArtifactRemovalSpec(method="eog_regression", eog_channels=("CH0000",)),
-        bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4",)))
+        bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4", "F3", "CH0000")))
     output = pre.prepare_continuous(record, **options)
     assert output.channel_names == ("F4-AVG", "C3-AVG")
     assert output.artifact_removal_evidence["eog_channels_used"] == ["CH0000"]
     assert pre.prepare_continuous(record, **options) is output
+    eeg_record = replace(record, channel_identities=())
+    filters = dict(low_hz=1, high_hz=50, notch_hz=50)
+    aliased = inspect_recording_ica_components(service, eeg_record, **filters,
+        removal_spec=ArtifactRemovalSpec(method="ica_infomax", eog_channels=("CH0001",), ica_n_components=3))
+    canonical_report = inspect_recording_ica_components(service, eeg_record, **filters,
+        removal_spec=ArtifactRemovalSpec(method="ica_infomax", eog_channels=("F4",), ica_n_components=3))
+    assert aliased["channels"] == canonical_report["channels"] == list(eeg_record.channels)
+    assert aliased["eog_channels_used"] == canonical_report["eog_channels_used"] == ["F4-AVG"]
+    assert aliased["components"] == canonical_report["components"]

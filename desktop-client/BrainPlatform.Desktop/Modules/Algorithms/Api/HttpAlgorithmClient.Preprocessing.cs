@@ -6,6 +6,10 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
 public sealed partial class HttpAlgorithmClient : IPreprocessingClient
 {
+    public Task<ArtifactReferenceCatalogue> SaveChannelIdentitiesAsync(string recordingId, ChannelIdentityUpdate update,
+        CancellationToken cancellationToken = default) => SendAsync<ArtifactReferenceCatalogue>(HttpMethod.Put,
+            $"api/recordings/{Uri.EscapeDataString(RequireId(recordingId))}/preprocessing/channel-identities", update, cancellationToken);
+
     public Task<PreprocessingAnalysisChannels> GetPreprocessingAnalysisChannelsAsync(string recordingId,
         OfflinePreprocessingConfigPayload preprocessing, string? montageId = null,
         CancellationToken cancellationToken = default) => SendAsync<PreprocessingAnalysisChannels>(HttpMethod.Post,
