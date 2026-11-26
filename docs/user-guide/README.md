@@ -19,6 +19,7 @@
 - [数据回溯与波形浏览](features/review-and-playback.md)
 - [科学预处理与 ICA 审查](features/scientific-preprocessing.md)
 - [算法分析与结果查看](features/algorithms-and-results.md)
+- [3D 脑影像与空间可视化](features/brain-imaging-3d.md)
 - [常见问题与排查](troubleshooting/common-issues.md)
 
 ## 阅读说明
@@ -39,6 +40,7 @@
 | 导入、导出 EDF/BDF | [EDF/BDF 导入与导出](features/edf-bdf-import-export.md) | [数据回溯](features/review-and-playback.md) |
 | 查看波形、事件或分析历史记录 | [数据回溯与波形浏览](features/review-and-playback.md) | [算法分析与结果](features/algorithms-and-results.md) |
 | 查看坏导、坏段、ICA 处理 | [科学预处理与 ICA 审查](features/scientific-preprocessing.md) | [算法分析与结果](features/algorithms-and-results.md) |
+| 浏览三维脑电地形、脑网络、源定位或结构影像 | [3D 脑影像与空间可视化](features/brain-imaging-3d.md) | [通道与导联配置](features/channels-and-montages.md) |
 | 操作失败或入口不可用 | [常见问题与排查](troubleshooting/common-issues.md) | 记录错误码并联系维护人员 |
 
 ## 手册边界

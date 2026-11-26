@@ -198,6 +198,9 @@ public sealed partial class ReviewPreprocessingViewModel
         set { if (value) RemovalMethod = "eog_regression"; }
     }
 
+    public bool IsRemovalActive => !IsRemovalNone;
+    public bool IsEogRegressionMissingDedicatedEog => IsRemovalEog && !HasDedicatedEogChannels;
+
     public void RefreshContextMetadata()
     {
         RaisePropertyChanged(nameof(RecordingContext));
@@ -231,9 +234,11 @@ public sealed partial class ReviewPreprocessingViewModel
         RaisePropertyChanged(nameof(IsArtifactPolicyAnnotate));
         RaisePropertyChanged(nameof(IsArtifactPolicyReject));
         RaisePropertyChanged(nameof(IsRemovalNone));
+        RaisePropertyChanged(nameof(IsRemovalActive));
         RaisePropertyChanged(nameof(IsRemovalIca));
         RaisePropertyChanged(nameof(IsRemovalSsp));
         RaisePropertyChanged(nameof(IsRemovalEog));
+        RaisePropertyChanged(nameof(IsEogRegressionMissingDedicatedEog));
     }
 
     private static string FormatChannelPreview(IReadOnlyList<string> channels) =>

@@ -117,21 +117,56 @@ public sealed partial class ReviewPreprocessingTests
                 try
                 {
                     var surface = (System.Windows.FrameworkElement)dialog.Content;
-                    surface.Measure(new System.Windows.Size(740, 640));
-                    surface.Arrange(new System.Windows.Rect(0, 0, 740, 640));
+                    surface.Measure(new System.Windows.Size(780, 680));
+                    surface.Arrange(new System.Windows.Rect(0, 0, 780, 680));
                     surface.UpdateLayout();
                     var ecg = (System.Windows.Controls.ComboBox)dialog.FindName("EcgReferenceChoice");
                     var eog = (System.Windows.Controls.ItemsControl)dialog.FindName("EogReferenceChoices");
+                    var openIdentityButton = (System.Windows.Controls.Button)dialog.FindName("OpenChannelIdentityButton");
+                    var icaCard = (System.Windows.UIElement)dialog.FindName("IcaActionCard");
+                    var sspCard = (System.Windows.UIElement)dialog.FindName("SspInfoCard");
+                    var regCard = (System.Windows.UIElement)dialog.FindName("EogRegressionInfoCard");
+                    Assert.Equal(System.Windows.Visibility.Visible, icaCard.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Collapsed, sspCard.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Collapsed, regCard.Visibility);
                     Assert.Equal(32, eog.Items.Count);
-                    var list = ReferenceVisuals<System.Windows.Controls.ScrollViewer>(surface)
-                        .Single(viewer => ReferenceEquals(viewer.Content, eog));
-                    Assert.InRange(list.ActualHeight, 200, 220);
-                    Assert.True(list.ScrollableHeight > 0);
-                    list.ScrollToEnd();
-                    surface.UpdateLayout();
-                    Assert.True(list.VerticalOffset > 0);
-                    list.ScrollToHome();
-                    surface.UpdateLayout();
+                    Assert.NotNull(openIdentityButton);
+                    Assert.Contains("EEG", vm.ChannelIdentitySummaryText);
+
+                    // Switching to SSP / EOG Regression hides the ICA review card so users cannot misclick ICA.
+                    vm.RemovalMethod = "ssp_eog";
+                    Assert.Equal(System.Windows.Visibility.Collapsed, icaCard.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Visible, sspCard.Visibility);
+                    vm.RemovalMethod = "eog_regression";
+                    Assert.Equal(System.Windows.Visibility.Collapsed, icaCard.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Visible, regCard.Visibility);
+                    vm.RemovalMethod = "ica_infomax";
+                    Assert.Equal(System.Windows.Visibility.Visible, icaCard.Visibility);
+
+                    // EOG scoring chips must NOT contain identity ComboBoxes (clean separation).
+                    Assert.Empty(ReferenceVisuals<System.Windows.Controls.ComboBox>(eog));
+
+                    // Dedicated modal ChannelIdentityDialog hosts the full-height scrollable 2-column identity table.
+                    var identityDialog = new BrainPlatform.Desktop.Modules.Review.Views.Preprocessing.ChannelIdentityDialog(vm);
+                    try
+                    {
+                        var idSurface = (System.Windows.FrameworkElement)identityDialog.Content;
+                        idSurface.Measure(new System.Windows.Size(640, 580));
+                        idSurface.Arrange(new System.Windows.Rect(0, 0, 640, 580));
+                        idSurface.UpdateLayout();
+                        var identityList = (System.Windows.Controls.ItemsControl)identityDialog.FindName("ChannelIdentityChoices");
+                        Assert.Equal(32, identityList.Items.Count);
+                        var list = ReferenceVisuals<System.Windows.Controls.ScrollViewer>(idSurface)
+                            .Single(viewer => ReferenceEquals(viewer.Content, identityList));
+                        Assert.True(list.ActualHeight >= 260);
+                        Assert.True(list.ScrollableHeight > 0);
+                        list.ScrollToEnd();
+                        idSurface.UpdateLayout();
+                        Assert.True(list.VerticalOffset > 0);
+                        list.ScrollToHome();
+                        idSurface.UpdateLayout();
+                    }
+                    finally { identityDialog.Close(); }
                     Assert.True(ecg.IsEnabled);
                     Assert.Same(dialog.FindResource("AppRoundedFilterComboBoxStyle"), ecg.Style);
                     Assert.Equal("", ecg.SelectedItem);
@@ -155,7 +190,7 @@ public sealed partial class ReviewPreprocessingTests
                     var path = Environment.GetEnvironmentVariable("ARTIFACT_REFERENCE_PREVIEW_PATH");
                     if (path is not null)
                     {
-                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(740, 640, 96, 96,
+                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(780, 680, 96, 96,
                             System.Windows.Media.PixelFormats.Pbgra32);
                         bitmap.Render(surface);
                         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -163,8 +198,8 @@ public sealed partial class ReviewPreprocessingTests
                         using var stream = File.Create(path);
                         encoder.Save(stream);
                     }
-                    surface.Measure(new System.Windows.Size(660, 480));
-                    surface.Arrange(new System.Windows.Rect(0, 0, 660, 480));
+                    surface.Measure(new System.Windows.Size(680, 520));
+                    surface.Arrange(new System.Windows.Rect(0, 0, 680, 520));
                     surface.UpdateLayout();
                     var body = ReferenceVisuals<System.Windows.Controls.ScrollViewer>(surface)
                         .Single(viewer => viewer.Content is System.Windows.Controls.StackPanel);

@@ -13,16 +13,32 @@ public sealed class ArtifactReferenceChoice : ObservableObject
     { Name = name; this.changed = changed; this.isEog = isEog; this.identity = identity; this.identityChanged = identityChanged; }
     public string Name { get; }
     public static IReadOnlyList<KeyValuePair<string, string>> IdentityOptions { get; } =
-        [new("unconfirmed", "待确认"), new("eeg", "EEG 脑电 / 可作眼电代理"), new("eog", "专用 EOG 眼电"), new("ecg", "专用 ECG 心电")];
+    [
+        new("eeg", "EEG 脑电（参与脑电分析，可作眼电代理）"),
+        new("eog", "专用 EOG 眼电（独立眼电，移出 EEG）"),
+        new("ecg", "专用 ECG 心电（独立心电，移出 EEG）"),
+        new("unconfirmed", "待确认（暂不参与 EEG）"),
+    ];
     public string Identity
     {
         get => identity;
         set
         {
             if (!IdentityOptions.Any(option => option.Key == value)) throw new ArgumentException("无效通道身份。");
-            if (SetProperty(ref identity, value)) identityChanged?.Invoke();
+            if (!SetProperty(ref identity, value)) return;
+            RaisePropertyChanged(nameof(ShortIdentityBadge));
+            RaisePropertyChanged(nameof(HasNonEegBadge));
+            identityChanged?.Invoke();
         }
     }
+    public string ShortIdentityBadge => identity switch
+    {
+        "eog" => "专用EOG",
+        "ecg" => "专用ECG",
+        "unconfirmed" => "待确认",
+        _ => "",
+    };
+    public bool HasNonEegBadge => identity != "eeg";
     public bool IsEog
     {
         get => isEog;
@@ -52,12 +68,35 @@ public sealed partial class ReviewPreprocessingViewModel
         return null;
     }
     public System.Windows.Input.ICommand SaveChannelIdentitiesCommand { get; private set; } = null!;
-    private string referenceStatusText = "可选择记录中的专用眼电、心电通道；留空使用现有自动识别策略。";
+    public System.Windows.Input.ICommand DiscardUnsavedChannelIdentitiesCommand { get; private set; } = null!;
+    private string referenceStatusText = "留空将按自动 / 前额代理策略计算；勾选仅用于伪迹打分，不改变通道身份。";
     public ObservableCollection<ArtifactReferenceChoice> ReferenceChannels { get; } = [];
     public ObservableCollection<string> EcgChannelOptions { get; } = [""];
     public IReadOnlyList<string> SelectedEogChannels => ReferenceChannels.Where(c => c.IsEog).Select(c => c.Name).ToArray();
     public IReadOnlyList<string> SelectedEcgChannels => string.IsNullOrEmpty(selectedEcgChannel) ? [] : [selectedEcgChannel];
     public bool HasReferenceSelectionConflict => SelectedEogChannels.Intersect(SelectedEcgChannels, StringComparer.OrdinalIgnoreCase).Any();
+    public bool HasUnconfirmedChannelIdentities => ReferenceChannels.Any(row => row.Identity == "unconfirmed");
+    public bool HasDedicatedEogChannels => ReferenceChannels.Any(row => row.Identity == "eog");
+    public bool HasDedicatedEcgChannels => ReferenceChannels.Any(row => row.Identity == "ecg");
+    public string ChannelIdentitySummaryText
+    {
+        get
+        {
+            if (ReferenceChannels.Count == 0) return "尚未读取录音通道";
+            var eeg = ReferenceChannels.Count(row => row.Identity == "eeg");
+            var eog = ReferenceChannels.Count(row => row.Identity == "eog");
+            var ecg = ReferenceChannels.Count(row => row.Identity == "ecg");
+            var unconfirmed = ReferenceChannels.Count(row => row.Identity == "unconfirmed");
+            var summary = $"EEG {eeg} 路 · 专用 EOG {eog} 路 · 专用 ECG {ecg} 路";
+            if (unconfirmed > 0) return $"{summary} · 待确认 {unconfirmed} 路";
+            return eog == 0 && ecg == 0 ? $"{summary}（常规脑电帽无需修改）" : summary;
+        }
+    }
+    public string EcgSelectorHintText => !IsRemovalIca
+        ? "仅在启用 Infomax ICA 时生效"
+        : !HasDedicatedEcgChannels
+            ? "当前录音未标记专用 ECG；若接有外置心电电极，请在上方「配置通道身份…」中标记并保存"
+            : "留空为自动匹配已标记的专用 ECG；有多路专用 ECG 时请指定一路";
     public string ReferenceStatusText { get => referenceStatusText; private set => SetProperty(ref referenceStatusText, value); }
     public string SelectedEcgChannel
     {
@@ -128,9 +167,15 @@ public sealed partial class ReviewPreprocessingViewModel
     {
         RaisePropertyChanged(nameof(HasReferenceSelectionConflict));
         RaisePropertyChanged(nameof(AreScientificInputsBlocked));
+        RaisePropertyChanged(nameof(HasUnconfirmedChannelIdentities));
+        RaisePropertyChanged(nameof(HasDedicatedEogChannels));
+        RaisePropertyChanged(nameof(HasDedicatedEcgChannels));
+        RaisePropertyChanged(nameof(IsEogRegressionMissingDedicatedEog));
+        RaisePropertyChanged(nameof(ChannelIdentitySummaryText));
+        RaisePropertyChanged(nameof(EcgSelectorHintText));
         var reason = ScientificInputBlockReason();
         ReferenceStatusText = reason ??
-            $"眼电：{string.Join(", ", SelectedEogChannels.DefaultIfEmpty("自动 / 代理"))}；心电：{string.Join(", ", SelectedEcgChannels.DefaultIfEmpty("自动识别"))}";
+            $"眼电评分：{string.Join(", ", SelectedEogChannels.DefaultIfEmpty("自动 / 代理"))} · 心电评分：{string.Join(", ", SelectedEcgChannels.DefaultIfEmpty("自动识别"))}";
         if (reason is not null)
         {
             StatusMessage = reason;
@@ -160,6 +205,12 @@ public sealed partial class ReviewPreprocessingViewModel
         RaisePropertyChanged(nameof(HasReferenceSelectionConflict));
         RaisePropertyChanged(nameof(HasUnsavedChannelIdentities));
         RaisePropertyChanged(nameof(AreScientificInputsBlocked));
+        RaisePropertyChanged(nameof(HasUnconfirmedChannelIdentities));
+        RaisePropertyChanged(nameof(HasDedicatedEogChannels));
+        RaisePropertyChanged(nameof(HasDedicatedEcgChannels));
+        RaisePropertyChanged(nameof(IsEogRegressionMissingDedicatedEog));
+        RaisePropertyChanged(nameof(ChannelIdentitySummaryText));
+        RaisePropertyChanged(nameof(EcgSelectorHintText));
     }
 
     private void ChannelIdentityChanged()
@@ -168,6 +219,14 @@ public sealed partial class ReviewPreprocessingViewModel
         RaisePropertyChanged(nameof(HasUnsavedChannelIdentities));
         RaisePropertyChanged(nameof(AreScientificInputsBlocked));
         ReferenceSelectionChanged();
+    }
+
+    public async Task DiscardUnsavedChannelIdentitiesAsync()
+    {
+        if (!HasUnsavedChannelIdentities) return;
+        hasUnsavedChannelIdentities = false;
+        RaisePropertyChanged(nameof(HasUnsavedChannelIdentities));
+        await LoadReferenceChannelsAsync();
     }
 
     public async Task SaveChannelIdentitiesAsync()

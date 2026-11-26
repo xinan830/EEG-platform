@@ -15,6 +15,15 @@ public partial class ArtifactRemovalStepDialog : Window
         Loaded += async (_, _) => await viewModel.LoadReferenceChannelsAsync();
     }
 
+    private void OnOpenChannelIdentityClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ChannelIdentityDialog(viewModel)
+        {
+            Owner = this,
+        };
+        dialog.ShowDialog();
+    }
+
     private async void OnOpenIcaReviewClick(object sender, RoutedEventArgs e)
     {
         OpenIcaReviewButton.IsEnabled = false;

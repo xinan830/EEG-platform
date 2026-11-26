@@ -415,7 +415,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             screenScale.MillimetersPerDipY);
         using (surface.SuspendUpdates())
         {
-            var hideOrdinary = viewModel.Preprocessing.CanDisplayScientificComparison(frame.OutputChannelNames);
+            var hideOrdinary = viewModel.Preprocessing.SuppressesOrdinaryColoredTraces(frame.OutputChannelNames);
             for (var traceIndex = 0; traceIndex < traceSeries.Count && traceIndex < frame.Traces.Count; traceIndex++)
             {
                 var baseline = frame.OutputChannelNames.Count - traceIndex - 0.5;
@@ -434,7 +434,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void RefreshSampleMarkers(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
-        if (frame is not null && viewModel?.Preprocessing.CanDisplayScientificComparison(frame.OutputChannelNames) == true)
+        if (frame is not null && viewModel?.Preprocessing.SuppressesOrdinaryColoredTraces(frame.OutputChannelNames) == true)
         {
             sampleMarkerLayer.Clear();
             return;

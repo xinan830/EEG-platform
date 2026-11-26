@@ -36,6 +36,7 @@
 
     <!-- Primary rounded button (Brand Blue) -->
     <Style x:Key="PrepPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Padding" Value="18,0" />
         <Setter Property="Background" Value="{StaticResource PrepBrandBrush}" />
@@ -245,6 +246,7 @@
 
     <!-- Selectable Policy Card RadioButton -->
     <Style x:Key="PrepPolicyOptionCardStyle" TargetType="RadioButton">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Background" Value="{StaticResource PrepSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource PrepBorderBrush}" />
@@ -328,4 +330,43 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Compact selectable channel pill for EOG scoring -->
+    <Style x:Key="PrepChannelChipCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,0,7,7" />
+        <Setter Property="Foreground" Value="#334155" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="Chip" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="7" Padding="9,5">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="Box" Width="13" Height="13" CornerRadius="3.5" Margin="0,0,6,0" Background="#FFFFFF" BorderBrush="#94A3B8" BorderThickness="1.2">
+                                <Path x:Name="Tick" Data="M2.5,6.5 L5.2,9.2 L10.2,3.4" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" />
+                            </Border>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource PrepBrandBorderBrush}" />
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource PrepSubtleSurfaceBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource PrepBrandSoftBrush}" />
+                            <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource PrepBrandBrush}" />
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource PrepBrandBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource PrepBrandBrush}" />
+                            <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{StaticResource PrepBrandHoverBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

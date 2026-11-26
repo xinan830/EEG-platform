@@ -55,8 +55,9 @@
    - 当 `sfreq >= 204 Hz`（如 250 / 500 / 1000 Hz）：拟合副本使用 `1.0–100.0 Hz`（完整保留 50–100 Hz 肌电/工频特征）；
    - 当 `104 Hz <= sfreq < 204 Hz`：拟合副本自动降级至 `1.0–(sfreq/2 - 2.0) Hz`，允许运行 ICLabel 但在证据中标注 `fit_band_limited_by_nyquist=True`（提示高频肌电灵敏度受采样率限制）；
    - 当 `sfreq < 104 Hz`：退回主滤波上限，跳过 ICLabel 并在原因中注明采样率不足。
-4. **保持既有辅助参考通道与 NaN 缺口契约**：
-   - 保留 [artifact_references.py](../../backend/app/services/artifact_references.py) 的独立 EOG/ECG 参考发现与隔离逻辑；
+4. **保持既有通道物理身份、辅助参考通道与 NaN 缺口契约**：
+   - 严格沿用 [recording_channel_roles.py](../../backend/app/services/recording_channel_roles.py) 与 [artifact_references.py](../../backend/app/services/artifact_references.py) 的“通道物理身份 vs 评分用途”分离机制：宽带拟合副本必须与主链路使用**完全相同的身份分区 EEG 会话**（`EEG` 脑电代理如 `Fp1`/`Fp2` 保留参与拟合与输出，已保存的专用 `EOG`/`ECG` 与 `unconfirmed` 源绝不进入宽带拟合或 3D Montage）；
+   - 保持 `signal_view_sha256` 中的通道身份指纹（`bind_session_roles`）与 `prepare_artifact_references` 的独立辅助信号打分链路，ICLabel 7 类标签与专用 EOG/ECG 相关性评分并列输出、互补验证；
    - 保留 `artifact_removal_validity` 的重构不可用区间溯源，绝不破坏已有缺口语义。
 
 ---
@@ -105,10 +106,10 @@
 
 - [ica_review_cache.py](../../backend/app/services/ica_review_cache.py)：
   - 将 `compute_ica_fit_fingerprint` 版本从 `"ica-fit-v2-source-references"` 升级为 **`"ica-fit-v3-extended-icalabel"`**；
-  - 指纹输入新增：`ica_extended: True`、`fit_low_hz`、`fit_high_hz`、`classifier_version`（使新旧模型绝不发生缓存串用）。
+  - 保留既有 `signal_view_sha256`（已绑定通道物理身份指纹）及 `eog_channels` / `ecg_channels` 字段，新增：`ica_extended: True`、`fit_low_hz`、`fit_high_hz`、`classifier_version`（使新旧模型绝不发生缓存串用）。
   - 仍排除 `ica_exclude_components` 和 `ica_fit_fingerprint`，确保同一套已审查模型改选不同成分时 100% 命中缓存复用。
 - [artifact_removal.py（contracts）](../../backend/app/scientific/contracts/artifact_removal.py)：
-  - 将 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 升级为 **`"artifact-removal-application-v4-extended-icalabel"`**，确保 `AnalysisPreprocessCache` 与历史分析运行溯源严格区分新旧 ICA 实现。
+  - 将 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 从 `"artifact-removal-application-v3-references"` 升级为 **`"artifact-removal-application-v4-extended-icalabel"`**，确保 `AnalysisPreprocessCache` 与历史分析运行溯源严格区分新旧 ICA 实现。
 
 ---
 
@@ -188,28 +189,29 @@
      - `ready`：`ICLabel 智能分类已就绪（1–100 Hz 宽带拟合，Extended Infomax）· 已按高置信度预勾选疑似伪迹，请复核确认`；
      - `fallback_eog_ecg`（例如 REF 参考）：温和提示 `当前为非平均参考导联（REF），ICLabel 需切换至平均参考 (CAR) 启用；当前已自动使用 EOG/ECG 相关评分`。
    - 卡片顶部增加轻量的类别筛选/快捷操作（如 `全部 / 仅看建议剔除` 或 `恢复系统推荐`），卡片视觉仍仅用中性灰（大脑/未勾选）与暖琥珀高亮（待剔除/建议剔除）。
-3. **步骤弹窗文案**（[ArtifactRemovalStepDialog.xaml](../../desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/ArtifactRemovalStepDialog.xaml)）：
-   - 更新说明文案：明确 `Infomax ICA` 已升级为 `Extended Infomax`，在平均参考（CAR）下自动启用 ICLabel 7 类伪迹识别（眼电/肌电/心电/单导噪声/工频），主分析频段仍保持 `1–50 Hz`。
+3. **步骤弹窗与科学对比缓冲衔接**（[ArtifactRemovalStepDialog.xaml](../../desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/ArtifactRemovalStepDialog.xaml)）：
+   - 仅在 `IcaActionCard` 内更新说明文案：明确 `Infomax ICA` 已升级为 `Extended Infomax`，在平均参考（CAR）下自动启用 ICLabel 7 类伪迹识别（眼电/肌电/心电/单导噪声/工频），主分析频段仍保持 `1–50 Hz`；**不得破坏**既有的按去伪迹方式动态显隐（`IcaActionCard` / `SspInfoCard` / `EogRegressionInfoCard`）与独立模态弹窗 [ChannelIdentityDialog.xaml](../../desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/ChannelIdentityDialog.xaml)。
+   - 确认 ICA 剔除选择后通过 `NotifyConfigAndVisuals()` 自动清空 [ScientificComparisonTileCache.cs](../../desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ScientificComparisonTileCache.cs) 并无缝刷新科学对比预览（滚动与播放均保持零闪烁）。
 
 ---
 
 ## 5. 模块拆分与文件规模约束（严格守住 400 行红线）
 
-> **重要提醒**：`backend/app/scientific/artifact_removal.py` 当前已 **421 行**，禁止继续往该文件堆砌 ICLabel 逻辑！必须按职责拆出独立模块。
+> **重要提醒**：`backend/app/scientific/artifact_removal.py` 当前已 **457 行**（`code-size-policy.json` 登记上限 460 行），**禁止继续往该文件堆砌 ICLabel 逻辑**！必须将 ICLabel 门控、3D 坐标挂载与 ONNX 推理封装到全新模块 `ica_classifier.py`。
 
 | 层级 | 文件路径 | 变更类型 | 职责与行数目标 |
 |---|---|---|---|
 | 后端依赖 | `backend/pyproject.toml` | 修改 | 新增 `mne-icalabel`、`onnxruntime`（无 `torch`） |
 | 后端科学 | `backend/app/scientific/ica_classifier.py` | **新增** | 封装准入条件门控、3D Montage 绑定、ONNX 后端 `mne-icalabel` 推理、7 类概率格式化、保守推荐判定与优雅降级（目标 ≤ 220 行） |
-| 后端科学 | `backend/app/scientific/artifact_removal.py` | 修改 | 升级为 `fit_params={"extended": True}`，支持接收可选宽带拟合输入与 `signal_provenance`，调用 `ica_classifier.py` 合并打分与推荐，**控制行数不增长或缩减至 ≤ 400 行** |
-| 后端契约 | `backend/app/scientific/contracts/artifact_removal.py` | 修改 | 升级 `ARTIFACT_REMOVAL_APPLICATION_VERSION` |
+| 后端科学 | `backend/app/scientific/artifact_removal.py` | 修改 | 升级为 `fit_params={"extended": True}`，支持接收可选宽带拟合输入与 `signal_provenance`，调用 `ica_classifier.py` 合并打分与推荐，**严格控制在 ≤ 460 行（目标缩减）** |
+| 后端契约 | `backend/app/scientific/contracts/artifact_removal.py` | 修改 | 升级 `ARTIFACT_REMOVAL_APPLICATION_VERSION` 至 `v4-extended-icalabel` |
 | 后端服务 | `backend/app/services/ica_review_cache.py` | 修改 | 升级指纹版本至 `ica-fit-v3-extended-icalabel` 并纳入宽带拟合与分类器版本字段 |
-| 后端服务 | `backend/app/services/mapped_preprocessing.py` | 修改 | 当启用 `ica_infomax` 且缓存未命中时，在释放 `source` 前为 ICA 构造临时宽带副本（`1–min(100, sfreq/2-1) Hz` + 同坏段掩膜） |
-| 后端服务 | `backend/app/services/artifact_inspection.py` | 修改 | 整段 ICA 审查复用同一宽带拟合路径，返回新增分类器与 7 类概率字段 |
+| 后端服务 | `backend/app/services/artifact_removal_preparation.py` & `artifact_references.py` | 修改 | 统一审查（`prepare_reviewed_ica`）与执行（`apply_prepared_removal`）的宽带拟合副本构造与 `signal_provenance` 传递，**确保两条路径拟合权重 100% 一致、无漂移** |
+| 后端服务 | `backend/app/services/mapped_preprocessing.py` & `artifact_inspection.py` | 修改 | 仅在启用 `ica_infomax` 且缓存未命中时准备临时宽带副本（`1–min(100, sfreq/2-1) Hz` + 同坏段掩膜）并在拟合后立即释放；返回新增分类器与 7 类概率字段 |
 | 桌面契约 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Contracts/PreprocessingContracts.cs` | 修改 | 扩展 `IcaInspectionResponse` 与 `IcaComponentItem` 新增字段 |
-| 桌面模型 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ReviewPreprocessingModels.cs` | 修改 | 卡片中文标签、概率百分比、7 类分布 Tooltip 与推荐原因 |
+| 桌面模型 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ReviewPreprocessingModels.cs` | 修改 | 卡片中文标签、概率百分比、7 类分布 Tooltip 与推荐原因（保留与 EOG/ECG 相关分互补展示） |
 | 桌面视图 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Views/IcaReviewDialog.xaml` & `.xaml.cs` | 修改 | 展示分类器状态/回退提示、7 类中文标签与筛选交互（≤ 200 行） |
-| 桌面视图 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/ArtifactRemovalStepDialog.xaml` | 修改 | 同步 Extended Infomax + ICLabel 说明 |
+| 桌面视图 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/ArtifactRemovalStepDialog.xaml` | 修改 | 仅在 `IcaActionCard` 同步 Extended Infomax + ICLabel 说明（保持方式感知与 `ChannelIdentityDialog` 入口不变） |
 
 ---
 

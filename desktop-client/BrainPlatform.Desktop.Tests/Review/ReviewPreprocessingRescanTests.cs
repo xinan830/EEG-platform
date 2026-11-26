@@ -24,10 +24,8 @@ public sealed partial class ReviewPreprocessingTests
         vm.SetPlaybackActive(true);
         vm.SetDisplayMontageCompatible(true);
         await vm.RefreshOverlayWindowAsync();
-        Assert.Null(vm.CurrentOverlayWindow);
-        Assert.Contains("播放中", vm.OverlayStatusText);
+        Assert.NotNull(vm.CurrentOverlayWindow);
         vm.SetPlaybackActive(false);
-        await vm.RefreshOverlayWindowAsync();
         Assert.NotNull(vm.CurrentOverlayWindow);
         Assert.Equal(report.IcaFitFingerprint, vm.IcaFitFingerprint);
         Assert.Equal(new[] { 0 }, vm.ConfirmedIcaExcluded);

@@ -23,6 +23,10 @@ internal sealed class ReviewPreprocessingOverlayLayer
     private readonly SciChartSurface surface;
     private readonly List<OverlaySeries> baselineSeries = [];
     private readonly List<OverlaySeries> processedSeries = [];
+    private PreprocessingPreviewWindowResponse? lastRenderedWindow;
+    private int lastRenderedTraceCount;
+    private double lastRenderedPlotHeight;
+    private double lastRenderedSensitivity;
 
     public ReviewPreprocessingOverlayLayer(SciChartSurface surface)
     {
@@ -68,6 +72,7 @@ internal sealed class ReviewPreprocessingOverlayLayer
 
     public void Clear()
     {
+        lastRenderedWindow = null;
         foreach (var item in baselineSeries)
         {
             item.Data.Clear();
@@ -90,6 +95,7 @@ internal sealed class ReviewPreprocessingOverlayLayer
         ScreenScaleContext screenScale)
     {
         var prep = viewModel?.Preprocessing;
+        var suppressOrdinary = prep?.SuppressesOrdinaryColoredTraces(channelNames) == true;
         var comparisonReady = prep?.CanDisplayScientificComparison(channelNames) == true &&
             baselineSeries.Count >= channelNames.Count && processedSeries.Count >= channelNames.Count;
         var overlayWindow = comparisonReady ? prep!.CurrentOverlayWindow! : null;
@@ -103,8 +109,8 @@ internal sealed class ReviewPreprocessingOverlayLayer
             baseSeries[i].Stroke = baseColor;
             baseSeries[i].StrokeThickness = 1;
             baseSeries[i].StrokeDashArray = null;
-            // Mutually exclusive: hide ordinary colored series when paired scientific comparison is ready.
-            baseSeries[i].IsVisible = !comparisonReady;
+            // Explicit mode ownership: hide ordinary colored traces across the entire healthy scientific comparison mode.
+            baseSeries[i].IsVisible = !suppressOrdinary;
         }
 
         if (!comparisonReady || overlayWindow is null || baselineSeries.Count < traceCount || processedSeries.Count < traceCount)
@@ -114,6 +120,12 @@ internal sealed class ReviewPreprocessingOverlayLayer
         }
 
         var sensitivity = viewModel?.SensitivityMicrovoltsPerMillimeter ?? 10.0;
+        if (ReferenceEquals(lastRenderedWindow, overlayWindow) &&
+            lastRenderedTraceCount == traceCount &&
+            Math.Abs(lastRenderedPlotHeight - plotHeight) <= 0.5 &&
+            Math.Abs(lastRenderedSensitivity - sensitivity) <= 1e-9)
+            return;
+
         var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
             traceCount, plotHeight, sensitivity, screenScale.MillimetersPerDipY);
 
@@ -125,6 +137,10 @@ internal sealed class ReviewPreprocessingOverlayLayer
             ApplySeriesData(processedSeries[i], projected.DrawProcessed, projected.ProcessedX, projected.ProcessedY,
                 dash: projected.IsInterpolated ? InterpolatedDash : null);
         }
+        lastRenderedWindow = overlayWindow;
+        lastRenderedTraceCount = traceCount;
+        lastRenderedPlotHeight = plotHeight;
+        lastRenderedSensitivity = sensitivity;
     }
 
     private static void ApplySeriesData(OverlaySeries series, bool visible, double[]? xs, double[]? ys, double[]? dash)

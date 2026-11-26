@@ -58,6 +58,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         JumpToSegmentCommand = new SegmentJumpCommand(seekToSeconds);
         ResetAllCommand = new RelayCommand(ResetAll);
         SaveChannelIdentitiesCommand = new AsyncRelayCommand(SaveChannelIdentitiesAsync, ReportError);
+        DiscardUnsavedChannelIdentitiesCommand = new AsyncRelayCommand(DiscardUnsavedChannelIdentitiesAsync, ReportError);
     }
 
     public event EventHandler? VisualStateChanged;
@@ -262,6 +263,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         CancelInspection();
         ClearOverlayWindow();
         overlayLoadCts?.Dispose();
+        prefetchCts?.Dispose();
         lifetime.Cancel();
         lifetime.Dispose();
     }

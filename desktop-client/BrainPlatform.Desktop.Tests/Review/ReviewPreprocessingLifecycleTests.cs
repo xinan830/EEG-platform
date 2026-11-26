@@ -110,20 +110,20 @@ public sealed partial class ReviewPreprocessingTests
     }
 
     [Fact]
-    public async Task Playback_DiscardsPreviewAndPausingAllowsNewPreview()
+    public async Task Playback_PreservesScientificComparisonAcrossPlayAndPause()
     {
-        var client = new ControlledClient { DelayPreview = true };
+        var client = new ControlledClient();
         using var vm = CreateViewModel(client, out _);
         vm.IsOverlayCompareEnabled = true;
-        var pending = vm.RefreshOverlayWindowAsync();
-        await client.PreviewStarted.Task;
-        vm.SetPlaybackActive(true);
-        client.PreviewRelease.SetResult();
-        await pending;
-        Assert.Null(vm.CurrentOverlayWindow);
-        vm.SetPlaybackActive(false);
         await vm.RefreshOverlayWindowAsync();
-        Assert.NotNull(vm.CurrentOverlayWindow);
+        var loaded = vm.CurrentOverlayWindow;
+        Assert.NotNull(loaded);
+        vm.SetPlaybackActive(true);
+        Assert.Same(loaded, vm.CurrentOverlayWindow);
+        Assert.True(vm.IsScientificComparisonReady);
+        vm.SetPlaybackActive(false);
+        Assert.Same(loaded, vm.CurrentOverlayWindow);
+        Assert.True(vm.IsScientificComparisonReady);
     }
 
     [Fact]

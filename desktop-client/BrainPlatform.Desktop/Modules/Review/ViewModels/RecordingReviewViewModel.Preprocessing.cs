@@ -35,9 +35,17 @@ public sealed partial class RecordingReviewViewModel
                 NotchHz),
             () => CurrentFrame?.OutputChannelNames ?? []);
         Preprocessing.ConfigurationChanged += OnPreprocessingConfigurationChanged;
+        Preprocessing.PropertyChanged += OnPreprocessingPropertyChanged;
         montageSelection.SelectionChanged += OnPreprocessingMontageChanged;
         PropertyChanged += OnPreprocessingViewportChanged;
         OpenPreprocessingCommand = new RelayCommand(() => OpenPreprocessingRequested?.Invoke(this, EventArgs.Empty));
+    }
+
+    private void OnPreprocessingPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ReviewPreprocessingViewModel.CurrentOverlayWindow) &&
+            Preprocessing.CurrentOverlayWindow is not null && Preprocessing.IsOverlayCompareEnabled)
+            _ = Preprocessing.PrefetchAdjacentTilesAsync(DurationSeconds);
     }
 
     private void OnPreprocessingMontageChanged(object? sender, EventArgs e)
@@ -52,8 +60,8 @@ public sealed partial class RecordingReviewViewModel
             Preprocessing.RefreshContextMetadata();
 
         if (e.PropertyName is nameof(ViewportStartSeconds) or nameof(VisibleDurationSeconds) &&
-            !IsPlaying && Preprocessing.IsOverlayCompareEnabled)
-            _ = Preprocessing.RefreshOverlayWindowAsync();
+            Preprocessing.IsOverlayCompareEnabled)
+            _ = Preprocessing.HandleViewportChangedAsync(DurationSeconds);
     }
 
     private void OnPreprocessingConfigurationChanged(object? sender, EventArgs e)
@@ -114,6 +122,7 @@ public sealed partial class RecordingReviewViewModel
     {
         if (Preprocessing is null) return;
         Preprocessing.ConfigurationChanged -= OnPreprocessingConfigurationChanged;
+        Preprocessing.PropertyChanged -= OnPreprocessingPropertyChanged;
         montageSelection.SelectionChanged -= OnPreprocessingMontageChanged;
         PropertyChanged -= OnPreprocessingViewportChanged;
         Preprocessing.Dispose();
