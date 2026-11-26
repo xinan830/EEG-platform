@@ -281,7 +281,7 @@ public sealed partial class LiveMonitoringViewModel : ObservableObject, IDisposa
     public IReadOnlyList<string> VisibleChannelColors =>
         MontageOutputAppearance.ResolveColors(montageProfile, VisibleChannelLabels);
 
-    public string CurrentMontageName => montageProfile?.Name ?? "未选择导联配置";
+    public string CurrentMontageName => montageProfile?.DisplayName ?? "未选择导联配置";
 
     public int MontageOutputChannelCount => MontageChannels.Count;
 

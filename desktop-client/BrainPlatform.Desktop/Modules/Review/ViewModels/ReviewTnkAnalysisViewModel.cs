@@ -12,7 +12,7 @@ public sealed class ReviewTnkAnalysisViewModel : ObservableObject
         new("疲劳指数", ["tnk_fatigue"]), new("快慢波比", ["tnk_hai"]),
         new("RBP 堆叠图", ["tnk_rbp"], true), new("皮质兴奋/抑制", ["tnk_aperiodic"]),
         new("额叶平衡", ["tnk_faa"]), new("个体 Alpha 峰", ["tnk_iapf"]),
-        new("ANT 时序指标", ["tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation"])];
+        new(DeviceProductPresentation.Brand + " 时序指标", ["tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation"])];
     private readonly TnkWindowChartHistory history = new();
     private IReadOnlyList<TnkChildResultDisplay> children = [];
     private IReadOnlyList<TnkPlotPanel> activePlots = [];

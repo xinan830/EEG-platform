@@ -111,7 +111,7 @@ public partial class ChannelDetailView : UserControl
 
         if (!OperationConfirmationDialog.Confirm(
                 Window.GetWindow(this),
-                OperationConfirmationRequest.DeleteChannelConfiguration(profile.Name)))
+                OperationConfirmationRequest.DeleteChannelConfiguration(profile.DisplayName)))
         {
             return;
         }

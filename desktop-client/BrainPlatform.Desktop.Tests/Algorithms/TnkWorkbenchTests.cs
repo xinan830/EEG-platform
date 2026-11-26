@@ -167,7 +167,7 @@ public sealed class TnkWorkbenchTests
         var catalog = new AlgorithmListViewModel(new HttpAlgorithmClient(new System.Net.Http.HttpClient()), new OperationNotificationCenter());
         var model = new TnkDetailViewModel(catalog, "tnk_biofeedback");
 
-        var tab = Assert.Single(model.AnalysisTabs, item => item.Title == "ANT 时序指标");
+        var tab = Assert.Single(model.AnalysisTabs, item => item.Title == "POP 时序指标");
 
         Assert.Equal(new[]
         {
@@ -192,7 +192,7 @@ public sealed class TnkWorkbenchTests
         };
 
         var panel = Assert.Single(TnkDetailViewModel.BuildPlots(children,
-            new("ANT 时序指标", [
+            new("POP 时序指标", [
                 "tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness",
                 "tnk_zenlite_spectral_relaxation"])));
 

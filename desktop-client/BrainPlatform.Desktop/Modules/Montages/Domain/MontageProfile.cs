@@ -42,6 +42,12 @@ public sealed record MontageProfile(
     IReadOnlyList<string>? AverageReferenceLabels = null,
     bool IsArchived = false)
 {
+    [JsonIgnore]
+    public string DisplayName => SystemMontageProfileFactory.DisplayNameFor(this);
+
+    [JsonIgnore]
+    public string DisplayDescription => SystemMontageProfileFactory.DisplayDescriptionFor(this);
+
     public string SourceLabel => Source == MontageProfileSource.System ? "系统默认" : "我的配置";
 
     [JsonIgnore]
@@ -81,10 +87,10 @@ public sealed record MontageProfile(
         : UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     [JsonIgnore]
-    public string DescriptionPreview => Abbreviate(Description, 15);
+    public string DescriptionPreview => Abbreviate(DisplayDescription, 15);
 
     [JsonIgnore]
-    public string ChannelConfigurationName => ChannelConfigurationSnapshot.Name;
+    public string ChannelConfigurationName => ChannelConfigurationSnapshot.DisplayName;
 
     [JsonIgnore]
     public string ChannelSnapshotStatusLabel { get; init; } = "待校验";

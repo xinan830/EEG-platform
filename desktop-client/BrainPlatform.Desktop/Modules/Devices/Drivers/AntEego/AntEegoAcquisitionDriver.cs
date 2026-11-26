@@ -21,15 +21,15 @@ public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver
 
     public AcquisitionDriverDescriptor Descriptor { get; } = new(
         DriverId,
-        "ANT/eego",
-        "选择本机 eego-SDK.dll 后测试已连接的 ANT 放大器。");
+        DeviceProductPresentation.Brand,
+        $"选择本机 eego-SDK.dll 后测试已连接的 {DeviceProductPresentation.Brand} 放大器。");
 
     public IAcquisitionDeviceAdapter CreateAdapter(AcquisitionDriverConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         if (!string.Equals(configuration.DriverId, DriverId, StringComparison.Ordinal))
         {
-            throw new AcquisitionUnavailableException($"ANT/eego 驱动不能处理“{configuration.DriverId}”配置。");
+            throw new AcquisitionUnavailableException($"POP 驱动不能处理“{configuration.DriverId}”配置。");
         }
 
         return new AntEegoAcquisitionAdapter(new AntEegoAdapterOptions(
@@ -93,7 +93,7 @@ public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver
 
         if (!double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value))
         {
-            throw new AcquisitionUnavailableException($"ANT/eego 连接参数“{settingName}”必须是有限电压数值。");
+            throw new AcquisitionUnavailableException($"POP 连接参数“{settingName}”必须是有限电压数值。");
         }
 
         return value;

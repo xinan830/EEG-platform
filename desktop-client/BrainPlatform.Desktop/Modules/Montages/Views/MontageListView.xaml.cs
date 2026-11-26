@@ -55,7 +55,7 @@ public partial class MontageListView : UserControl
 
         if (!OperationConfirmationDialog.Confirm(
                 Window.GetWindow(this),
-                OperationConfirmationRequest.DeleteMontageConfiguration(profile.Name)))
+                OperationConfirmationRequest.DeleteMontageConfiguration(profile.DisplayName)))
         {
             return;
         }

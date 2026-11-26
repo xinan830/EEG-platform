@@ -227,7 +227,7 @@
                                     <Border Grid.ColumnSpan="10" Style="{StaticResource AppTableRowDividerStyle}" />
 
                                     <!-- 0. 配置名称 -->
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
+                                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
 
                                     <!-- 1. 配置说明 (文本省略 + 气泡) -->
                                     <TextBlock Grid.Column="1" Text="{Binding DescriptionPreview}" FontSize="12.5" Foreground="#64748B"
@@ -235,7 +235,7 @@
                                                TextTrimming="CharacterEllipsis" Margin="8,0,16,0"
                                                ToolTipService.InitialShowDelay="100" ToolTipService.ShowDuration="20000">
                                         <TextBlock.ToolTip>
-                                            <ToolTip Style="{StaticResource AppDescriptionToolTipStyle}" Content="{Binding Description}" />
+                                            <ToolTip Style="{StaticResource AppDescriptionToolTipStyle}" Content="{Binding DisplayDescription}" />
                                         </TextBlock.ToolTip>
                                     </TextBlock>
 

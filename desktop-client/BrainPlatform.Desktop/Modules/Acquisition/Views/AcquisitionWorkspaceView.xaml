@@ -255,7 +255,7 @@
                                           ToolTip="仅切换实时波形显示导联；不改变原始数据、录制入库导联或算法输入。">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
@@ -387,7 +387,7 @@
 
                                         <!-- 录制入库导联 -->
                                         <TextBlock Grid.Row="10" Grid.Column="0" Text="录制入库导联" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding Acquisition.SelectedMontageProfile.Name, TargetNullValue=未选择}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding Acquisition.SelectedMontageProfile.DisplayName, TargetNullValue=未选择}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
                                         <!-- 采集设备 -->
                                         <TextBlock Grid.Row="12" Grid.Column="0" Text="设备状态" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />

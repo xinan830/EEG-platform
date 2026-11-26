@@ -34,7 +34,7 @@ public sealed record RecordingMontageCatalogResult(
 
     public string AcquisitionMontageStatusText => AcquisitionMontageStatus switch
     {
-        AcquisitionMontageStatus.Available => AcquisitionMontage?.Name ?? "已记录导联",
+        AcquisitionMontageStatus.Available => AcquisitionMontage?.DisplayName ?? "已记录导联",
         AcquisitionMontageStatus.MissingSnapshot => "采集时未记录导联快照",
         AcquisitionMontageStatus.InvalidSnapshot => "采集时导联快照不可读取",
         _ => "采集导联不可用",
@@ -137,7 +137,7 @@ public static class RecordingMontageCatalog
             }
             else
             {
-                incompatible.Add(new IncompatibleRecordingMontage(profile.Id, profile.Name, error));
+                incompatible.Add(new IncompatibleRecordingMontage(profile.Id, profile.DisplayName, error));
             }
         }
 
@@ -260,9 +260,8 @@ public static class RecordingMontageCatalog
         }
 
         if (!string.Equals(candidate.Id, recorded.Id, StringComparison.Ordinal) &&
-            !(candidate.Source == MontageProfileSource.System &&
-              recorded.Source == MontageProfileSource.System &&
-              string.Equals(candidate.Name.Trim(), recorded.Name.Trim(), StringComparison.Ordinal)))
+            !(MontageProfileCatalogue.CreateSystemPresetSemanticIdentity(candidate) is { } identity &&
+              identity == MontageProfileCatalogue.CreateSystemPresetSemanticIdentity(recorded)))
         {
             return false;
         }

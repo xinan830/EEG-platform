@@ -30,7 +30,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
     {
         if (string.IsNullOrWhiteSpace(options.SdkLibraryPath) || !File.Exists(options.SdkLibraryPath))
         {
-            return new DeviceReadiness(false, "未配置", "未找到 ANT/eego eego-SDK.dll 路径");
+            return new DeviceReadiness(false, "未配置", "未找到 POP eego-SDK.dll 路径");
         }
 
         return new DeviceReadiness(false, "待测试", "SDK 已选择；请测试放大器连接以读取实际设备能力");
@@ -69,7 +69,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
             {
                 throw new AntEegoSdkException(
                     "ANT_EEGO_STREAM_ALREADY_ACTIVE",
-                    "This ANT/eego adapter already owns an active EEG stream.");
+                    "This POP adapter already owns an active EEG stream.");
             }
         }
 
@@ -123,7 +123,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
             {
                 throw new AntEegoSdkException(
                     "ANT_EEGO_STREAM_ALREADY_ACTIVE",
-                    "This ANT/eego adapter already owns an active stream.");
+                    "This POP adapter already owns an active stream.");
             }
         }
 
@@ -140,13 +140,13 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
                     Volatile.Write(ref impedanceCapability, (int)ImpedanceCapabilityStatus.Unsupported);
                     throw new AntEegoSdkException(
                         "ANT_EEGO_IMPEDANCE_UNSUPPORTED",
-                        "The loaded ANT/eego SDK does not expose impedance measurement.");
+                        "The loaded POP SDK does not expose impedance measurement.");
                 }
 
                 var amplifiers = api.GetAmplifiers();
                 if (!amplifiers.Any(candidate => candidate.Id == identity.NativeId))
                 {
-                    throw new AntEegoSdkException("ANT_EEGO_DEVICE_NOT_FOUND", "The selected ANT/eego device is no longer present.");
+                    throw new AntEegoSdkException("ANT_EEGO_DEVICE_NOT_FOUND", "The selected POP device is no longer present.");
                 }
                 var amplifier = amplifiers.Single(candidate => candidate.Id == identity.NativeId);
 
@@ -169,7 +169,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
                 {
                     metadata = AntEegoImpedanceContractMapper.CreateMetadata(
                         request.DeviceId,
-                        string.IsNullOrWhiteSpace(amplifier.Serial) ? "ANT/eego amplifier" : $"ANT/eego {amplifier.Serial}",
+                        DeviceProductPresentation.FormatDeviceName(amplifier.Serial),
                         request.Channels,
                         actualChannels,
                         options.ChannelLabelsByNativeIndex);
@@ -270,7 +270,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
                     .ToArray();
                 descriptors.Add(new AcquisitionDeviceDescriptor(
                     new AntEegoDeviceIdentity(amplifier.Id).ToDeviceId(),
-                    string.IsNullOrWhiteSpace(amplifier.Serial) ? "ANT/eego amplifier" : $"ANT/eego {amplifier.Serial}",
+                    DeviceProductPresentation.FormatDeviceName(amplifier.Serial),
                     string.IsNullOrWhiteSpace(amplifier.Serial) ? null : amplifier.Serial,
                     api.GetSamplingRates(amplifier.Id),
                     api.GetReferenceRanges(amplifier.Id),
@@ -298,7 +298,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
         {
             throw new AntEegoSdkException(
                 "ANT_EEGO_DEVICE_NOT_FOUND",
-                "The selected ANT/eego device is no longer present. Discover devices again.");
+                "The selected POP device is no longer present. Discover devices again.");
         }
 
         api.OpenAmplifier(identity.NativeId);
@@ -389,7 +389,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
 
         var metadata = new AcquisitionStreamMetadata(
             identity.ToDeviceId(),
-            string.IsNullOrWhiteSpace(selectedAmplifier.Serial) ? "ANT/eego amplifier" : $"ANT/eego {selectedAmplifier.Serial}",
+            DeviceProductPresentation.FormatDeviceName(selectedAmplifier.Serial),
             request.SamplingRateHz,
             channels,
             counterChannels[0].StreamIndex,

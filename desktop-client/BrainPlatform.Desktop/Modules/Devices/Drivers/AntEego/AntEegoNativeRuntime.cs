@@ -42,7 +42,7 @@ internal sealed class AntEegoNativeRuntimeState(Func<string, AntEegoNativeApi> l
             {
                 throw new AntEegoSdkException(
                     "ANT_EEGO_SDK_PATH_CONFLICT",
-                    "Another ANT/eego SDK path is already active in this desktop process.");
+                    "Another POP SDK path is already active in this desktop process.");
             }
 
             if (forStream)
@@ -63,7 +63,7 @@ internal sealed class AntEegoNativeRuntimeState(Func<string, AntEegoNativeApi> l
             if (shutdown) return;
             if (leaseCount != 0)
             {
-                throw new InvalidOperationException("Cannot shut down the ANT/eego SDK while native leases are active.");
+                throw new InvalidOperationException("Cannot shut down the POP SDK while native leases are active.");
             }
 
             shutdown = true;
@@ -87,7 +87,7 @@ internal sealed class AntEegoNativeRuntimeState(Func<string, AntEegoNativeApi> l
             if (leaseCount < 0)
             {
                 leaseCount = 0;
-                throw new InvalidOperationException("ANT/eego native lease was released more than once.");
+                throw new InvalidOperationException("POP native lease was released more than once.");
             }
         }
     }

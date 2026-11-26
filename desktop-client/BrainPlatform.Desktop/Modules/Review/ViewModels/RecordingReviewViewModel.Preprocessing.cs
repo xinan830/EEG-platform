@@ -29,7 +29,7 @@ public sealed partial class RecordingReviewViewModel
                 SourceChannelCount,
                 SamplingRateHz,
                 DurationSeconds,
-                montageSelection.Capture().SelectedMontage?.Name ?? AcquisitionMontage?.Name ?? "原始采集导联",
+                montageSelection.Capture().SelectedMontage?.DisplayName ?? AcquisitionMontage?.DisplayName ?? "原始采集导联",
                 HighPassHz,
                 LowPassHz,
                 NotchHz),

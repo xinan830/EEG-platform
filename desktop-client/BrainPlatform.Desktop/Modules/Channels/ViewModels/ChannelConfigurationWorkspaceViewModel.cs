@@ -393,8 +393,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         isCreatingVersion = false;
         draftProfileId = profile.Source == ChannelConfigurationSource.User ? profile.Id : null;
         draftCreatedAtUtc = profile.Source == ChannelConfigurationSource.User ? profile.CreatedAtUtc : null;
-        DraftName = profile.Name;
-        DraftDescription = profile.Description;
+        DraftName = profile.DisplayName;
+        DraftDescription = profile.DisplayDescription;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
         DraftHardwareLandmarks.Load(profile);
@@ -444,8 +444,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         isCreatingVersion = true;
         draftProfileId = null;
         draftCreatedAtUtc = null;
-        DraftName = $"{profile.Name} 新版本";
-        DraftDescription = profile.Description;
+        DraftName = $"{profile.DisplayName} 新版本";
+        DraftDescription = profile.DisplayDescription;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
         DraftHardwareLandmarks.Load(profile);
@@ -456,7 +456,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         BuildDraftRowsFromCurrentDevice(profile);
         savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
         RaisePropertyChanged(nameof(HasUnsavedChanges));
-        StatusText = $"已基于“{profile.Name}”创建可编辑的新版本草稿；原配置及其导联引用不会改变。";
+        StatusText = $"已基于“{profile.DisplayName}”创建可编辑的新版本草稿；原配置及其导联引用不会改变。";
     }
 
     public void BeginCopySelected()
@@ -468,8 +468,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         isCreatingVersion = false;
         draftProfileId = null;
         draftCreatedAtUtc = null;
-        DraftName = $"{profile.Name} 副本";
-        DraftDescription = profile.Description;
+        DraftName = $"{profile.DisplayName} 副本";
+        DraftDescription = profile.DisplayDescription;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
         DraftHardwareLandmarks.Load(profile);
@@ -491,7 +491,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
         RaisePropertyChanged(nameof(HasUnsavedChanges));
 
-        StatusText = $"已基于“{profile.Name}”创建副本草稿；保存后将成为独立的用户配置。";
+        StatusText = $"已基于“{profile.DisplayName}”创建副本草稿；保存后将成为独立的用户配置。";
     }
 
     public void CloseDraft()
@@ -574,8 +574,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         var search = SearchText.Trim();
         var filtered = Profiles.Where(profile =>
             string.IsNullOrWhiteSpace(search) ||
-            profile.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-            profile.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.DisplayName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.DisplayDescription.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
             profile.DeviceModelLabel.Contains(search, StringComparison.CurrentCultureIgnoreCase));
 
         if (DeviceModelFilter != "全部型号")
@@ -920,8 +920,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             ?? throw new InvalidOperationException("保存后未找到用户通道配置。");
         savedDraftBaseline = profile;
         RaisePropertyChanged(nameof(HasUnsavedChanges));
-        StatusText = $"已保存通道配置“{profile.Name}”。";
-        notifications?.PublishSuccess($"已保存通道配置“{profile.Name}”。请点击“应用”后用于采集。");
+        StatusText = $"已保存通道配置“{profile.DisplayName}”。";
+        notifications?.PublishSuccess($"已保存通道配置“{profile.DisplayName}”。请点击“应用”后用于采集。");
     }
 
     private async Task ResolveElectrodeLocationsAsync()
@@ -980,12 +980,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private static string DefaultLocation(string? location, string fallback) =>
         string.IsNullOrWhiteSpace(location) ? fallback : location.Trim();
 
-    private static string DescribeDeviceVendor(string? driverId) => driverId?.Trim() switch
-    {
-        { Length: > 0 } value when value.StartsWith("ant", StringComparison.OrdinalIgnoreCase) => "ANT",
-        { Length: > 0 } value => value,
-        _ => "未选择设备",
-    };
+    private static string DescribeDeviceVendor(string? driverId) =>
+        DeviceProductPresentation.ForDriver(driverId, "未选择设备");
 
     private void RaiseDraftCounts()
     {
@@ -1053,8 +1049,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         await store.DeleteAsync(profile.Id, CancellationToken.None);
         SelectedProfile = null;
         await RefreshAsync();
-        StatusText = $"已删除通道配置“{profile.Name}”。";
-        notifications?.PublishSuccess($"已删除通道配置“{profile.Name}”。");
+        StatusText = $"已删除通道配置“{profile.DisplayName}”。";
+        notifications?.PublishSuccess($"已删除通道配置“{profile.DisplayName}”。");
     }
 
     private void ReportCommandError(Exception exception)

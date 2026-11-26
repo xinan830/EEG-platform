@@ -34,9 +34,10 @@ public static class MontageProfileCatalogue
         return result;
     }
 
-    private static string? CreateSystemPresetSemanticIdentity(MontageProfile profile)
+    internal static string? CreateSystemPresetSemanticIdentity(MontageProfile profile)
     {
-        if (!profile.Name.StartsWith("ANT默认通道配置 ", StringComparison.Ordinal))
+        if (profile.Source != MontageProfileSource.System ||
+            !DefaultChannelLabelTemplate.IsSystemProfile(profile.ChannelConfigurationSnapshot))
         {
             return null;
         }
@@ -53,9 +54,8 @@ public static class MontageProfileCatalogue
             .Select(label => label.Trim().ToUpperInvariant())
             .OrderBy(label => label, StringComparer.Ordinal));
         return string.Join('\u001F',
-            profile.Name.Trim(),
             profile.DeviceSignature.Trim(),
-            profile.ChannelConfigurationSnapshot.Id.Trim(),
+            ChannelConfigurationFingerprint.Create(profile.ChannelConfigurationSnapshot),
             derived,
             average);
     }

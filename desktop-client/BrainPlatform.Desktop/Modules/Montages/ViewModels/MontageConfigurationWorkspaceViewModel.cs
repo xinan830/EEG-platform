@@ -268,7 +268,7 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
 
     public string DraftChannelSummary => DraftChannelConfiguration is null
         ? "未选择"
-        : $"{DraftChannelConfiguration.Name} · {DraftChannelConfiguration.EnabledChannelCount} 个固定源通道";
+        : $"{DraftChannelConfiguration.DisplayName} · {DraftChannelConfiguration.EnabledChannelCount} 个固定源通道";
 
     public string AverageReferenceSummary => $"AVG（{AverageReferenceChannels.Count(option => option.IsIncluded)} 通道）";
 
@@ -319,8 +319,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = profile.Source == MontageProfileSource.User ? profile.Id : null;
         draftCreatedAtUtc = profile.Source == MontageProfileSource.User ? profile.CreatedAtUtc : null;
-        DraftName = profile.Name;
-        DraftDescription = profile.Description;
+        DraftName = profile.DisplayName;
+        DraftDescription = profile.DisplayDescription;
         DraftChannelConfiguration = null;
         draftChannelConfiguration = profile.ChannelConfigurationSnapshot;
         EnsureDraftChannelConfigurationOption(profile.ChannelConfigurationSnapshot);
@@ -353,8 +353,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = null;
         draftCreatedAtUtc = null;
-        DraftName = $"{profile.Name} 副本";
-        DraftDescription = profile.Description;
+        DraftName = $"{profile.DisplayName} 副本";
+        DraftDescription = profile.DisplayDescription;
         DraftChannelConfiguration = null;
         draftChannelConfiguration = profile.ChannelConfigurationSnapshot;
         EnsureDraftChannelConfigurationOption(profile.ChannelConfigurationSnapshot);
@@ -362,7 +362,7 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         RaisePropertyChanged(nameof(DraftChannelConfigurationId));
         RaisePropertyChanged(nameof(DraftChannelSummary));
         BuildEditableRows(profile);
-        StatusText = $"已从“{profile.Name}”创建副本。";
+        StatusText = $"已从“{profile.DisplayName}”创建副本。";
         RaiseDraftModePropertiesChanged();
     }
 
@@ -435,8 +435,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         await RefreshAsync();
         SelectedProfile = Profiles.FirstOrDefault(item => item.Id == profile.Id)
             ?? throw new InvalidOperationException("保存后未找到导联配置。");
-        StatusText = $"已保存导联配置“{profile.Name}”。";
-        notifications.PublishSuccess($"已保存导联配置“{profile.Name}”。");
+        StatusText = $"已保存导联配置“{profile.DisplayName}”。";
+        notifications.PublishSuccess($"已保存导联配置“{profile.DisplayName}”。");
     }
 
     /// <summary>Applies the user-selected shared average group to every fixed source row.</summary>
@@ -711,8 +711,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         await store.DeleteAsync(profile.Id, CancellationToken.None);
         SelectedProfile = null;
         await RefreshAsync();
-        StatusText = $"已删除导联配置“{profile.Name}”。";
-        notifications.PublishSuccess($"已删除导联配置“{profile.Name}”。");
+        StatusText = $"已删除导联配置“{profile.DisplayName}”。";
+        notifications.PublishSuccess($"已删除导联配置“{profile.DisplayName}”。");
     }
 
     public Task RefreshReferencesAsync() => ReloadProfilesAsync();
@@ -725,7 +725,7 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         var profile = SelectedProfile ?? throw new InvalidOperationException("请先选择导联配置。");
         await store.ArchiveAsync(profile.Id, CancellationToken.None);
         await ReloadProfilesAsync();
-        StatusText = $"已归档导联配置“{profile.Name}”，历史快照保持不变。";
+        StatusText = $"已归档导联配置“{profile.DisplayName}”，历史快照保持不变。";
         notifications.PublishSuccess(StatusText);
     }
 
@@ -740,8 +740,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableO
         var search = SearchText.Trim();
         var filtered = Profiles.Where(profile =>
             string.IsNullOrWhiteSpace(search) ||
-            profile.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-            profile.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.DisplayName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.DisplayDescription.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
             profile.ChannelConfigurationName.Contains(search, StringComparison.CurrentCultureIgnoreCase));
 
         if (ChannelConfigurationFilter != "全部通道配置")

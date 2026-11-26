@@ -635,7 +635,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
     {
         var picker = new OpenFileDialog
         {
-            Title = "选择 ANT/eego eego-SDK.dll",
+            Title = "选择 POP eego-SDK.dll",
             Filter = "eego-SDK.dll|eego-SDK.dll|DLL 文件|*.dll",
             CheckFileExists = true,
             Multiselect = false,
@@ -1198,10 +1198,6 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         RaisePropertyChanged(nameof(CanEditInputRanges));
     }
 
-    private static string DescribeDeviceVendor(string? driverId) => driverId?.Trim().ToLowerInvariant() switch
-    {
-        "ant-eego" => "ANT",
-        null or "" => "SDK 未报告厂商",
-        _ => driverId.Trim(),
-    };
+    private static string DescribeDeviceVendor(string? driverId) =>
+        DeviceProductPresentation.ForDriver(driverId, "SDK 未报告厂商");
 }

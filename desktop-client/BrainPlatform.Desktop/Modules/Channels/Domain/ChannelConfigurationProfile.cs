@@ -31,6 +31,14 @@ public sealed record ChannelConfigurationProfile(
     ElectrodeMapPosition? ReferenceMapPosition = null,
     ElectrodeMapPosition? GroundMapPosition = null)
 {
+    [JsonIgnore]
+    public string DisplayName => DefaultChannelLabelTemplate.IsSystemProfile(this)
+        ? DefaultChannelLabelTemplate.DisplayName : Name;
+
+    [JsonIgnore]
+    public string DisplayDescription => DefaultChannelLabelTemplate.IsSystemProfile(this)
+        ? DefaultChannelLabelTemplate.Description : Description;
+
     public string SourceLabel => Source == ChannelConfigurationSource.System ? "系统默认" : "我的配置";
 
     [JsonIgnore]
@@ -77,7 +85,7 @@ public sealed record ChannelConfigurationProfile(
 
     /// <summary>Compact list-cell text; the full description remains available in the tooltip.</summary>
     [JsonIgnore]
-    public string DescriptionPreview => Abbreviate(Description, 15);
+    public string DescriptionPreview => Abbreviate(DisplayDescription, 15);
 
     [JsonIgnore]
     public string HardwareWiringSummary =>
@@ -109,6 +117,7 @@ public sealed record ChannelConfigurationProfile(
     [JsonIgnore]
     public string DeviceModelLabel => !string.IsNullOrWhiteSpace(DeviceModel)
         ? DeviceModel
+        : DeviceDriverId == "ant-eego" ? DeviceProductPresentation.Brand
         : string.IsNullOrWhiteSpace(DeviceDisplayName) ? "设备未提供型号" : DeviceDisplayName;
 
     private static string DisplayLocation(string? location, string fallback) =>

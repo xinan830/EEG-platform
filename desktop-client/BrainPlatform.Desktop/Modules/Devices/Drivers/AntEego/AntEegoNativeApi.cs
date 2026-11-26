@@ -76,7 +76,7 @@ internal sealed class AntEegoNativeApi : IDisposable
     {
         if (!Environment.Is64BitProcess)
         {
-            throw new AntEegoSdkException("ANT_EEGO_X64_REQUIRED", "ANT/eego acquisition requires an x64 desktop process.");
+            throw new AntEegoSdkException("ANT_EEGO_X64_REQUIRED", "POP acquisition requires an x64 desktop process.");
         }
 
         var fullPath = Path.GetFullPath(sdkLibraryPath);
@@ -164,7 +164,7 @@ internal sealed class AntEegoNativeApi : IDisposable
         EnsureSuccess(
             (openImpedanceStream ?? throw new AntEegoSdkException(
                 "ANT_EEGO_IMPEDANCE_UNSUPPORTED",
-                "The loaded ANT/eego SDK does not expose impedance measurement."))(
+                "The loaded POP SDK does not expose impedance measurement."))(
                 amplifierId,
                 channels,
                 channels.Length),
@@ -263,7 +263,7 @@ internal sealed class AntEegoNativeApi : IDisposable
 
         throw new AntEegoSdkException(
             $"ANT_EEGO_NATIVE_{result}",
-            $"ANT/eego SDK failed to {operationName}: {GetErrorDetail()} (code {result}).");
+            $"POP SDK failed to {operationName}: {GetErrorDetail()} (code {result}).");
     }
 
     private string GetErrorDetail()
@@ -306,7 +306,7 @@ internal sealed class AntEegoNativeApi : IDisposable
         {
             throw new AntEegoSdkException(
                 "ANT_EEGO_NATIVE_CAPACITY_EXCEEDED",
-                $"ANT/eego SDK returned {count} entries for {operationName}, exceeding adapter capacity {values.Length}.");
+                $"POP SDK returned {count} entries for {operationName}, exceeding adapter capacity {values.Length}.");
         }
 
         return values.Take(count).ToArray();

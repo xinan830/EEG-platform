@@ -7,6 +7,13 @@ namespace BrainPlatform.Desktop.Modules.Channels.Domain;
 /// </summary>
 public static class DefaultChannelLabelTemplate
 {
+    public const string ProfileId = "system-ant-standard-28-input";
+    public const string DisplayName = DeviceProductPresentation.Brand + "默认通道配置";
+    public const string Description = "系统默认；" + DeviceProductPresentation.Brand + " 的 24 Reference + 4 Bipolar 物理输入布局。";
+
+    public static bool IsSystemProfile(ChannelConfigurationProfile profile) =>
+        profile.Source == ChannelConfigurationSource.System && profile.Id == ProfileId;
+
     private static readonly IReadOnlyDictionary<int, string> Labels = new Dictionary<int, string>
     {
         [0] = "Fp1", [1] = "Fp2", [2] = "F7", [3] = "F3", [4] = "Fz", [5] = "F4", [6] = "F8",

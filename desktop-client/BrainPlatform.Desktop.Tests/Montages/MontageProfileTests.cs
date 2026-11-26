@@ -188,14 +188,14 @@ public sealed class MontageProfileTests
     }
 
     [Fact]
-    public void SystemMontageFactory_CreatesNamedReadOnlyAntPresets()
+    public void SystemMontageFactory_CreatesNamedReadOnlyPopPresets()
     {
         var source = CreateAntSystemChannelConfiguration();
         var profiles = SystemMontageProfileFactory.Create(source);
 
         Assert.Equal(
-            ["ANT默认通道配置 REF参考", "ANT默认通道配置 平均参考", "ANT默认通道配置 M1/M2参考",
-                "ANT默认通道配置 Cz参考", "ANT默认通道配置 纵向双极", "ANT默认通道配置 横向双极"],
+            ["POP默认通道配置 REF参考", "POP默认通道配置 平均参考", "POP默认通道配置 M1/M2参考",
+                "POP默认通道配置 Cz参考", "POP默认通道配置 纵向双极", "POP默认通道配置 横向双极"],
             profiles.Select(profile => profile.Name));
         Assert.All(profiles, profile =>
         {
@@ -281,7 +281,8 @@ public sealed class MontageProfileTests
             .Select(profile => profile with
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Source = MontageProfileSource.User,
+                Name = "历史系统导联",
+                Source = MontageProfileSource.System,
             })
             .ToArray();
 

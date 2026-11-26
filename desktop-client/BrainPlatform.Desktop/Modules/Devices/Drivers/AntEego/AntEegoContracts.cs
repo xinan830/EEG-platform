@@ -68,7 +68,7 @@ internal readonly record struct AntEegoDeviceIdentity(int NativeId)
             !int.TryParse(deviceId[Prefix.Length..], out var nativeId) ||
             nativeId < 0)
         {
-            throw new ArgumentException("The device ID is not a valid ANT/eego native identifier.", nameof(deviceId));
+            throw new ArgumentException("The device ID is not a valid POP native identifier.", nameof(deviceId));
         }
 
         return new AntEegoDeviceIdentity(nativeId);

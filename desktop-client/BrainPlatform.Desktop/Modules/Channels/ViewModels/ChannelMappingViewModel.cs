@@ -223,9 +223,9 @@ public sealed class ChannelMappingViewModel : ObservableObject
 
         var now = DateTimeOffset.UnixEpoch;
         profile = new ChannelConfigurationProfile(
-            "system-ant-standard-28-input",
-            "ANT默认通道配置",
-            "系统默认；ANT/eego 的 24 Reference + 4 Bipolar 物理输入布局。",
+            DefaultChannelLabelTemplate.ProfileId,
+            DefaultChannelLabelTemplate.DisplayName,
+            DefaultChannelLabelTemplate.Description,
             ChannelConfigurationSource.System,
             GetDeviceSignature(),
             Rows.Select((row, index) => new ChannelConfigurationEntry(
@@ -325,12 +325,12 @@ public sealed class ChannelMappingViewModel : ObservableObject
         RaisePropertyChanged(nameof(CurrentHardwareGroundElectrodeLocation));
 
         RefreshDisplayRows();
-        StatusText = $"已载入通道配置“{profile.Name}”。";
+        StatusText = $"已载入通道配置“{profile.DisplayName}”。";
         RaisePropertyChanged(nameof(ActiveConfiguration));
         RaisePropertyChanged(nameof(ActiveConfigurationId));
         if (announce)
         {
-            notifications?.PublishSuccess($"已应用通道配置“{profile.Name}”。");
+            notifications?.PublishSuccess($"已应用通道配置“{profile.DisplayName}”。");
         }
         RaiseChannelCountsChanged();
         DisplayChannelsChanged?.Invoke(this, EventArgs.Empty);

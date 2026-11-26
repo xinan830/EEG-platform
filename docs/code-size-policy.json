@@ -3,6 +3,33 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "desktop-client/BrainPlatform.Desktop/Modules/Channels/ViewModels/ChannelConfigurationWorkspaceViewModel.cs": {
+      "decision": "split",
+      "max_lines": 1080,
+      "reason": "High-risk review for POP presentation: existing 1084-line catalogue/draft coordinator shrinks to 1080 lines. Only display properties and shared driver branding change; no lifecycle, signal, persistence or concurrency behavior is added. Splitting state ownership during a branding change would enlarge its regression surface.",
+      "follow_up": "Before adding channel-editor behavior, extract device-backed draft loading and electrode-location resolution into dedicated owners with the existing catalogue retaining selection/save lifecycle; preserve cancellation and saved-baseline tests."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Channels/ViewModels/ChannelMappingViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 536,
+      "reason": "POP change replaces preset labels and status text only, without line growth. Physical mapping, active-profile persistence and display-selection events remain one owner; assess extracting persistence before adding another mapping workflow."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Channels/ChannelConfigurationProfileTests.cs": {
+      "decision": "split",
+      "max_lines": 617,
+      "reason": "High-risk existing shared device/draft fixture; this change only updates one generated-name expectation with no growth. New branding contract tests live in a separate focused file.",
+      "follow_up": "Separate profile persistence/locking tests from device-backed draft lifecycle tests after extracting their shared fixture."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Montages/MontageProfileTests.cs": {
+      "decision": "keep",
+      "max_lines": 443,
+      "reason": "Existing montage editor/factory fixture; update generated POP names and correctly identify system-source fixtures. New historical serialization and user-name tests use PopProductPresentationTests instead of expanding this fixture."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Review/Montages/RecordingMontageCatalogTests.cs": {
+      "decision": "keep",
+      "max_lines": 429,
+      "reason": "Single recording-catalogue compatibility fixture. This change labels historical system fixtures by source rather than user-owned names; keep import isolation and mapping validation together."
+    },
     "desktop-client/BrainPlatform.Desktop.Tests/Review/Playback/RecordingReviewSessionTests.cs": {
       "decision": "split",
       "max_lines": 690,

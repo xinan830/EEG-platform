@@ -204,7 +204,7 @@
                                           SelectionChanged="OnMontageSelectionChanged"
                                           ToolTip="{Binding MontageSelectionHint}">
                                     <ComboBox.ItemTemplate>
-                                        <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" /></DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </controls:EegParameterField>
@@ -349,7 +349,7 @@
 
                                 <!-- 当前导联 -->
                                 <TextBlock Grid.Row="8" Grid.Column="0" Text="当前导联" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
-                                <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CurrentViewingMontage.Name, TargetNullValue=原始导联}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CurrentViewingMontage.DisplayName, TargetNullValue=原始导联}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
                                 <!-- 采集时间 -->
                                 <TextBlock Grid.Row="10" Grid.Column="0" Text="采集时间" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />

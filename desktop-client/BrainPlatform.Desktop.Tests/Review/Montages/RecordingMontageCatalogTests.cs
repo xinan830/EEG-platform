@@ -55,7 +55,8 @@ public sealed class RecordingMontageCatalogTests
             .Select(profile => profile with
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Source = MontageProfileSource.User,
+                Name = "历史系统导联",
+                Source = MontageProfileSource.System,
             })
             .ToArray();
 

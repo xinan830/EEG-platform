@@ -24,7 +24,7 @@ internal sealed class AntEegoNativeStreamGate
             {
                 throw new AntEegoSdkException(
                     "ANT_EEGO_STREAM_ALREADY_ACTIVE",
-                    "The ANT/eego SDK allows only one active stream per process.");
+                    "The POP SDK allows only one active stream per process.");
             }
 
             occupied = true;
@@ -37,7 +37,7 @@ internal sealed class AntEegoNativeStreamGate
         {
             if (!occupied)
             {
-                throw new InvalidOperationException("ANT/eego stream ownership was released more than once.");
+                throw new InvalidOperationException("POP stream ownership was released more than once.");
             }
 
             occupied = false;

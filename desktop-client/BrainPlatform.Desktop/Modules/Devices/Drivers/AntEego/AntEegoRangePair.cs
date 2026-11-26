@@ -47,7 +47,7 @@ public static class AntEegoRangePair
         if (!IsCompatible(referenceRangeVolts, bipolarRangeVolts))
         {
             throw new ArgumentException(
-                "ANT/eego 要求双极量程必须为参考量程的 2.5 倍。",
+                "POP 要求双极量程必须为参考量程的 2.5 倍。",
                 nameof(bipolarRangeVolts));
         }
     }

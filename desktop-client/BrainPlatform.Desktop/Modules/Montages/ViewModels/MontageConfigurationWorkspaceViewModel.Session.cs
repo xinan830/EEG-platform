@@ -19,8 +19,8 @@ public sealed partial class MontageConfigurationWorkspaceViewModel
         AvailableChannelConfigurations.Clear();
         AvailableChannelConfigurations.Add(source);
         draftChannelConfiguration = source;
-        DraftName = existing?.Name ?? "在线导联";
-        DraftDescription = existing?.Description ?? string.Empty;
+        DraftName = existing?.DisplayName ?? "在线导联";
+        DraftDescription = existing?.DisplayDescription ?? string.Empty;
         if (existing is null) BuildFixedRows(source, null);
         else BuildEditableRows(existing);
         StatusText = "保存后自动切换整套波形导联；仅当前会话有效，不参与算法。";

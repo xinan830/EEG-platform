@@ -31,7 +31,7 @@ public sealed partial class TnkDetailViewModel
         new("疲劳指数", ["tnk_fatigue"]), new("快慢波比", ["tnk_hai"]),
         new("RBP堆叠图", ["tnk_rbp"], true), new("皮质兴奋/抑制", ["tnk_aperiodic"]),
         new("额叶平衡", ["tnk_faa"]), new("个体Alpha峰", ["tnk_iapf"]),
-        new("ANT 时序指标", [
+        new(DeviceProductPresentation.Brand + " 时序指标", [
             "tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness",
             "tnk_zenlite_spectral_relaxation"])];
     private int selectedTabIndex = 4;

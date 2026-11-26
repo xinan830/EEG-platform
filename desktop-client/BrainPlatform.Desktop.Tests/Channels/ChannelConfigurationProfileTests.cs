@@ -242,7 +242,7 @@ public sealed class ChannelConfigurationProfileTests
         Assert.Null(mapping.ActiveConfigurationId);
         Assert.True(mapping.TryCreateDefaultSystemProfile(out var profile));
         Assert.Equal("system-ant-standard-28-input", profile.Id);
-        Assert.Equal("ANT默认通道配置", profile.Name);
+        Assert.Equal("POP默认通道配置", profile.Name);
         Assert.Equal("查看", profile.OpenActionLabel);
         Assert.False(profile.CanEdit);
     }
