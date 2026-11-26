@@ -26,6 +26,10 @@ public sealed class TopomapCanvas : FrameworkElement
         nameof(ColorScaleState), typeof(TopomapColorScaleState), typeof(TopomapCanvas),
         new FrameworkPropertyMetadata(null, OnScaleConfigurationChanged));
 
+    public static readonly DependencyProperty ShowFieldTitleProperty = DependencyProperty.Register(
+        nameof(ShowFieldTitle), typeof(bool), typeof(TopomapCanvas),
+        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnScaleConfigurationChanged));
+
     public TopomapCanvas()
     {
         Loaded += (_, _) => SchedulePreparation();
@@ -50,6 +54,12 @@ public sealed class TopomapCanvas : FrameworkElement
         set => SetValue(ColorScaleStateProperty, value);
     }
 
+    public bool ShowFieldTitle
+    {
+        get => (bool)GetValue(ShowFieldTitleProperty);
+        set => SetValue(ShowFieldTitleProperty, value);
+    }
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -57,8 +67,9 @@ public sealed class TopomapCanvas : FrameworkElement
                        prepared.CanvasWidth == ActualWidth && prepared.CanvasHeight == ActualHeight
             ? prepared
             : null;
+        var horizontalOffset = ComputeHorizontalOffset(ActualWidth, ShowFieldTitle);
         var bounds = snapshot?.HeadBounds ?? ScalpMapRenderer.GetHeadBounds(ActualWidth, ActualHeight,
-            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale);
+            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale, horizontalOffset);
         if (bounds.IsEmpty) return;
 
         var field = snapshot?.Field ?? Field;
@@ -76,7 +87,7 @@ public sealed class TopomapCanvas : FrameworkElement
 
         ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight, ScalpMapRenderer.VerticalOffset,
             ScalpMapRenderer.ReservedHeight, VisualTreeHelper.GetDpi(this).PixelsPerDip,
-            fill: false, showFrontLabel: false, radiusScale: ScalpMapRenderer.RadiusScale);
+            fill: false, showFrontLabel: false, radiusScale: ScalpMapRenderer.RadiusScale, horizontalOffset: horizontalOffset);
         DrawElectrodes(drawingContext, field, bounds);
         DrawTitleAndScale(drawingContext, field, bounds, snapshot);
         if (diagnostics && renderTimer is not null && snapshot is not null)
@@ -131,20 +142,21 @@ public sealed class TopomapCanvas : FrameworkElement
         var generation = _generation;
         var width = ActualWidth;
         var height = ActualHeight;
+        var horizontalOffset = ComputeHorizontalOffset(width, ShowFieldTitle);
         _preparationCancellation = cancellation;
-        _ = PrepareVisualAsync(field, width, height, generation, cancellation);
+        _ = PrepareVisualAsync(field, width, height, horizontalOffset, generation, cancellation);
         InvalidateVisual();
     }
 
     private async Task PrepareVisualAsync(TopomapField field, double width, double height,
-        int generation, CancellationTokenSource cancellation)
+        double horizontalOffset, int generation, CancellationTokenSource cancellation)
     {
         var published = false;
         try
         {
             var scaleBounds = ColorScaleState?.GetBounds(field);
             var snapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
-                field, width, height, cancellation.Token, scaleBounds), cancellation.Token).ConfigureAwait(false);
+                field, width, height, cancellation.Token, scaleBounds, horizontalOffset), cancellation.Token).ConfigureAwait(false);
             if (DesktopLog.PerformanceDiagnosticsEnabled && field.Grid is { } grid)
                 DesktopLog.Info($"review_topomap_perf stage=prepare field={field.FieldId}" +
                                 $" grid={grid.Width}x{grid.Height}" +
@@ -210,37 +222,59 @@ public sealed class TopomapCanvas : FrameworkElement
         }
     }
 
+    private static double ComputeHorizontalOffset(double width, bool showFieldTitle) => 0;
+
     private void DrawTitleAndScale(DrawingContext context, TopomapField? field, Rect bounds,
         TopomapVisualSnapshot? snapshot)
     {
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var title = new FormattedText(field is null ? "" : FieldName(field),
-            CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI Semibold"), 11, new SolidColorBrush(Color.FromRgb(15, 23, 42)), dpi);
-        context.DrawText(title,
-            new Point(Math.Max(0, (bounds.X - title.Width) / 2),
-                bounds.Y + (bounds.Height - title.Height) / 2));
+        if (ShowFieldTitle)
+        {
+            var title = new FormattedText(field is null ? "" : FieldName(field),
+                CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                new Typeface("Segoe UI Semibold"), 11, new SolidColorBrush(Color.FromRgb(15, 23, 42)), dpi);
+            context.DrawText(title,
+                new Point(Math.Max(0, (bounds.X - title.Width) / 2),
+                    bounds.Y + (bounds.Height - title.Height) / 2));
+        }
         if (snapshot is not { HasGridValues: true }) return;
 
-        var bar = new Rect(bounds.Right + 20, bounds.Y + 4, 18, Math.Max(20, bounds.Height - 8));
+        var compact = !ShowFieldTitle || ActualWidth < 340;
+        var barWidth = compact ? 10.0 : 18.0;
+        var labelGap = compact ? 4.0 : 6.0;
+        var rightMargin = compact ? 6.0 : 8.0;
+        var unitFontSize = compact ? 10.5 : 13.0;
+        var valueFontSize = compact ? 10.5 : 14.0;
+        var unitLabel = new FormattedText(DisplayUnit(field?.Unit), CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), unitFontSize, Brushes.SlateGray, dpi);
+        var maximumLabel = new FormattedText(FormatScaleValue(snapshot.Maximum, field?.Unit), CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), valueFontSize, Brushes.SlateGray, dpi);
+        var minimumLabel = new FormattedText(FormatScaleValue(snapshot.Minimum, field?.Unit), CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), valueFontSize, Brushes.SlateGray, dpi);
+        var maxLabelWidth = Math.Max(maximumLabel.Width, minimumLabel.Width);
+
+        var minBarX = bounds.Right + (compact ? 12.0 : 14.0);
+        var preferredBarX = !ShowFieldTitle
+            ? ActualWidth - rightMargin - maxLabelWidth - labelGap - barWidth
+            : bounds.Right + 20.0;
+        var barX = Math.Max(minBarX, Math.Min(preferredBarX, ActualWidth - barWidth - labelGap - maxLabelWidth - 4));
+        var barTop = bounds.Y + 4;
+        var barHeight = Math.Max(20, bounds.Height - 8);
+        var bar = new Rect(barX, barTop, barWidth, barHeight);
         for (var index = 0; index < ColorScaleBrushes.Length; index++)
             context.DrawRectangle(ColorScaleBrushes[index], null,
                 new Rect(bar.X, bar.Y + bar.Height * index / ColorScaleBrushes.Length,
                     bar.Width, bar.Height / ColorScaleBrushes.Length + 1));
-        var unitLabel = new FormattedText(DisplayUnit(field?.Unit), CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 13, Brushes.SlateGray, dpi);
+
         context.DrawText(unitLabel, new Point(
-            Math.Clamp(bar.X + (bar.Width - unitLabel.Width) / 2, 0, Math.Max(0, ActualWidth - unitLabel.Width)),
-            Math.Max(0, bar.Y - 25)));
-        var maximumLabel = new FormattedText(FormatScaleValue(snapshot.Maximum, field?.Unit), CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
-        var minimumLabel = new FormattedText(FormatScaleValue(snapshot.Minimum, field?.Unit), CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
-        var labelsFitRight = bar.Right + 6 + Math.Max(maximumLabel.Width, minimumLabel.Width) <= ActualWidth;
-        context.DrawText(maximumLabel, new Point(
-            labelsFitRight ? bar.Right + 6 : Math.Max(0, bar.X - maximumLabel.Width - 6), bar.Y - 4));
-        context.DrawText(minimumLabel, new Point(
-            labelsFitRight ? bar.Right + 6 : Math.Max(0, bar.X - minimumLabel.Width - 6), bar.Bottom - 15));
+            Math.Clamp(bar.X + (bar.Width - unitLabel.Width) / 2, 0, Math.Max(0, ActualWidth - unitLabel.Width - 2)),
+            Math.Max(0, bar.Y - (compact ? 18 : 25))));
+        var labelX = Math.Min(bar.Right + labelGap, Math.Max(bar.Right + 2, ActualWidth - maxLabelWidth - 2));
+        if (labelX >= bounds.Right + 10)
+        {
+            context.DrawText(maximumLabel, new Point(labelX, bar.Y - 3));
+            context.DrawText(minimumLabel, new Point(labelX, bar.Bottom - (compact ? 12 : 15)));
+        }
     }
 
     internal static string DisplayUnit(string? unit) => unit switch

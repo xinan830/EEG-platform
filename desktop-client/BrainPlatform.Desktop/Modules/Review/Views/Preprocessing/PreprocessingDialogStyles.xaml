@@ -369,4 +369,53 @@
         </Setter>
     </Style>
 
+    <!-- Compact circular exclamation hover-tooltip badge -->
+    <Style x:Key="PrepInfoBadgeStyle" TargetType="Border">
+        <Setter Property="Width" Value="17" />
+        <Setter Property="Height" Value="17" />
+        <Setter Property="CornerRadius" Value="8.5" />
+        <Setter Property="Background" Value="#F1F5F9" />
+        <Setter Property="BorderBrush" Value="#CBD5E1" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Help" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="80" />
+        <Setter Property="ToolTipService.ShowDuration" Value="25000" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrepBrandSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource PrepBrandBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Refined wrapped dark-slate card tooltip for all preprocessing & ICA dialogs -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Margin="6" Background="#0F172A" BorderBrush="#334155" BorderThickness="1"
+                            CornerRadius="10" Padding="13,10" MaxWidth="300">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270" Color="#0F172A" Opacity="0.30" />
+                        </Border.Effect>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 13,17 H 11 V 11 H 13 V 17 Z M 13,9 H 11 V 7 H 13 V 9 Z"
+                                      Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="详细说明" FontWeight="SemiBold" FontSize="11.5" Foreground="#38BDF8" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Content}"
+                                       TextWrapping="Wrap" LineHeight="18.5" FontSize="12" Foreground="#F1F5F9" />
+                        </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

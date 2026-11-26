@@ -107,6 +107,7 @@ def apply_bad_channels_to_raw_reader(
     *,
     channel_names: Sequence[str],
     channel_kinds: Sequence[str | None] | None = None,
+    electrode_geometry: dict[str, object] | None = None,
 ) -> tuple[object, tuple[str, ...], str | None]:
     """Apply pre-rereference bad-channel handling to a raw (non-montage) reader."""
     if bad_spec is None:
@@ -119,7 +120,7 @@ def apply_bad_channels_to_raw_reader(
     reader.names = names
     if norm.policy == "interpolate":
         wrapped, plan = wrap_reader_with_bad_channel_interpolation(
-            reader, norm, channel_kinds=channel_kinds,
+            reader, norm, channel_kinds=channel_kinds, electrode_geometry=electrode_geometry,
         )
         view_sha = _combined_view_sha256("raw", {**norm.to_evidence(), "interpolation": plan.to_evidence()})
         return wrapped, names, view_sha
@@ -145,6 +146,7 @@ def apply_bad_channels_to_montage_reader(
     bad_spec: BadChannelSpec | None,
     *,
     channel_kinds: Sequence[str | None] | None = None,
+    electrode_geometry: dict[str, object] | None = None,
 ) -> tuple[object, AcquisitionSignalView]:
     """Apply bad-channel interpolation or CAR-safe exclusion BEFORE AcquisitionMontageSampleReader."""
     if bad_spec is None:
@@ -153,7 +155,7 @@ def apply_bad_channels_to_montage_reader(
     if not norm.is_active:
         return raw_reader, view
     wrapped_raw, plan = wrap_reader_with_bad_channel_interpolation(
-        raw_reader, norm, channel_kinds=channel_kinds,
+        raw_reader, norm, channel_kinds=channel_kinds, electrode_geometry=electrode_geometry,
     )
     updated_view = apply_bad_channel_policy_to_montage_view(
         view, norm, interpolation_plan=plan,
@@ -192,6 +194,7 @@ def inspect_recording_bad_channels(
             sfreq,
             block.channel_names,
             channel_types=channel_types,
+            electrode_geometry=recordings.analysis_signal_provenance(recording).get("electrode_geometry"),
         )
     payload = report.to_dict()
     payload.update({
@@ -209,6 +212,7 @@ def wrap_reader_with_bad_channel_interpolation(
     bad_spec: BadChannelSpec,
     *,
     channel_kinds: Sequence[str | None] | None = None,
+    electrode_geometry: dict[str, object] | None = None,
 ) -> tuple[object, SphericalSplineInterpolationPlan | None]:
     """Wrap raw SampleReader when policy is 'interpolate'; no-op otherwise."""
     norm = bad_spec.normalized()
@@ -218,6 +222,7 @@ def wrap_reader_with_bad_channel_interpolation(
         reader.names,
         norm.channels,
         channel_kinds=channel_kinds,
+        electrode_geometry=electrode_geometry,
     )
     return BadChannelInterpolatingSampleReader(reader, plan), plan
 

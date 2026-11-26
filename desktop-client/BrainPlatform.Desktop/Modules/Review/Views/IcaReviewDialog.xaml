@@ -4,7 +4,7 @@
         xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
         xmlns:prep="clr-namespace:BrainPlatform.Desktop.Modules.Review.Preprocessing"
         Title="ICA 独立成分审查（2D 头皮热力图与时间波形）"
-        Width="1020" Height="700" MinWidth="780" MinHeight="540"
+        Width="1220" Height="740" MinWidth="920" MinHeight="580"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         Background="#F6F8FB">
     <Window.Resources>
@@ -23,48 +23,72 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="0,0,0,1" Padding="22,14">
+        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="0,0,0,1" Padding="24,16">
             <StackPanel>
-                <DockPanel>
-                    <StackPanel>
-                        <TextBlock Text="ICA 生理伪迹成分审查" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
-                        <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="740" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="ICA 生理伪迹成分审查" FontSize="17.5" FontWeight="Bold" Foreground="#0F172A" />
+                        <TextBlock x:Name="HeaderSubtitleText" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" />
                     </StackPanel>
-                    <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
-                            CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
+                    <Border Grid.Column="1" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
+                            CornerRadius="8" Padding="10,6" VerticalAlignment="Center">
                         <TextBlock x:Name="FingerprintText" FontFamily="Consolas" FontSize="11.5" Foreground="#475569" />
                     </Border>
-                </DockPanel>
+                </Grid>
 
                 <!-- Classifier status + quick filter bar -->
-                <DockPanel Margin="0,10,0,0">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="ClassifierBanner" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
+                            CornerRadius="8" Padding="12,7" VerticalAlignment="Center"
+                            ToolTipService.InitialShowDelay="80" ToolTipService.ShowDuration="25000">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ClassifierStatusText" Grid.Column="0" FontSize="12" Foreground="#475569"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <Border x:Name="ClassifierInfoBadge" Grid.Column="1" Margin="8,0,0,0"
+                                    Style="{StaticResource PrepInfoBadgeStyle}">
+                                <TextBlock x:Name="ClassifierInfoBadgeText" Text="!" FontSize="11" FontWeight="Bold"
+                                           Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
                         <RadioButton x:Name="FilterAllRadio" GroupName="IcaCardFilter" Content="全部成分" IsChecked="True"
                                      Checked="OnFilterChanged" Style="{StaticResource PrepPolicyOptionCardStyle}"
-                                     Padding="10,5" FontSize="11.5" Margin="0,0,6,0" />
+                                     Padding="11,6" FontSize="12" Margin="0,0,8,0" />
                         <RadioButton x:Name="FilterRecommendedRadio" GroupName="IcaCardFilter" Content="仅看建议剔除"
                                      Checked="OnFilterChanged" Style="{StaticResource PrepPolicyOptionCardStyle}"
-                                     Padding="10,5" FontSize="11.5" />
+                                     Padding="11,6" FontSize="12" />
                     </StackPanel>
-                    <Border x:Name="ClassifierBanner" Background="#F8FAFC" BorderBrush="#E5E9F0" BorderThickness="1"
-                            CornerRadius="8" Padding="10,6" VerticalAlignment="Center">
-                        <TextBlock x:Name="ClassifierStatusText" FontSize="11.5" Foreground="#475569" TextWrapping="Wrap" />
-                    </Border>
-                </DockPanel>
+                </Grid>
             </StackPanel>
         </Border>
 
-        <!-- Component Cards Grid -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="22,16">
+        <!-- Component Cards Grid (Fixed 4 cards per row) -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="17,12">
             <ItemsControl x:Name="ComponentsItemsControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" />
+                        <UniformGrid Columns="4" VerticalAlignment="Top" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="222" Margin="0,0,14,14" CornerRadius="12" Padding="12" BorderThickness="1.5">
+                        <Border Margin="6" CornerRadius="12" Padding="12" BorderThickness="1.5">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.035" Color="#0F172A" />
+                            </Border.Effect>
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background" Value="#FFFFFF" />
@@ -78,27 +102,34 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <DockPanel Margin="0,0,0,8" ToolTip="{Binding ScoreTooltip}">
-                                    <CheckBox IsChecked="{Binding IsExcluded, Mode=TwoWay}"
-                                              Content="{Binding Title}" FontWeight="Bold" FontSize="13" Foreground="#0F172A"
+                                <!-- Card Header: Checkbox + IC Title + Classification Pill -->
+                                <DockPanel LastChildFill="False" Margin="0,0,0,8" ToolTip="{Binding ScoreTooltip}">
+                                    <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsExcluded, Mode=TwoWay}"
+                                              Content="{Binding Title}" FontWeight="Bold" FontSize="13.5" Foreground="#0F172A"
                                               VerticalAlignment="Center" Checked="OnSelectionChanged" Unchecked="OnSelectionChanged" />
-                                    <Border DockPanel.Dock="Right" CornerRadius="6" Padding="7,2" VerticalAlignment="Center"
+                                    <Border DockPanel.Dock="Right" CornerRadius="6" Padding="8,2.5" VerticalAlignment="Center"
                                             ToolTip="{Binding ScoreTooltip}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="#F1F5F9" />
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsBrainClassification}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource PrepBrandSoftBrush}" />
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding RecommendedExclude}" Value="True">
                                                         <Setter Property="Background" Value="{StaticResource PrepAlertPillBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding ScoreBadgeText}" FontSize="10.5" FontWeight="SemiBold">
+                                        <TextBlock Text="{Binding ScoreBadgeText}" FontSize="11" FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#64748B" />
+                                                    <Setter Property="Foreground" Value="#475569" />
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsBrainClassification}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource PrepBrandHoverBrush}" />
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding RecommendedExclude}" Value="True">
                                                             <Setter Property="Foreground" Value="{StaticResource PrepAlertBrush}" />
                                                         </DataTrigger>
@@ -109,16 +140,31 @@
                                     </Border>
                                 </DockPanel>
 
-                                <!-- 2D Scalp Topomap -->
-                                <Border Height="134" Background="#FFFFFF" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="8" Margin="0,0,0,8">
-                                    <topomap:TopomapCanvas Field="{Binding Topomap}" />
+                                <!-- 2D Scalp Topomap (head centered, colorbar aligned right) -->
+                                <Border Height="150" Background="#FAFBFD" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" Padding="4">
+                                    <topomap:TopomapCanvas Field="{Binding Topomap}" ShowFieldTitle="False" />
                                 </Border>
 
                                 <!-- 10s Component Sparkline -->
                                 <prep:IcSparklineControl Samples="{Binding PreviewWaveform}" TimesSeconds="{Binding PreviewTimesSeconds}"
-                                                         DurationSeconds="{Binding PreviewDurationSeconds}" Height="36" Margin="0,0,0,6" />
+                                                         DurationSeconds="{Binding PreviewDurationSeconds}" Height="44" Margin="0,0,0,8">
+                                    <prep:IcSparklineControl.Style>
+                                        <Style TargetType="prep:IcSparklineControl">
+                                            <Setter Property="StrokeBrush" Value="{StaticResource PrepBrandBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExcluded}" Value="True">
+                                                    <Setter Property="StrokeBrush" Value="{StaticResource PrepAlertAccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </prep:IcSparklineControl.Style>
+                                </prep:IcSparklineControl>
 
-                                <TextBlock Text="{Binding EvrText}" FontSize="11" Foreground="#64748B" HorizontalAlignment="Right" />
+                                <!-- Card Footer: Reference / Timecourse hint + Explained Variance -->
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding DetailHintText}" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding EvrText}" FontSize="11.5" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
+                                </DockPanel>
                             </StackPanel>
                         </Border>
                     </DataTemplate>

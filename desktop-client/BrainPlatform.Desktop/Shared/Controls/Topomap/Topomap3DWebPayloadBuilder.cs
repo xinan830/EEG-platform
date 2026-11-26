@@ -22,7 +22,9 @@ internal static class Topomap3DWebPayloadBuilder
         string? windowText,
         bool enableLabModes = false,
         bool hideInternalModeTabs = false,
-        string? forcedMode = null)
+        string? forcedMode = null,
+        IReadOnlyList<ElectrodeLocation3D>? customLocations = null,
+        bool showLabels = true)
     {
         var electrodes = new List<object>();
         object scaleInfo;
@@ -85,6 +87,29 @@ internal static class Topomap3DWebPayloadBuilder
                 maxText = FormatScaleTick(scaleMax, field.Unit),
             };
         }
+        else if (customLocations is { Count: > 0 })
+        {
+            foreach (var site in customLocations)
+            {
+                if (site.CoordinateGnm.Count < 3) continue;
+                electrodes.Add(new
+                {
+                    label = site.Channel,
+                    canonical = site.CanonicalChannel,
+                    x = site.CoordinateGnm[0],
+                    y = site.CoordinateGnm[1],
+                    z = site.CoordinateGnm[2],
+                });
+            }
+
+            scaleInfo = new
+            {
+                unit = "示意强度",
+                minText = "0.0 低",
+                midText = "0.5 中",
+                maxText = "1.0 高",
+            };
+        }
         else
         {
             var selected = labels
@@ -131,6 +156,7 @@ internal static class Topomap3DWebPayloadBuilder
             showDimSwitcher = showDim,
             windowText = string.IsNullOrWhiteSpace(windowText) ? null : windowText.Trim(),
             scaleInfo,
+            showLabels,
             electrodes,
         }, CamelJsonOptions);
     }

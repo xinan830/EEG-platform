@@ -90,9 +90,52 @@ public partial class IcaReviewDialog : Window
         return $"{baseFallback}；{referenceStatus}{diagSuffix}。";
     }
 
+    public static string FormatClassifierSummaryMessage(IcaInspectionResponse inspection)
+    {
+        var band = inspection.FitBandpassHz is { Count: >= 2 }
+            ? $"{inspection.FitBandpassHz[0]:0.#}–{inspection.FitBandpassHz[1]:0.#} Hz"
+            : "1–100 Hz";
+        var notchNote = inspection.FitNotchHz is { } notch && notch > 0
+            ? $"，含 {notch:0.#} Hz 陷波"
+            : "";
+
+        if (string.Equals(inspection.ClassifierStatus, "advisory_only", StringComparison.OrdinalIgnoreCase)
+            || inspection.IcaConverged == false)
+        {
+            var iterText = inspection.IcaIterations is { } nIter && inspection.IcaMaxIterations is { } maxIter
+                ? $"（{nIter}/{maxIter}）"
+                : "";
+            return $"ICA 未完全收敛{iterText}，已关闭自动预勾选（仅人工参考）";
+        }
+
+        if (string.Equals(inspection.ClassifierStatus, "ready", StringComparison.OrdinalIgnoreCase))
+            return $"ICLabel 智能分类已就绪（{band} 宽带拟合{notchNote}，Extended Infomax）";
+
+        if (string.Equals(inspection.ClassifierStatus, "ready_limited", StringComparison.OrdinalIgnoreCase))
+            return $"受采样率限制（仅拟合至 {band}），ICLabel 仅作人工参考";
+
+        var shortRef = inspection.EogChannelsUsed.Count > 0 || inspection.EcgChannelsUsed.Count > 0
+            ? "当前使用 EOG / ECG 评分"
+            : "请人工审查成分";
+        if (string.Equals(inspection.ClassifierStatus, "unavailable", StringComparison.OrdinalIgnoreCase))
+            return $"ICLabel 离线模型或推理不可用 · {shortRef}";
+
+        return (inspection.ClassifierUnavailableReason ?? string.Empty).ToLowerInvariant() switch
+        {
+            "non_average_reference_montage" => $"非完整平均参考 (CAR)，ICLabel 未启用 · {shortRef}",
+            "fit_samples_not_common_average" => $"拟合信号与 CAR 不一致，ICLabel 未启用 · {shortRef}",
+            "electrode_3d_coordinates_incomplete" => $"电极 3D 坐标不完整，ICLabel 未启用 · {shortRef}",
+            "sampling_rate_too_low_for_icalabel" => $"采样率低于 104 Hz，ICLabel 未启用 · {shortRef}",
+            _ => $"ICLabel 未启用 · {shortRef}",
+        };
+    }
+
     private void ApplyClassifierBanner()
     {
-        ClassifierStatusText.Text = FormatClassifierStatusMessage(inspection);
+        var fullDetail = FormatClassifierStatusMessage(inspection);
+        ClassifierStatusText.Text = FormatClassifierSummaryMessage(inspection);
+        ClassifierBanner.ToolTip = fullDetail;
+        ClassifierInfoBadge.ToolTip = fullDetail;
         var isFullReady = string.Equals(inspection.ClassifierStatus, "ready", StringComparison.OrdinalIgnoreCase)
             && inspection.IcaConverged != false;
         if (isFullReady)
@@ -100,12 +143,18 @@ public partial class IcaReviewDialog : Window
             ClassifierBanner.Background = new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFF));
             ClassifierBanner.BorderBrush = new SolidColorBrush(Color.FromRgb(0xBF, 0xDB, 0xFE));
             ClassifierStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x1E, 0x40, 0xAF));
+            ClassifierInfoBadge.Background = new SolidColorBrush(Color.FromRgb(0xDB, 0xEA, 0xFE));
+            ClassifierInfoBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD));
+            ClassifierInfoBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(0x1E, 0x40, 0xAF));
         }
         else
         {
             ClassifierBanner.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFB, 0xEB));
             ClassifierBanner.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFD, 0xE6, 0x8A));
             ClassifierStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E));
+            ClassifierInfoBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xF3, 0xC7));
+            ClassifierInfoBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+            ClassifierInfoBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E));
         }
     }
 

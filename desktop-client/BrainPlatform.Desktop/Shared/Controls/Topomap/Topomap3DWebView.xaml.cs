@@ -65,6 +65,14 @@ public partial class Topomap3DWebView : UserControl
         nameof(ExternalMode), typeof(string), typeof(Topomap3DWebView),
         new PropertyMetadata(null, OnExternalModeChanged));
 
+    public static readonly DependencyProperty CustomElectrodeLocationsProperty = DependencyProperty.Register(
+        nameof(CustomElectrodeLocations), typeof(IReadOnlyList<ElectrodeLocation3D>), typeof(Topomap3DWebView),
+        new PropertyMetadata(null, OnSceneInputChanged));
+
+    public static readonly DependencyProperty ShowElectrodeLabelsProperty = DependencyProperty.Register(
+        nameof(ShowElectrodeLabels), typeof(bool), typeof(Topomap3DWebView),
+        new PropertyMetadata(true, OnSceneInputChanged));
+
     private CancellationTokenSource? syncCts;
     private bool initStarted;
     private bool viewerReady;
@@ -151,6 +159,18 @@ public partial class Topomap3DWebView : UserControl
     {
         get => (string?)GetValue(ExternalModeProperty);
         set => SetValue(ExternalModeProperty, value);
+    }
+
+    public IReadOnlyList<ElectrodeLocation3D>? CustomElectrodeLocations
+    {
+        get => (IReadOnlyList<ElectrodeLocation3D>?)GetValue(CustomElectrodeLocationsProperty);
+        set => SetValue(CustomElectrodeLocationsProperty, value);
+    }
+
+    public bool ShowElectrodeLabels
+    {
+        get => (bool)GetValue(ShowElectrodeLabelsProperty);
+        set => SetValue(ShowElectrodeLabelsProperty, value);
     }
 
     private static void OnSceneInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
@@ -318,7 +338,9 @@ public partial class Topomap3DWebView : UserControl
         var enableLabModes = EnablePreviewLabModes;
         var hideInternalTabs = HideInternalModeTabs;
         var externalMode = ExternalMode;
-        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode, cts, cts.Token);
+        var customLocations = CustomElectrodeLocations;
+        var showLabels = ShowElectrodeLabels;
+        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode, customLocations, showLabels, cts, cts.Token);
     }
 
     private async Task SyncSceneAsync(
@@ -332,6 +354,8 @@ public partial class Topomap3DWebView : UserControl
         bool enableLabModes,
         bool hideInternalTabs,
         string? externalMode,
+        IReadOnlyList<ElectrodeLocation3D>? customLocations,
+        bool showLabels,
         CancellationTokenSource owner,
         CancellationToken token)
     {
@@ -368,7 +392,7 @@ public partial class Topomap3DWebView : UserControl
             }
 
             var sceneMessage = Topomap3DWebPayloadBuilder.BuildSceneStateJson(
-                scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode);
+                scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode, customLocations, showLabels);
             WebView.CoreWebView2.PostWebMessageAsJson(sceneMessage);
             PostSelectedElectrode();
         }

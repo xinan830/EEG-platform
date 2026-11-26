@@ -15,6 +15,7 @@ import numpy as np
 from scipy import signal
 
 from app.scientific.contracts.preprocessing import STANDARD_MONTAGE_NAME as MONTAGE_NAME
+from app.scientific.electrode_geometry import geometry_positions, geometry_montage, geometry_fingerprint
 
 
 @dataclass(frozen=True)
@@ -107,15 +108,6 @@ class SphericalSplineInterpolationPlan:
         }
 
 
-def _standard_3d_lookup(montage_name: str = MONTAGE_NAME) -> dict[str, tuple[str, np.ndarray]]:
-    montage = mne.channels.make_standard_montage(montage_name)
-    positions = montage.get_positions()["ch_pos"]
-    return {
-        name.casefold(): (name, np.asarray(xyz, dtype=np.float64))
-        for name, xyz in positions.items()
-    }
-
-
 def _channel_interpolation_eligibility(
     label: str,
     *,
@@ -192,6 +184,7 @@ def detect_bad_channels(
     channel_kinds: Sequence[str] | None = None,
     config: BadChannelDetectionConfig | None = None,
     montage_name: str = MONTAGE_NAME,
+    electrode_geometry: dict[str, object] | None = None,
 ) -> BadChannelDetectionReport:
     """Screen sample-major float64 V EEG signals for flatline, saturation, HF noise, and decorrelation."""
     cfg = config or BadChannelDetectionConfig()
@@ -210,7 +203,7 @@ def detect_bad_channels(
     if len(types) != len(names) or len(kinds) != len(names):
         raise ValueError("通道类型元数据长度与通道数不一致")
 
-    positions = _standard_3d_lookup(montage_name)
+    positions = geometry_positions(electrode_geometry, montage_name=montage_name)
     n_samples = int(data.shape[0])
 
     # Pre-screen per channel before computing cross-channel correlation among healthy-enough EEG peers.
@@ -306,13 +299,15 @@ def detect_bad_channels(
     recommended = tuple(item.channel for item in metrics if item.is_bad)
     return BadChannelDetectionReport(
         sampling_rate_hz=rate, sample_count=n_samples, channels=metrics,
-        recommended_bad_channels=recommended, montage_template=montage_name,
+        recommended_bad_channels=recommended, montage_template=("recording:" + geometry_fingerprint(electrode_geometry)
+            if electrode_geometry is not None else montage_name),
     )
 
 
 def build_spherical_spline_interpolator(
     channel_names: Sequence[str], bad_channels: Sequence[str], *,
     channel_kinds: Sequence[str | None] | None = None, montage_name: str = MONTAGE_NAME,
+    electrode_geometry: dict[str, object] | None = None,
 ) -> SphericalSplineInterpolationPlan:
     """Precompute an MNE-exact spherical spline matrix for unipolar scalp EEG channels."""
     names = tuple(str(name) for name in channel_names)
@@ -338,7 +333,7 @@ def build_spherical_spline_interpolator(
     if not bad_indices:
         raise ValueError("BAD_CHANNEL_LIST_EMPTY: 球面插值至少需要指定一个坏导通道")
 
-    positions = _standard_3d_lookup(montage_name)
+    positions = geometry_positions(electrode_geometry, montage_name=montage_name)
     for idx in bad_indices:
         if kinds[idx] is not None and kinds[idx].strip().casefold() == "bipolar":
             raise ValueError(f"BAD_CHANNEL_INTERPOLATION_UNSUPPORTED: 双极通道 {names[idx]} 不支持球面插值")
@@ -362,7 +357,7 @@ def build_spherical_spline_interpolator(
     canonical_mne_names = [positions[names[i].strip().casefold()][0] for i in (*good_indices, *bad_indices)]
     n_good = len(good_indices)
     info = mne.create_info(canonical_mne_names, sfreq=256.0, ch_types="eeg")
-    info.set_montage(mne.channels.make_standard_montage(montage_name), on_missing="raise")
+    info.set_montage(geometry_montage(electrode_geometry, montage_name=montage_name), on_missing="raise")
     probe = np.zeros((len(canonical_mne_names), n_good), dtype=np.float64)
     probe[:n_good, :] = np.eye(n_good, dtype=np.float64)
     raw = mne.io.RawArray(probe, info, verbose=False)
@@ -378,7 +373,8 @@ def build_spherical_spline_interpolator(
     return SphericalSplineInterpolationPlan(
         channel_names=names, bad_channels=tuple(bad_canonical), good_donor_channels=tuple(good_canonical),
         bad_indices=tuple(bad_indices), good_indices=tuple(good_indices),
-        weights=weights, montage_template=montage_name, origin_mode="auto",
+        weights=weights, montage_template=("recording:" + geometry_fingerprint(electrode_geometry)
+            if electrode_geometry is not None else montage_name), origin_mode="auto",
     )
 
 

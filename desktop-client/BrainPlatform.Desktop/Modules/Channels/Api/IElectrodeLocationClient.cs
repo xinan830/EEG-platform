@@ -25,6 +25,12 @@ public interface IElectrodeLocationClient
 
     Task<string> GetCortexModel3DJsonAsync(CancellationToken cancellationToken) =>
         Task.FromException<string>(new NotSupportedException("三维大脑皮层资产未配置。"));
+
+    Task<ElectrodeMontageCatalog> GetMontageCatalogAsync(CancellationToken cancellationToken) =>
+        Task.FromException<ElectrodeMontageCatalog>(new NotSupportedException("电极模板目录服务未配置。"));
+
+    Task<ElectrodeMontagePreview> GetMontagePreviewAsync(string montageName, CancellationToken cancellationToken) =>
+        Task.FromException<ElectrodeMontagePreview>(new NotSupportedException("电极模板预览服务未配置。"));
 }
 
 public sealed class HttpElectrodeLocationClient(HttpClient httpClient) : IElectrodeLocationClient
@@ -105,6 +111,33 @@ public sealed class HttpElectrodeLocationClient(HttpClient httpClient) : IElectr
         }
 
         return await response.Content.ReadAsStringAsync(CancellationToken.None);
+    }
+
+    public async Task<ElectrodeMontageCatalog> GetMontageCatalogAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync("api/topomap/3d/montages", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>(JsonOptions, cancellationToken);
+            throw new HttpRequestException(error?.Message ?? $"电极模板目录读取失败（HTTP {(int)response.StatusCode}）。");
+        }
+
+        return await response.Content.ReadFromJsonAsync<ElectrodeMontageCatalog>(JsonOptions, cancellationToken)
+            ?? throw new JsonException("电极模板目录响应为空。");
+    }
+
+    public async Task<ElectrodeMontagePreview> GetMontagePreviewAsync(string montageName, CancellationToken cancellationToken)
+    {
+        var encoded = Uri.EscapeDataString(montageName);
+        using var response = await httpClient.GetAsync($"api/topomap/3d/montages/{encoded}", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>(JsonOptions, cancellationToken);
+            throw new HttpRequestException(error?.Message ?? $"电极模板坐标读取失败（HTTP {(int)response.StatusCode}）。");
+        }
+
+        return await response.Content.ReadFromJsonAsync<ElectrodeMontagePreview>(JsonOptions, cancellationToken)
+            ?? throw new JsonException("电极模板坐标响应为空。");
     }
 
     private sealed record ResolveRequest(IReadOnlyList<string> Labels);

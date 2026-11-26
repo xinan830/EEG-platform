@@ -172,6 +172,8 @@ public sealed class IcaComponentCardViewModel : ObservableObject
 
         ScoreTooltip = BuildScoreTooltip(item, scores);
         EvrText = $"解释方差 {item.ExplainedVarianceRatio * 100:0.0}%";
+        DetailHintText = HasIclabel && scores.Count > 0 ? string.Join(" · ", scores) : "10 s 成分时程";
+        IsBrainClassification = string.Equals(item.IclabelLabel, "brain", StringComparison.OrdinalIgnoreCase);
     }
 
     public int ComponentIndex { get; }
@@ -180,6 +182,7 @@ public sealed class IcaComponentCardViewModel : ObservableObject
     public double? EcgScore { get; }
     public double ExplainedVarianceRatio { get; }
     public bool RecommendedExclude { get; }
+    public bool IsBrainClassification { get; }
     public string? IclabelLabel { get; }
     public double? IclabelProbability { get; }
     public IReadOnlyDictionary<string, double>? IclabelProbabilities { get; }
@@ -189,6 +192,7 @@ public sealed class IcaComponentCardViewModel : ObservableObject
     public string ScoreBadgeText { get; }
     public string ScoreTooltip { get; }
     public string EvrText { get; }
+    public string DetailHintText { get; }
     public TopomapField? Topomap { get; }
     public IReadOnlyList<double> PreviewWaveform { get; }
     public IReadOnlyList<double> PreviewTimesSeconds { get; }

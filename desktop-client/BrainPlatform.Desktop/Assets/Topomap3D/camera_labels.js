@@ -16,6 +16,7 @@ export function createCameraAndElectrodeRig({ camera, host, labelsLayer, rootGro
   let selectedLabel = null;
   let selectedMarkerMesh = null;
   let pulseStartMs = -1;
+  let showLabels = true;
 
   // yaw=+0.50 faces subject's LEFT 3/4 view (Fp1/F3/F7/C3/T3/M1)
   const camCtrl = {
@@ -45,13 +46,14 @@ export function createCameraAndElectrodeRig({ camera, host, labelsLayer, rootGro
     layoutKey = "";
   }
 
-  function updateElectrodes(items, { scalpData, isRealField, mode, presetId }) {
+  function updateElectrodes(items, { scalpData, isRealField, mode, presetId, showLabels: nextShowLabels = true }) {
+    showLabels = nextShowLabels !== false;
     if (!scalpData || !items || items.length === 0) {
       clearElectrodes();
       return { layoutChanged: true };
     }
 
-    const nextKey = items.map((it) => `${it.label}|${it.canonical || ""}`).join(";");
+    const nextKey = items.map((it) => `${it.label}|${it.canonical || ""}|${Number(it.x).toFixed(4)},${Number(it.y).toFixed(4)},${Number(it.z).toFixed(4)}`).join(";");
     if (nextKey === layoutKey && electrodes.length === items.length) {
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
@@ -70,8 +72,8 @@ export function createCameraAndElectrodeRig({ camera, host, labelsLayer, rootGro
     clearElectrodes();
     layoutKey = nextKey;
 
-    const baseRadius = 0.0102;
-    const sphereGeom = new THREE.SphereGeometry(baseRadius, 16, 12);
+    const baseRadius = items.length > 200 ? 0.0058 : items.length > 90 ? 0.0076 : 0.0102;
+    const sphereGeom = new THREE.SphereGeometry(baseRadius, 14, 10);
     const rawValues = [];
     for (const item of items) {
       const [x, y, z] = scalpData.mapPoint(item.x, item.y, item.z);
@@ -212,6 +214,7 @@ export function createCameraAndElectrodeRig({ camera, host, labelsLayer, rootGro
 
     for (const { el, e } of labelElements) {
       const isSel = isSelectedElectrode(e);
+      if (!showLabels && !isSel) { el.style.display = "none"; continue; }
       let anchorPos = e.pos;
       let anchorNormal = e.normal;
       if (inConnectome) {

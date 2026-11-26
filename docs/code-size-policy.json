@@ -69,7 +69,7 @@
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
       "max_lines": 580,
-      "reason": "Composition review: the 556-line shell now awaits acquisition/impedance cleanup before application exit. It only calls the existing session confirmation and finish boundary; polling, native SDK ownership and recording finalization remain outside the shell. Navigation extraction remains the next maintenance boundary."
+      "reason": "463-line shell after moving review composition and cleanup into the 148-line MainWindow.Review partial. Review startup is single-flight and shows the surface before awaiting waveform initialization. Acquisition/impedance shutdown stays in the shell; no raw/scientific processing is added."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
       "decision": "keep",
@@ -263,7 +263,7 @@
     "backend/app/scientific/ica_classifier.py": {
       "decision": "keep",
       "max_lines": 440,
-      "reason": "429-line cohesive scientific ICA classification owner: eligibility, exact solver stopping evidence, file-state keyed model hash, known runtime unavailability and conservative score merging share one review contract. Retain together for this correctness fix; reassess extracting solver diagnostics before further algorithm additions. No services, persistence or HTTP imports."
+      "reason": "435-line scientific ICA classifier. Recording geometry replaces only coordinate lookup; CAR, solver, runtime and recommendation gates remain coherent. Geometry validation lives in electrode_geometry. Reassess solver diagnostics extraction before further algorithm additions; no services, persistence or HTTP imports."
     },
     "backend/app/scientific/artifact_removal.py": {
       "decision": "keep",
@@ -278,7 +278,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 640,
-      "reason": "634 physical lines; reviewed above 600-line high-risk threshold. Adds only identity attachment/provenance and display/scientific forwarding. Focused services own role persistence and science. Keep facade stable; extract catalog/registration persistence before adding another use case.",
+      "reason": "638 physical lines; reviewed above 600-line high-risk threshold. This increment adds four lines attaching recording geometry provenance, no new use case/method or scientific formula. Parsing stays in recording_geometry. Preserve the stable facade and existing callers; extract catalog/registration persistence before adding another use case.",
       "follow_up": "Extract recording catalog/registration persistence from the analysis facade methods before adding new methods to RecordingService."
     },
     "backend/app/persistence/migrations.py": {
@@ -451,8 +451,8 @@
     },
     "backend/app/services/recording_import.py": {
       "decision": "keep",
-      "reason": "434 physical lines. Sidecar binding validation and atomic import publication retain one rollback boundary. Identity schema validation delegates to recording_channel_roles. Extract sidecar binding before another metadata expansion.",
-      "max_lines": 440
+      "reason": "448 physical lines. Atomic publication and native bindings retain one rollback boundary. Geometry and physiological validation delegate to focused owners; reject malformed geometry before publication. Extract sidecar binding before a further metadata family.",
+      "max_lines": 450
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ReviewPreprocessingViewModel.cs": {
       "decision": "keep",
@@ -466,8 +466,8 @@
     },
     "backend/app/services/recording_access.py": {
       "decision": "keep",
-      "max_lines": 445,
-      "reason": "440 physical lines. Source session owns file identity, display/scientific modes and pre-montage partition. Identity persistence and auxiliary preparation stay in focused owners. Reassess before another format or read mode."
+      "max_lines": 455,
+      "reason": "448 physical lines. Session owns source identity, read modes and pre-montage policy composition. Geometry parsing stays in recording_geometry; only scientific identity and interpolation arguments are wired here. Extract format adapters before another format/read mode."
     },
     "desktop-client/BrainPlatform.Desktop.Tests/Review/ReviewPreprocessingTests.cs": {
       "decision": "keep",
@@ -477,7 +477,17 @@
     "backend/app/services/preprocessing_preview.py": {
       "decision": "keep",
       "max_lines": 410,
-      "reason": "403 physical lines. Paired comparison serialization and ICA visual projection use shared envelope helpers. Added verified excluded display rows only. Extract ICA visual projection before a new preview representation."
+      "reason": "407 physical lines. Paired preview serialization and ICA visual projection retain established envelopes. Custom electrode projection delegates to the shared locked/cache-backed location service. Extract ICA visual projection before adding a new preview representation."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/PreprocessingDialogStyles.xaml": {
+      "decision": "keep",
+      "max_lines": 430,
+      "reason": "421-line shared preprocessing dialog resource dictionary owning buttons, toggles, info badges, and the wrapped dark-slate ToolTip style; splitting one style out would fragment shared dialog theming."
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Controls/Topomap/Topomap3DWebView.xaml.cs": {
+      "decision": "keep",
+      "max_lines": 440,
+      "reason": "431-line WebView2 3D topomap host owning shared environment initialization, WebView message lifecycle, and WPF fallback wiring; incremental change adds only CustomElectrodeLocations and ShowElectrodeLabels properties."
     }
   }
 }

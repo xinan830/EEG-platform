@@ -90,7 +90,13 @@ def test_3d_location_http_contract_returns_typed_mapping_provenance():
         paths = set(client.get("/openapi.json").json()["paths"])
 
     assert response.status_code == 200
-    assert paths == {"/api/topomap/3d/model", "/api/topomap/3d/locations", "/api/topomap/3d/cortex"}
+    assert paths == {
+        "/api/topomap/3d/model",
+        "/api/topomap/3d/locations",
+        "/api/topomap/3d/cortex",
+        "/api/topomap/3d/montages",
+        "/api/topomap/3d/montages/{montage_name}",
+    }
     body = response.json()
     assert body["source_coordinate_frame"] == "head"
     assert body["source_coordinate_unit"] == "m"
@@ -161,3 +167,78 @@ def test_asset_loader_rejects_incompatible_coordinate_and_mesh_contracts(monkeyp
             asset_loader.load_topomap_3d_assets()
     finally:
         asset_loader.load_topomap_3d_assets.cache_clear()
+
+
+def test_core_montage_catalog_lists_15_eeg_montages_with_colin27_default():
+    catalog = _service().list_montages()
+    names = [item.name for item in catalog.montages]
+
+    assert catalog.default_montage == "colin27_1020"
+    assert len(catalog.montages) == 15
+    assert catalog.montages[0].name == "colin27_1020"
+    assert catalog.montages[0].is_default is True
+    assert catalog.montages[0].channel_count == 94
+    assert {"fsaverage_1020", "fsaverage_1010", "colin27_1005", "biosemi128", "GSN-HydroCel-128", "easycap-M1", "brainproducts-RNP-BA-128"}.issubset(names)
+    assert all(not name.startswith("artinis-") for name in names)
+
+
+def test_all_core_montages_project_finite_2d_and_surface_3d_gnm_sites():
+    service = _service()
+    assets = load_topomap_3d_assets()
+    model_diagonal = np.linalg.norm(np.ptp(assets.vertices, axis=0))
+
+    for item in service.list_montages().montages:
+        preview = service.preview_montage(item.name)
+        assert preview.channel_count == len(preview.sites) == item.channel_count
+        if item.is_default:
+            assert preview.projection_source == "gnm_mapped_colin27"
+            for site in preview.sites:
+                assert site.coordinate_gnm == tuple(assets.channel_locations[site.channel]["coordinate_gnm"])
+        else:
+            assert preview.projection_source == "dynamic_head_mesh_projection"
+
+        coords_2d = np.asarray([[site.map_x, site.map_y] for site in preview.sites], dtype=float)
+        assert np.all(np.isfinite(coords_2d))
+        assert np.max(np.linalg.norm(coords_2d, axis=1)) <= 0.9201
+
+        coords_3d = np.asarray([site.coordinate_gnm for site in preview.sites], dtype=float)
+        assert np.all(np.isfinite(coords_3d))
+        nearest = np.linalg.norm(coords_3d[:, None, :] - assets.vertices[None, :, :], axis=2).min(axis=1)
+        assert nearest.max() / model_diagonal < 0.025
+
+    fs20 = {site.channel: np.asarray(site.coordinate_gnm) - assets.head_origin for site in service.preview_montage("fsaverage_1020").sites}
+    assert fs20["T7"] @ assets.right_axis < 0 < fs20["T8"] @ assets.right_axis
+    assert fs20["Fp1"] @ assets.forward_axis > fs20["O1"] @ assets.forward_axis
+    assert fs20["Cz"] @ assets.up_axis > fs20["Fp1"] @ assets.up_axis
+
+    bio128_preview = service.preview_montage("biosemi128")
+    bio128_by_ch = {site.channel: site for site in bio128_preview.sites}
+    assert bio128_by_ch["A1"].is_scalp_field_site is True
+    assert bio128_by_ch["A2"].is_scalp_field_site is True
+    bio128_u = {ch: float((np.asarray(site.coordinate_gnm) - assets.head_origin) @ assets.up_axis) for ch, site in bio128_by_ch.items()}
+    assert bio128_u["A1"] > bio128_u["A19"]
+    assert min(bio128_u.values()) > -0.04
+
+
+def test_montage_preview_http_endpoints_and_missing_montage_404():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.topomap_3d import router
+
+    app = FastAPI()
+    app.state.topomap_3d_service = _service()
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        catalog_resp = client.get("/api/topomap/3d/montages")
+        bio_resp = client.get("/api/topomap/3d/montages/biosemi128")
+        missing_resp = client.get("/api/topomap/3d/montages/unknown-cap")
+
+    assert catalog_resp.status_code == 200
+    assert catalog_resp.json()["default_montage"] == "colin27_1020"
+    assert bio_resp.status_code == 200
+    assert bio_resp.json()["channel_count"] == 128
+    assert len(bio_resp.json()["sites"]) == 128
+    assert missing_resp.status_code == 404
+    assert missing_resp.json()["code"] == "MONTAGE_NOT_FOUND"

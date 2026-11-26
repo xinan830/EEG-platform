@@ -197,6 +197,11 @@ class EdfBdfImportService:
                 validated_import_identities(json.loads(snapshot), raw_channels, channel_units)
             except ValueError as exc:
                 raise RecordingImportError("CHANNEL_IDENTITY_INVALID", str(exc)) from exc
+            from app.scientific.electrode_geometry import geometry_from_channel_snapshot
+            try:
+                geometry_from_channel_snapshot(json.loads(snapshot))
+            except ValueError as exc:
+                raise RecordingImportError("ELECTRODE_GEOMETRY_INVALID", str(exc)) from exc
         if snapshot is not None and column_mapping is not None:
             configured = json.loads(snapshot)["Channels"]
             configured_by_index = {item["NativeChannelIndex"]: item["ElectrodeLabel"].strip() for item in configured}
@@ -261,6 +266,11 @@ def _bind_channel_configuration(snapshot_json: str | None, labels: list[str], ch
         raise RecordingImportError("CHANNEL_CONFIGURATION_INVALID", "通道配置快照格式无效。") from None
     if not isinstance(configured, list) or not configured:
         raise RecordingImportError("CHANNEL_CONFIGURATION_INVALID", "通道配置快照没有通道。")
+    from app.scientific.electrode_geometry import geometry_from_channel_snapshot
+    try:
+        geometry = geometry_from_channel_snapshot(snapshot)
+    except ValueError as exc:
+        raise RecordingImportError("ELECTRODE_GEOMETRY_INVALID", str(exc)) from exc
 
     by_label: dict[str, dict] = {}
     native_indexes: set[int] = set()
@@ -290,6 +300,8 @@ def _bind_channel_configuration(snapshot_json: str | None, labels: list[str], ch
         key = " ".join(label.strip().split()).casefold()
         matches = by_label.get(key, [])
         if len(matches) != 1:
+            if geometry is not None:
+                raise RecordingImportError("ELECTRODE_GEOMETRY_INVALID", "坐标快照无法与文件原始通道绑定。")
             return None, None
         native_index = matches[0]["NativeChannelIndex"]
         if native_index in used_native_indexes:
@@ -297,6 +309,8 @@ def _bind_channel_configuration(snapshot_json: str | None, labels: list[str], ch
         used_native_indexes.add(native_index)
         mapping.append({"source_column": column, "native_channel_index": native_index})
     if not mapping:
+        if geometry is not None:
+            raise RecordingImportError("ELECTRODE_GEOMETRY_INVALID", "坐标快照没有可绑定的原始 EEG 通道。")
         return None, None
     return snapshot_json, json.dumps(mapping, separators=(",", ":"))
 

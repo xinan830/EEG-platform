@@ -312,7 +312,21 @@ def _read_acquisition_signal_view(
                 "source": "hardware_landmark", "canonical_site": None, "source_id": "channel_configuration",
                 "source_version": str(_field(recorded, "Fingerprint") or "")
             }
-        _materialize_template_positions(map_positions)
+        from app.scientific.electrode_geometry import geometry_from_channel_snapshot
+        from app.services.electrode_locations import recording_map_coordinates
+        geometry = geometry_from_channel_snapshot(recorded)
+        if "ElectrodeGeometry" in bound and geometry_from_channel_snapshot(bound) != geometry:
+            raise ValueError("ELECTRODE_GEOMETRY_INVALID: 导联坐标与录音坐标快照不一致")
+        if geometry is None:
+            _materialize_template_positions(map_positions)
+        else:
+            projected = recording_map_coordinates(geometry, list(map_positions))
+            for label, position in map_positions.items():
+                xy = projected.get(label.casefold())
+                position.update(x=xy[0] if xy else None, y=xy[1] if xy else None,
+                    status="available" if xy else "unavailable", source="recording_geometry",
+                    canonical_site=None,
+                    source_id=geometry["source_id"], source_version=geometry["source_sha256"])
         return AcquisitionSignalView(tuple(signals), {
             "signal_mode": "acquisition_montage", "projection_version": "acquisition-montage-v1",
             "analysis_reference": "acquisition_montage_snapshot",
@@ -325,6 +339,7 @@ def _read_acquisition_signal_view(
             "hardware_reference": _field(recorded, "HardwareReferenceElectrodeLocation"),
             "hardware_ground": _field(recorded, "HardwareGroundElectrodeLocation"),
             "map_positions": map_positions,
+            **({"electrode_geometry": geometry} if geometry is not None else {}),
             "formulas": [{"name": s.name, "positive": s.positive, "negative_kind": s.kind, "negative_labels": list(s.negatives)} for s in signals],
         })
     except (OSError, KeyError, TypeError, ValueError, AttributeError):

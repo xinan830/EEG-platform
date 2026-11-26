@@ -147,7 +147,11 @@ def attach_ica_component_visuals(
     formulas = {str(row["name"]).casefold(): row for row in (signal_provenance or {}).get("formulas", [])}
     base_labels = [label for name in names if (label := _scalp_label(name, formulas))]
     resolved_coords: dict[str, tuple[float, float]] = {}
-    for item in resolve_electrode_labels(base_labels):
+    geometry = (signal_provenance or {}).get("electrode_geometry")
+    if geometry is not None:
+        from app.services.electrode_locations import recording_map_coordinates
+        resolved_coords = recording_map_coordinates(geometry, base_labels)
+    for item in ([] if geometry is not None else resolve_electrode_labels(base_labels)):
         coords = item.get("map_coordinates")
         if item.get("status") == "available" and isinstance(coords, list) and len(coords) == 2:
             x, y = float(coords[0]), float(coords[1])

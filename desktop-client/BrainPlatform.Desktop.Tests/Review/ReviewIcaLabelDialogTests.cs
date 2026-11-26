@@ -113,9 +113,11 @@ public sealed class ReviewIcaLabelDialogTests
             try
             {
                 var statusText = (TextBlock)dialog.FindName("ClassifierStatusText");
+                var infoBadge = (Border)dialog.FindName("ClassifierInfoBadge");
                 Assert.Contains("ICLabel 智能分类已就绪", statusText.Text);
                 Assert.Contains("1–100 Hz 宽带拟合", statusText.Text);
                 Assert.Contains("Extended Infomax", statusText.Text);
+                Assert.Contains("已按高置信度预勾选", Assert.IsType<string>(infoBadge.ToolTip));
                 Assert.Contains("含 50 Hz 陷波", IcaReviewDialog.FormatClassifierStatusMessage(readyResponse with { FitNotchHz = 50.0 }));
 
                 var filterAll = (RadioButton)dialog.FindName("FilterAllRadio");
@@ -123,6 +125,8 @@ public sealed class ReviewIcaLabelDialogTests
                 var itemsControl = (ItemsControl)dialog.FindName("ComponentsItemsControl");
                 Assert.Equal("全部 (3)", filterAll.Content);
                 Assert.Equal("仅看建议剔除 (1)", filterRec.Content);
+                var panel = Assert.IsType<System.Windows.Controls.Primitives.UniformGrid>(itemsControl.ItemsPanel.LoadContent());
+                Assert.Equal(4, panel.Columns);
 
                 // Toggle recommended-only filter and verify hidden manual selection is preserved
                 vm.IcaComponents[0].IsExcluded = true;
@@ -153,6 +157,7 @@ public sealed class ReviewIcaLabelDialogTests
             var msg = IcaReviewDialog.FormatClassifierStatusMessage(refResponse);
             Assert.Contains("平均参考 (CAR)", msg);
             Assert.Contains("EOG / ECG", msg);
+            Assert.Contains("非完整平均参考 (CAR)", IcaReviewDialog.FormatClassifierSummaryMessage(refResponse));
             var noReferenceResponse = refResponse with { EogChannelsUsed = [], EcgChannelsUsed = [] };
             Assert.Contains("不生成相关性剔除建议", IcaReviewDialog.FormatClassifierStatusMessage(noReferenceResponse));
             Assert.Contains("未对信号额外重参考", IcaReviewDialog.FormatClassifierStatusMessage(noReferenceResponse with

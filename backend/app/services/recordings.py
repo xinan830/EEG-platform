@@ -246,6 +246,10 @@ class RecordingService:
         if not hasattr(recording, "stored_name"):
             recording = self.require_recording(recording.id)
         provenance = self._analysis_signal_provenance(recording)
+        from app.services.recording_geometry import recording_electrode_geometry
+        geometry = recording_electrode_geometry(recording)
+        if geometry is not None:
+            provenance = {**provenance, "electrode_geometry": geometry}
         fingerprint = role_fingerprint(self.storage_dir, recording) if hasattr(recording, "extension") else None
         return {**provenance, "channel_identity_sha256": fingerprint} if fingerprint else provenance
 

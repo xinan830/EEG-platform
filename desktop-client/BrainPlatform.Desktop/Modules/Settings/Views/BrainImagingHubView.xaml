@@ -1,6 +1,7 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Settings.Views.BrainImagingHubView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Settings.Views"
              xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
              Background="#F8FAFC">
 
@@ -142,6 +143,14 @@
                             </StackPanel>
                         </RadioButton>
 
+                        <RadioButton x:Name="NavElectrodeAtlas" Tag="electrode_atlas"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="电极位置" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="2D / 3D 标准电极模板预览" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
                         <TextBlock Text="脑网络与溯源分析" Style="{StaticResource CategoryHeaderStyle}" />
 
                         <RadioButton x:Name="NavConnectome" Tag="connectome"
@@ -188,14 +197,20 @@
                     BorderThickness="1"
                     CornerRadius="12"
                     ClipToBounds="True">
-                <topomap:Topomap3DWebView x:Name="ImagingViewer"
-                                          IsHeatmapPreview="True"
-                                          EnablePreviewLabModes="True"
-                                          HideInternalModeTabs="True"
-                                          ExternalMode="cortex"
-                                          ActiveModeChanged="OnViewerActiveModeChanged"
-                                          HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Stretch" />
+                <Grid>
+                    <topomap:Topomap3DWebView x:Name="ImagingViewer"
+                                              IsHeatmapPreview="True"
+                                              EnablePreviewLabModes="True"
+                                              HideInternalModeTabs="True"
+                                              ExternalMode="cortex"
+                                              ActiveModeChanged="OnViewerActiveModeChanged"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Stretch" />
+                    <local:TemplateElectrodeAtlasPanel x:Name="ElectrodeAtlasPanel"
+                                                       Visibility="Collapsed"
+                                                       HorizontalAlignment="Stretch"
+                                                       VerticalAlignment="Stretch" />
+                </Grid>
             </Border>
         </Grid>
     </Grid>

@@ -1,10 +1,28 @@
 """Build bounded 3D scalp fields from existing RBP window results."""
 
+from functools import lru_cache
+
+import numpy as np
+
 from app.models.topomap_3d import (
     Topomap3DLocationResponse,
+    Topomap3DMontageCatalogResponse,
+    Topomap3DMontagePreviewResponse,
+    Topomap3DMontageSite,
+    Topomap3DMontageSummary,
     Topomap3DResolvedLocation,
     Topomap3DModelResponse,
 )
+from app.scientific.topomap_3d_projection import (
+    CORE_MONTAGE_BY_NAME,
+    CORE_MONTAGE_CATALOG,
+    is_ten_twenty_montage,
+    montage_head_positions,
+    normalized_cap_directions,
+    project_directions_to_2d_aep,
+    project_head_points_to_gnm_mesh,
+)
+from app.services.electrode_locations import resolve_montage_2d_coordinates
 from app.services.topomap_3d_assets import (
     MAPPING_ID,
     MAPPING_VERSION,
@@ -12,7 +30,7 @@ from app.services.topomap_3d_assets import (
     MODEL_VERSION,
     Topomap3DAssets,
     load_topomap_3d_assets,
-        )
+)
 HARDWARE_LANDMARKS = {"ref", "gnd"}
 NON_SCALP_FIELD_CHANNELS = {"a1", "a2", "m1", "m2"} | HARDWARE_LANDMARKS
 
@@ -90,4 +108,101 @@ class Topomap3DService:
             source_montage="colin27_1020", source_coordinate_frame="head", source_coordinate_unit="m",
             target_coordinate_frame="gnm_native", target_coordinate_unit="GNM model units",
             locations=locations,
+        )
+
+    def list_montages(self) -> Topomap3DMontageCatalogResponse:
+        self.assets  # Ensure packaged 3D assets are valid.
+        default_name = next(item.name for item in CORE_MONTAGE_CATALOG if item.is_default)
+        summaries = [
+            Topomap3DMontageSummary(
+                name=item.name,
+                display_name=item.display_name,
+                category=item.category,
+                channel_count=len(self.assets.channel_locations) if item.is_default else len(montage_head_positions(item.name)),
+                is_default=item.is_default,
+            )
+            for item in CORE_MONTAGE_CATALOG
+        ]
+        return Topomap3DMontageCatalogResponse(default_montage=default_name, montages=summaries)
+
+    def preview_montage(self, montage_name: str) -> Topomap3DMontagePreviewResponse:
+        spec = CORE_MONTAGE_BY_NAME.get(montage_name)
+        if spec is None:
+            raise KeyError(montage_name)
+        return self._cached_montage_preview(montage_name)
+
+    @lru_cache(maxsize=24)
+    def _cached_montage_preview(self, montage_name: str) -> Topomap3DMontagePreviewResponse:
+        spec = CORE_MONTAGE_BY_NAME[montage_name]
+        assets = self.assets
+        coords_2d = resolve_montage_2d_coordinates(montage_name)
+
+        if spec.is_default:
+            sites = [
+                Topomap3DMontageSite(
+                    channel=channel,
+                    canonical_channel=str(location.get("canonical_name") or channel),
+                    map_x=coords_2d[channel.casefold()][0],
+                    map_y=coords_2d[channel.casefold()][1],
+                    coordinate_gnm=tuple(location["coordinate_gnm"]),
+                    is_scalp_field_site=channel.casefold() not in NON_SCALP_FIELD_CHANNELS,
+                )
+                for channel, location in assets.channel_locations.items()
+                if channel.casefold() in coords_2d
+            ]
+            return Topomap3DMontagePreviewResponse(
+                montage_name=spec.name,
+                display_name=spec.display_name,
+                is_default=True,
+                channel_count=len(sites),
+                projection_source="gnm_mapped_colin27",
+                sites=sites,
+            )
+
+        head_positions = montage_head_positions(montage_name)
+        names = list(head_positions)
+        pts_m = np.asarray([head_positions[name] for name in names], dtype=np.float64)
+        anchors = {
+            key: tuple(val["coordinate_gnm"])
+            for key, val in assets.channel_locations.items()
+        }
+        dirs_local = normalized_cap_directions(
+            pts_m,
+            channel_names=names,
+            head_origin_gnm=assets.head_origin,
+            right_axis_gnm=assets.right_axis,
+            forward_axis_gnm=assets.forward_axis,
+            up_axis_gnm=assets.up_axis,
+            anchor_gnm_by_channel=anchors,
+        )
+        coords_2d_arr = project_directions_to_2d_aep(dirs_local)
+        projected_gnm = project_head_points_to_gnm_mesh(
+            pts_m,
+            head_origin_gnm=assets.head_origin,
+            right_axis_gnm=assets.right_axis,
+            forward_axis_gnm=assets.forward_axis,
+            up_axis_gnm=assets.up_axis,
+            vertices_gnm=assets.vertices,
+            triangles=assets.triangles,
+            dirs_local=dirs_local,
+        )
+        ten_twenty = is_ten_twenty_montage(names)
+        sites = [
+            Topomap3DMontageSite(
+                channel=name,
+                canonical_channel=name,
+                map_x=float(xy[0]),
+                map_y=float(xy[1]),
+                coordinate_gnm=(float(gnm[0]), float(gnm[1]), float(gnm[2])),
+                is_scalp_field_site=not (ten_twenty and name.casefold() in NON_SCALP_FIELD_CHANNELS),
+            )
+            for name, xy, gnm in zip(names, coords_2d_arr, projected_gnm, strict=True)
+        ]
+        return Topomap3DMontagePreviewResponse(
+            montage_name=spec.name,
+            display_name=spec.display_name,
+            is_default=False,
+            channel_count=len(sites),
+            projection_source="dynamic_head_mesh_projection",
+            sites=sites,
         )

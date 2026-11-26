@@ -257,10 +257,16 @@ def _resolve_car_base_labels(
     return None
 
 
-def _build_channel_dig_montage(channel_names: tuple[str, ...], base_labels: Mapping[str, str]):
+def _build_channel_dig_montage(channel_names: tuple[str, ...], base_labels: Mapping[str, str], electrode_geometry=None):
     if len(channel_names) < ICLABEL_MIN_CHANNELS:
         return None
-    std_pos, nasion, lpa, rpa, coord_frame = _standard_3d_montage_positions()
+    if electrode_geometry is None:
+        std_pos, nasion, lpa, rpa, coord_frame = _standard_3d_montage_positions()
+    else:
+        from app.scientific.electrode_geometry import geometry_montage
+        positions = geometry_montage(electrode_geometry).get_positions()
+        std_pos = {name.casefold(): np.asarray(xyz) for name, xyz in positions["ch_pos"].items()}
+        nasion, lpa, rpa, coord_frame = None, None, None, "head"
     ch_pos: dict[str, np.ndarray] = {}
     seen_xyz: set[tuple[float, float, float]] = set()
     for ch_name in channel_names:
@@ -320,7 +326,7 @@ def classify_ica_components(
     if not math.isfinite(float(sfreq_hz)) or float(sfreq_hz) < ICLABEL_MIN_SFREQ_HZ:
         return IcaClassificationResult(
             "eog_ecg_correlation", "fallback_eog_ecg", "sampling_rate_too_low_for_icalabel", **meta_kwargs)
-    dig_montage = _build_channel_dig_montage(names, base_labels)
+    dig_montage = _build_channel_dig_montage(names, base_labels, (signal_provenance or {}).get("electrode_geometry"))
     if dig_montage is None:
         return IcaClassificationResult(
             "eog_ecg_correlation", "fallback_eog_ecg", "electrode_3d_coordinates_incomplete", **meta_kwargs)

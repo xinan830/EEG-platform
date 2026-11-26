@@ -1,6 +1,7 @@
 """Resolve scalp sites from MNE's bundled standard 10-20 template."""
 
 from functools import lru_cache
+import json
 from threading import Lock
 
 import matplotlib
@@ -10,6 +11,12 @@ import mne
 import numpy as np
 
 from app.scientific.contracts.preprocessing import STANDARD_MONTAGE_NAME
+from app.scientific.electrode_geometry import geometry_montage, validate_geometry
+from app.scientific.topomap_3d_projection import (
+    montage_head_positions,
+    normalized_cap_directions,
+    project_directions_to_2d_aep,
+)
 
 
 MONTAGE_NAME = STANDARD_MONTAGE_NAME
@@ -131,3 +138,55 @@ def resolve_electrode_labels(labels: list[str]) -> list[dict[str, object]]:
             }
         )
     return resolved
+
+
+@lru_cache(maxsize=32)
+def _recording_map_positions(geometry_json: str) -> dict[str, tuple[float, float]]:
+    montage = geometry_montage(json.loads(geometry_json))
+    names = montage.ch_names
+    xyz = np.asarray(list(montage.get_positions()["ch_pos"].values()))
+    head_radius = float(np.median(np.linalg.norm(xyz, axis=1)))
+    info = mne.create_info(names, sfreq=256.0, ch_types="eeg")
+    info.set_montage(montage, on_missing="raise")
+    figure = mne.viz.plot_sensors(
+        info, kind="topomap", sphere=(0., 0., 0., head_radius), show=False,
+    )
+    try:
+        collections = [item for item in figure.axes[0].collections if len(item.get_offsets()) == len(names)]
+        if len(collections) != 1:
+            raise RuntimeError("MNE did not return one complete recording sensor collection")
+        coords = np.asarray(collections[0].get_offsets(), dtype=np.float64)
+        scale = max(head_radius, float(np.max(np.linalg.norm(coords, axis=1)))) / MAP_EDGE_RADIUS
+        return {name.casefold(): (float(x / scale), float(-y / scale))
+                for name, (x, y) in zip(names, coords, strict=True)}
+    finally:
+        plt.close(figure)
+
+
+def recording_map_coordinates(geometry: dict[str, object], labels: list[str]) -> dict[str, tuple[float, float]]:
+    """Project all bound sites once so subsets share a stable scale and plotting lock."""
+    key = json.dumps(validate_geometry(dict(geometry)), sort_keys=True, separators=(",", ":"))
+    with _POSITION_CACHE_LOCK:
+        positions = _recording_map_positions(key)
+    return {label.casefold(): positions[label.casefold()] for label in labels if label.casefold() in positions}
+
+
+@lru_cache(maxsize=24)
+def _montage_map_positions(montage_name: str) -> dict[str, tuple[float, float]]:
+    if montage_name == MONTAGE_NAME:
+        return {key: value[2] for key, value in _standard_positions().items()}
+    head_positions = montage_head_positions(montage_name)
+    names = list(head_positions)
+    pts_arr = np.asarray([head_positions[name] for name in names], dtype=np.float64)
+    dirs_local = normalized_cap_directions(pts_arr, channel_names=names)
+    projected = project_directions_to_2d_aep(dirs_local)
+    return {
+        name.casefold(): (float(pos[0]), float(pos[1]))
+        for name, pos in zip(names, projected, strict=True)
+    }
+
+
+def resolve_montage_2d_coordinates(montage_name: str) -> dict[str, tuple[float, float]]:
+    """Return thread-safe cached 2D topomap coordinates for a built-in MNE montage."""
+    with _POSITION_CACHE_LOCK:
+        return dict(_montage_map_positions(montage_name))

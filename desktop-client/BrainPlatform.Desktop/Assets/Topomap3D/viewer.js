@@ -571,6 +571,7 @@ window.chrome?.webview?.addEventListener("message", (ev) => {
       isRealField: state.isRealField,
       mode: state.mode,
       presetId: PRESETS[state.presetIndex].id,
+      showLabels: msg.showLabels,
     });
     if (layoutChanged) recolorer.invalidateAll();
     applyModeVisibility();

@@ -18,6 +18,7 @@ public partial class BrainImagingHubView : UserControl
         ["cortex"] = ("地形图与皮层图谱", "高精度 fsaverage 折叠皮层连续电位分布，支持色带与分布场景切换。"),
         ["atlas"] = ("地形图与皮层图谱", "交互式脑区图谱（脑叶 / Desikan-Killiany 68区 / Yeo-7 功能网络），悬停或点击高亮。"),
         ["scalp"] = ("地形图与皮层图谱", "3D 真实头皮表面电位插值分布，面部与颈部自动遮罩隔离。"),
+        ["electrode_atlas"] = ("地形图与皮层图谱", "常用 15 套标准/高密度电极模板预览（默认 colin27_1020），支持 2D 平面与 3D 头模联动。"),
         ["connectome"] = ("脑网络与溯源分析", "3D 玻璃脑功能连接弧线与核心枢纽节点，支持阈值过滤与悬停聚光。"),
         ["source"] = ("脑网络与溯源分析", "sLORETA 皮层激活热区 + 3D 等效电流偶极子，点击偶极子可直接跳转至 MRI 三切面定位。"),
         ["tractography"] = ("多模态结构影像", "标准 DTI 方向着色白质纤维束（红=左右 · 绿=前后 · 蓝=上下），支持导入本地 .tck / .trk。"),
@@ -84,9 +85,18 @@ public partial class BrainImagingHubView : UserControl
         }
 
         ApplyHeaderMetadata(mode);
-        if (!syncingModeFromViewer && ImagingViewer is not null)
+        var isElectrodeAtlas = string.Equals(mode, "electrode_atlas", StringComparison.Ordinal);
+        if (ElectrodeAtlasPanel is not null)
         {
-            ImagingViewer.ExternalMode = mode;
+            ElectrodeAtlasPanel.Visibility = isElectrodeAtlas ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (ImagingViewer is not null)
+        {
+            ImagingViewer.Visibility = isElectrodeAtlas ? Visibility.Collapsed : Visibility.Visible;
+            if (!isElectrodeAtlas && !syncingModeFromViewer)
+            {
+                ImagingViewer.ExternalMode = mode;
+            }
         }
     }
 

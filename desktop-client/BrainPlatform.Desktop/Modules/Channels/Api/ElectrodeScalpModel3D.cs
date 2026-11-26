@@ -33,3 +33,30 @@ public sealed record ElectrodeScalpModel3D(
     [property: JsonPropertyName("electrode_locations")] IReadOnlyList<ElectrodeLocation3D> ElectrodeLocations,
     [property: JsonPropertyName("vertices_gnm")] IReadOnlyList<IReadOnlyList<double>> VerticesGnm,
     [property: JsonPropertyName("triangles")] IReadOnlyList<IReadOnlyList<int>> Triangles);
+
+public sealed record ElectrodeMontageSummary(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("display_name")] string DisplayName,
+    [property: JsonPropertyName("category")] string Category,
+    [property: JsonPropertyName("channel_count")] int ChannelCount,
+    [property: JsonPropertyName("is_default")] bool IsDefault);
+
+public sealed record ElectrodeMontageCatalog(
+    [property: JsonPropertyName("default_montage")] string DefaultMontage,
+    [property: JsonPropertyName("montages")] IReadOnlyList<ElectrodeMontageSummary> Montages);
+
+public sealed record ElectrodeMontageSite(
+    [property: JsonPropertyName("channel")] string Channel,
+    [property: JsonPropertyName("canonical_channel")] string CanonicalChannel,
+    [property: JsonPropertyName("map_x")] double MapX,
+    [property: JsonPropertyName("map_y")] double MapY,
+    [property: JsonPropertyName("coordinate_gnm")] IReadOnlyList<double> CoordinateGnm,
+    [property: JsonPropertyName("is_scalp_field_site")] bool IsScalpFieldSite);
+
+public sealed record ElectrodeMontagePreview(
+    [property: JsonPropertyName("montage_name")] string MontageName,
+    [property: JsonPropertyName("display_name")] string DisplayName,
+    [property: JsonPropertyName("is_default")] bool IsDefault,
+    [property: JsonPropertyName("channel_count")] int ChannelCount,
+    [property: JsonPropertyName("projection_source")] string ProjectionSource,
+    [property: JsonPropertyName("sites")] IReadOnlyList<ElectrodeMontageSite> Sites);

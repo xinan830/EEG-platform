@@ -66,3 +66,34 @@ class Topomap3DLocationResponse(BaseModel):
     target_coordinate_frame: Literal["gnm_native"]
     target_coordinate_unit: Literal["GNM model units"]
     locations: list[Topomap3DResolvedLocation]
+
+
+class Topomap3DMontageSummary(BaseModel):
+    name: str
+    display_name: str
+    category: str
+    channel_count: int
+    is_default: bool
+
+
+class Topomap3DMontageCatalogResponse(BaseModel):
+    default_montage: str
+    montages: list[Topomap3DMontageSummary]
+
+
+class Topomap3DMontageSite(BaseModel):
+    channel: str
+    canonical_channel: str
+    map_x: float
+    map_y: float
+    coordinate_gnm: tuple[float, float, float]
+    is_scalp_field_site: bool
+
+
+class Topomap3DMontagePreviewResponse(BaseModel):
+    montage_name: str
+    display_name: str
+    is_default: bool
+    channel_count: int
+    projection_source: Literal["gnm_mapped_colin27", "dynamic_head_mesh_projection"]
+    sites: list[Topomap3DMontageSite]

@@ -163,7 +163,8 @@ def test_model_hash_recovers_and_invalidates_file_changes_without_restart(tmp_pa
     ([(i, 1e-5, 30.) for i in range(1, 20)] + [(1, 1e-5, 30.)], False),
     ([], False),
 ])
-def test_unrounded_stopping_rules_and_restart(monkeypatch, car_input, steps, expected):
+def test_unrounded_stopping_rules_and_restart(monkeypatch, car_input, steps, expected, caplog):
+    caplog.set_level(logging.INFO, logger="mne")
     class FakeIca:
         n_iter_ = 61
 

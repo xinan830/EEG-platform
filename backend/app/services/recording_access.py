@@ -250,6 +250,8 @@ class RecordingAccessService:
     ) -> RecordingAccessSession:
         from app.services.recording_channel_roles import identity_signature
         role_signature = identity_signature(self._storage_dir, recording)
+        from app.services.recording_geometry import recording_electrode_geometry, bind_session_geometry
+        geometry = recording_electrode_geometry(recording)
         if raw_voltage_channels and (artifact_reference_channels or (bad_channel_spec and bad_channel_spec.is_active)):
             raise RecordingAccessError("ARTIFACT_REFERENCE_INVALID", "辅助原始读取不能同时应用 EEG 投影策略。")
         raw_unprojected = raw_unprojected or raw_voltage_channels
@@ -267,6 +269,8 @@ class RecordingAccessService:
             session = self._open_edf(recording, analysis_montage_id, verify_content_hash=verify_content_hash,
                               bad_channel_spec=bad_channel_spec, raw_unprojected=raw_unprojected,
                               raw_voltage_channels=raw_voltage_channels, artifact_reference_channels=artifact_reference_channels)
+        if scientific_channels and not raw_voltage_channels:
+            bind_session_geometry(session, geometry)
         from app.services.recording_channel_roles import bind_session_roles
         return session if raw_voltage_channels or not scientific_channels else bind_session_roles(session, self._storage_dir, recording, role_signature)
 
@@ -286,6 +290,8 @@ class RecordingAccessService:
             if labeled:
                 reader = BadChannelExcludingSampleReader(reader, labeled)
         signal_view_sha256, channel_names = None, tuple(reader.names)
+        from app.services.recording_geometry import recording_electrode_geometry
+        geometry = recording_electrode_geometry(recording)
         applied_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
         if not raw_unprojected and recording.stored_name.startswith("wpf-montage:"):
             from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
@@ -293,7 +299,7 @@ class RecordingAccessService:
             view = self._montage_snapshots.resolve(recording.id, root, montage_id or recording.selected_montage_id)
             from app.services.artifact_references import isolate_reference_sources
             reader, view, applied_bad = isolate_reference_sources(reader, artifact_reference_channels, view=view, bad_spec=applied_bad)
-            reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad)
+            reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad, electrode_geometry=geometry)
             reader = AcquisitionMontageSampleReader(reader, view)
             channel_names, signal_view_sha256 = reader.names, str(view.provenance.get("snapshot_sha256", "")) or None
         elif artifact_reference_channels:
@@ -302,7 +308,7 @@ class RecordingAccessService:
             channel_names = reader.names
         if applied_bad.is_active and (raw_unprojected or not recording.stored_name.startswith("wpf-montage:")):
             from app.services.bad_channel_reader import apply_bad_channels_to_raw_reader
-            reader, channel_names, signal_view_sha256 = apply_bad_channels_to_raw_reader(reader, applied_bad, channel_names=channel_names)
+            reader, channel_names, signal_view_sha256 = apply_bad_channels_to_raw_reader(reader, applied_bad, channel_names=channel_names, electrode_geometry=geometry)
         identity = RecordingSourceIdentity(recording.id, facts.source_sha256, recording.import_version, signal_view_sha256)
         def validate_source() -> None:
             if wpf_source_signature(root) != facts.source_signature:
@@ -341,6 +347,8 @@ class RecordingAccessService:
                 for onset, label in zip(raw.annotations.onset, raw.annotations.description)
             )
             reader = EdfSampleReader(raw)
+            from app.services.recording_geometry import recording_electrode_geometry
+            geometry = recording_electrode_geometry(recording)
             signal_view_sha256 = None
             active_montage_id = None if raw_unprojected else (montage_id or recording.selected_montage_id)
             if raw_unprojected and recording.import_channel_configuration_snapshot_json and recording.import_channel_column_mapping_json:
@@ -360,7 +368,7 @@ class RecordingAccessService:
                 from app.services.artifact_references import isolate_reference_sources
                 reader, view, applied_bad = isolate_reference_sources(reader, artifact_reference_channels,
                     source_names=source_channel_names, view=view, bad_spec=applied_bad)
-                reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad)
+                reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad, electrode_geometry=geometry)
                 reader = AcquisitionMontageSampleReader(reader, view)
                 channel_names = reader.names
                 signal_view_sha256 = str(view.provenance.get("snapshot_sha256", "")) or None
@@ -373,7 +381,7 @@ class RecordingAccessService:
             if applied_bad.is_active and not active_montage_id:
                 from app.services.bad_channel_reader import apply_bad_channels_to_raw_reader
                 reader, channel_names, signal_view_sha256 = apply_bad_channels_to_raw_reader(
-                    reader, applied_bad, channel_names=channel_names,
+                    reader, applied_bad, channel_names=channel_names, electrode_geometry=geometry,
                     channel_kinds=recording.channel_types if len(recording.channel_types) == len(channel_names) else None,
                 )
             if raw_voltage_channels:

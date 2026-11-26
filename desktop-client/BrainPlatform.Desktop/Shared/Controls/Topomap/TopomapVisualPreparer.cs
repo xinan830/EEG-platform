@@ -32,11 +32,12 @@ internal static class TopomapVisualPreparer
         double canvasWidth,
         double canvasHeight,
         CancellationToken cancellationToken,
-        (double Minimum, double Maximum)? scaleBounds = null)
+        (double Minimum, double Maximum)? scaleBounds = null,
+        double horizontalOffset = 0)
     {
         var timer = Stopwatch.StartNew();
         var bounds = ScalpMapRenderer.GetHeadBounds(canvasWidth, canvasHeight,
-            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale);
+            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale, horizontalOffset);
         if (bounds.IsEmpty || band.Grid is not { } grid || band.Status != "ready")
             return new TopomapVisualSnapshot(band, bounds, null, canvasWidth, canvasHeight,
                 null, null, null, 0, 1, false, 0, 0, timer.Elapsed.TotalMilliseconds);

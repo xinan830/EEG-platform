@@ -15,9 +15,9 @@ public static class ScalpMapRenderer
 
     public static Rect DrawHead(DrawingContext drawingContext, double width, double height, double verticalOffset,
         double reservedHeight, double pixelsPerDip, bool fill = true, bool showFrontLabel = true,
-        double radiusScale = RadiusScale)
+        double radiusScale = RadiusScale, double horizontalOffset = 0)
     {
-        var headBounds = GetHeadBounds(width, height, verticalOffset, reservedHeight, radiusScale);
+        var headBounds = GetHeadBounds(width, height, verticalOffset, reservedHeight, radiusScale, horizontalOffset);
         if (headBounds.IsEmpty) return Rect.Empty;
         var center = new Point(headBounds.X + headBounds.Width / 2, headBounds.Y + headBounds.Height / 2);
         var radius = headBounds.Width / 2;
@@ -28,12 +28,13 @@ public static class ScalpMapRenderer
     }
 
     public static Rect GetHeadBounds(double width, double height, double verticalOffset, double reservedHeight,
-        double radiusScale = RadiusScale)
+        double radiusScale = RadiusScale, double horizontalOffset = 0)
     {
         if (width < 80 || height < 80) return Rect.Empty;
         var radius = Math.Min(width, height - reservedHeight) * radiusScale;
-        return radius <= 0 ? Rect.Empty : new Rect(width / 2 - radius, height / 2 + verticalOffset - radius,
-            radius * 2, radius * 2);
+        if (radius <= 0) return Rect.Empty;
+        var centerX = Math.Clamp(width / 2 + horizontalOffset, radius + 12, Math.Max(radius + 12, width - radius - 12));
+        return new Rect(centerX - radius, height / 2 + verticalOffset - radius, radius * 2, radius * 2);
     }
 
     public static Point ToCanvas(double x, double y, Rect headBounds) =>
