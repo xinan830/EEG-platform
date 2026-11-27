@@ -94,8 +94,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Styles/InstrumentWorkspaceStyles.xaml": {
       "decision": "keep",
-      "max_lines": 479,
-      "reason": "资源字典集中拥有仪器工作区控件样式。本次只将既有品牌强调色映射到共享蓝色资源，不改变控件结构或状态。"
+      "max_lines": 528,
+      "reason": "当前 528 行，与本次修改前一致。资源字典集中拥有仪器工作区控件样式；本次仅将下拉弹层横向偏移从 -6 改为 0，不新增控件状态或业务逻辑。后续增加独立控件族时再按控件职责评估拆分。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Styles/WorkspaceStyles.xaml": {
       "decision": "keep",
@@ -104,9 +104,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/RecordingReviewView.xaml": {
       "decision": "split",
-      "max_lines": 480,
-      "reason": "当前 475 行。标注入口、事件操作和编辑表单已按职责提取至 ReviewAnnotationTool；保留已有波形与 AnalysisDockHost 组合、回溯参数和数据信息呈现，不嵌入科学计算。",
-      "follow_up": "Before further toolbar growth, extract the recording display parameters into a dedicated Review view; keep waveform and analysis state in their existing owners."
+      "max_lines": 524,
+      "reason": "当前 524 行，与本次修改前一致。视图负责录音回顾的工具栏、波形和分析宿主组合；本次仅替换布局菜单的共享样式引用，不改变绑定、命令或科学计算。后续扩展前按 follow_up 提取显示参数区域。",
+      "follow_up": "Before further view growth, extract recording display parameters into a dedicated Review view; keep waveform and analysis state in their existing owners."
     },
     "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/AlgorithmListViewModelTests.cs": {
       "decision": "keep",
@@ -482,6 +482,12 @@
       "decision": "keep",
       "max_lines": 420,
       "reason": "410 physical lines. Single orchestration owner for offline continuous/bounded preprocessing, reviewed ICA preparation, and recording-delete cache invalidation (for_recordings + load_preprocessed_signals moved off RecordingService during Stage 4 decoupling). No formula logic; keep preparation cache and invalidation lifecycle in one owner and reassess before adding a new preprocessing stage."
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Controls/Analysis/MultiAnalysisDockHost.cs": {
+      "decision": "split",
+      "max_lines": 490,
+      "reason": "当前 477 行。该控件统一拥有同一 Review 面板集合的布局和 WPF 可视树生命周期；本次只修复浮窗的卸载/重载同步，不增加新的状态所有者。",
+      "follow_up": "Before substantial layout growth, extract adaptive dock layout calculation while keeping slot and floating-window lifecycle under one owner."
     }
   }
 }

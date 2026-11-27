@@ -13,6 +13,8 @@ public static class DockLayoutPresetMenu
         {
             menu.PlacementTarget = button;
             menu.Placement = PlacementMode.Bottom;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 0;
             menu.IsOpen = true;
         }
     }

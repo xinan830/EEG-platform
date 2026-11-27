@@ -57,13 +57,21 @@ public sealed class EegParameterComboBoxAlignmentTests(WpfApplicationFixture fix
 
                 Assert.Same(field, popup.PlacementTarget);
                 Assert.Equal(PlacementMode.Bottom, popup.Placement);
-                Assert.Equal(-dropDownBorder.Margin.Left, popup.HorizontalOffset, 3);
+                Assert.Equal(0, popup.HorizontalOffset, 3);
                 Assert.True(dropDownBorder.Margin.Top >= 3);
                 Assert.Equal(0, popup.VerticalOffset, 3);
                 Assert.Equal(field.ActualWidth, dropDownBorder.MinWidth, 2);
                 Assert.True(
                     dropDownBorder.ActualWidth <= field.ActualWidth + 0.5,
                     $"Expected dropdown width ({dropDownBorder.ActualWidth}) <= field width ({field.ActualWidth}).");
+                Assert.Equal(
+                    field.PointToScreen(new Point(0, 0)).X,
+                    dropDownBorder.PointToScreen(new Point(0, 0)).X,
+                    1);
+                Assert.Equal(
+                    field.PointToScreen(new Point(field.ActualWidth, 0)).X,
+                    dropDownBorder.PointToScreen(new Point(dropDownBorder.ActualWidth, 0)).X,
+                    1);
 
                 var scrollViewer = FindDescendant<ScrollViewer>(dropDownBorder);
                 Assert.NotNull(scrollViewer);
@@ -122,7 +130,7 @@ public sealed class EegParameterComboBoxAlignmentTests(WpfApplicationFixture fix
     [InlineData("AnalysisHeaderComboBoxStyle")]
     [InlineData("AppFilterComboBoxStyle")]
     [InlineData("AppRoundedFilterComboBoxStyle")]
-    public void Shared_combobox_popups_cancel_left_shadow_margin_for_exact_alignment(string styleKey) =>
+    public void Shared_combobox_popup_visual_bounds_align_with_control(string styleKey) =>
         fixture.Run(() =>
         {
             var resources = CreateStyleResources();
@@ -152,8 +160,16 @@ public sealed class EegParameterComboBoxAlignmentTests(WpfApplicationFixture fix
                 var dropDownBorder = Assert.IsType<Border>(popup.Child);
 
                 Assert.Equal(PlacementMode.Bottom, popup.Placement);
-                Assert.Equal(-dropDownBorder.Margin.Left, popup.HorizontalOffset, 3);
+                Assert.Equal(0, popup.HorizontalOffset, 3);
                 Assert.Equal(comboBox.ActualWidth, dropDownBorder.MinWidth, 2);
+                Assert.Equal(
+                    comboBox.PointToScreen(new Point(0, 0)).X,
+                    dropDownBorder.PointToScreen(new Point(0, 0)).X,
+                    1);
+                Assert.Equal(
+                    comboBox.PointToScreen(new Point(comboBox.ActualWidth, 0)).X,
+                    dropDownBorder.PointToScreen(new Point(dropDownBorder.ActualWidth, 0)).X,
+                    1);
             }
             finally
             {
@@ -188,8 +204,9 @@ public sealed class EegParameterComboBoxAlignmentTests(WpfApplicationFixture fix
     {
         Width = 400,
         Height = 300,
-        Left = -20000,
-        Top = -20000,
+        Left = 20,
+        Top = 20,
+        Opacity = 0,
         ShowActivated = false,
         ShowInTaskbar = false,
         Content = new Grid
