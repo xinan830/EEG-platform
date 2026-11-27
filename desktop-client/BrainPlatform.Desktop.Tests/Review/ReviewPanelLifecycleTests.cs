@@ -259,7 +259,7 @@ public sealed partial class RecordingReviewViewModelTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(false, false)]
-    public async Task Switching_or_closing_rejects_late_preparation_and_window(bool duringCatalog, bool close)
+    public async Task Closing_in_flight_panel_rejects_late_preparation_without_blocking_concurrent_panels(bool duringCatalog, bool closeAll)
     {
         var configuration = Configuration();
         var catalog = new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
@@ -272,22 +272,45 @@ public sealed partial class RecordingReviewViewModelTests
         await vm.InitializeAsync();
         await vm.SeekAsync(10);
         var frame = vm.CurrentFrame;
-        var open = vm.OpenAnalysisAsync("stft");
+        var openStft = vm.OpenAnalysisAsync("stft");
         await stft.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
 
-        var replacement = close ? vm.CloseAnalysisAsync() : vm.OpenAnalysisAsync("rbp");
-        Assert.True(stft.PendingToken.IsCancellationRequested);
-        Assert.Null(vm.StftAnalysis.Preview);
-        stft.Release.TrySetResult();
-        await Task.WhenAll(open, replacement).WaitAsync(TimeSpan.FromSeconds(3));
+        Task concurrentOrClose;
+        if (closeAll)
+        {
+            concurrentOrClose = vm.CloseAnalysisAsync();
+            Assert.True(stft.PendingToken.IsCancellationRequested);
+            Assert.Null(vm.StftAnalysis.Preview);
+            stft.Release.TrySetResult();
+            await Task.WhenAll(openStft, concurrentOrClose).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(vm.IsAnalysisPanelOpen);
+            Assert.False(vm.IsStftSlotOpen);
+            Assert.False(vm.IsRbpSlotOpen);
+            Assert.False(vm.IsAnalysisAttached);
+        }
+        else
+        {
+            concurrentOrClose = vm.OpenAnalysisAsync("rbp");
+            await concurrentOrClose.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(vm.IsRbpSlotOpen);
+            Assert.True(vm.IsStftSlotOpen);
+            Assert.False(stft.PendingToken.IsCancellationRequested);
 
-        Assert.Equal(!close, vm.IsAnalysisPanelOpen);
-        Assert.False(vm.IsStftAnalysisPanelOpen);
-        Assert.Equal(!close, vm.IsRbpAnalysisPanelOpen);
-        Assert.Equal(!close, vm.IsAnalysisAttached);
+            var closingStft = vm.CloseAnalysisAsync("stft");
+            Assert.True(stft.PendingToken.IsCancellationRequested);
+            stft.Release.TrySetResult();
+            await Task.WhenAll(openStft, closingStft).WaitAsync(TimeSpan.FromSeconds(3));
+
+            Assert.True(vm.IsAnalysisPanelOpen);
+            Assert.False(vm.IsStftSlotOpen);
+            Assert.True(vm.IsRbpSlotOpen);
+            Assert.True(vm.IsRbpAnalysisPanelOpen);
+            Assert.True(vm.IsAnalysisAttached);
+        }
+
         Assert.Null(vm.StftAnalysis.Preview);
         Assert.Equal(duringCatalog ? 0 : 1, stft.Loads);
-        Assert.Equal(close ? 0 : 1, rbp.Loads);
+        Assert.Equal(closeAll ? 0 : 1, rbp.Loads);
         Assert.Equal(1, stft.Registrations);
         Assert.Equal(0, rbp.Registrations);
         Assert.Equal(10, vm.PositionSeconds);

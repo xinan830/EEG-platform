@@ -59,7 +59,7 @@ internal static class ReviewAlgorithmPanels
             Scalar("经典 BrainBeat（绝对功率）", "脑节律", viewModel.BrainbeatParameters, viewModel.BrainbeatAnalysis,
                 montageSelection),
             Scalar("个体化 BrainBeat（IAPF 相对功率）", "个体化 BrainBeat",
-                viewModel.IndividualizedBrainbeatParameters, viewModel.BrainbeatAnalysis, montageSelection),
+                viewModel.IndividualizedBrainbeatParameters, viewModel.IndividualizedBrainbeatAnalysis, montageSelection),
         };
         return registrations.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal);
     }

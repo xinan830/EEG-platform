@@ -18,14 +18,21 @@ public sealed partial class RecordingReviewViewModel
         var wasCompleted = playback.IsCompleted;
         playback.Pause();
         PublishPlaybackChanges(resumePlaybackAfterTimelineDrag, wasCompleted);
-        analysisBinding?.SetPlaybackActive(false, playback.Snapshot.Generation);
-        CancelSpectralWindowLoad();
-        if (IsSpectralInspectionPanelOpen)
+        FanOutPlaybackActive(false);
+        foreach (var slot in OpenAnalysisSlots)
         {
-            CancelSpectralProjection();
-            CancelCustomFrequencyProjection();
-            if (IsSpectralValuesPanelOpen) SpectralValues.Clear("游标拖动中，等待目标窗口。");
-            if (IsCustomFrequencyInspectionPanelOpen) CustomFrequencyInspection.Clear("游标拖动中，等待目标窗口。");
+            if (!slot.IsSpectralInspection) continue;
+            CancelSpectralWindowLoad(slot);
+            if (slot.AlgorithmId == SpectralValuesPanelId)
+            {
+                CancelSpectralProjection();
+                SpectralValues.Clear("游标拖动中，等待目标窗口。");
+            }
+            if (slot.AlgorithmId == CustomFrequencyInspectionPanelId)
+            {
+                CancelCustomFrequencyProjection();
+                CustomFrequencyInspection.Clear("游标拖动中，等待目标窗口。");
+            }
         }
     }
 
@@ -40,9 +47,8 @@ public sealed partial class RecordingReviewViewModel
         var wasCompleted = playback.IsCompleted;
         if (shouldResume && !playback.IsCompleted) playback.Play();
         PublishPlaybackChanges(wasPlaying, wasCompleted);
-        if (IsSpectralInspectionPanelOpen) _ = RequestSpectralWindowAsync(PositionSeconds);
-        else analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
-        analysisBinding?.SetPlaybackActive(playback.IsPlaying, playback.Snapshot.Generation);
+        FanOutCursorDragCompleted();
+        FanOutPlaybackActive(playback.IsPlaying);
     }
 
     public Task SeekAsync(double positionSeconds)
@@ -70,7 +76,7 @@ public sealed partial class RecordingReviewViewModel
         // Keep the chart viewport on the last complete frame while dragging.
         // Moving the axis before the replacement frame is ready exposes the
         // old frame only over its overlap and leaves the rest blank.
-        analysisBinding?.SetPlaybackActive(false, playback.Snapshot.Generation);
+        FanOutPlaybackActive(false);
         SetPreviewPositionCore(positionSeconds, updateViewport: false, requestAnalysis: false);
         pendingPreviewViewportStart = targetViewportStart;
         if (session.PreviewNavigationTarget(targetViewportStart, playback.PositionSeconds))
@@ -91,9 +97,17 @@ public sealed partial class RecordingReviewViewModel
         if (playback.IsPlaying) playback.Pause();
         else { CancelEventPlacement(); playback.Play(); }
         PublishPlaybackChanges(wasPlaying, wasCompleted);
-        analysisBinding?.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
-        if (playback.IsPlaying) PrepareUpcomingSpectralWindows();
-        else CancelSpectralWindowLoad();
+        FanOutPlaybackActive(playback.IsPlaying && !isTimelineDragging);
+        if (playback.IsPlaying)
+        {
+            foreach (var slot in OpenAnalysisSlots)
+                if (slot.IsSpectralInspection) PrepareUpcomingSpectralWindows(slot);
+        }
+        else
+        {
+            foreach (var slot in OpenAnalysisSlots)
+                if (slot.IsSpectralInspection) CancelSpectralWindowLoad(slot);
+        }
     }
 
     public void CyclePlaybackSpeed()
@@ -113,15 +127,14 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         PublishPlaybackChanges(wasPlaying, wasCompleted);
-        if (!playback.IsPlaying) StopSpectralPreparation();
-        analysisBinding?.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
-        // Property notifications can close the view before this tick resumes.
-        if (isDisposing) return;
-        if (IsSpectralInspectionPanelOpen)
+        if (!playback.IsPlaying)
         {
-            if (!isTimelineDragging) _ = RequestSpectralWindowAsync(PositionSeconds, playbackAdvance: true);
+            foreach (var slot in OpenAnalysisSlots)
+                if (slot.IsSpectralInspection) StopSpectralPreparation(slot);
         }
-        else if (!isTimelineDragging) analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
+        FanOutPlaybackActive(playback.IsPlaying && !isTimelineDragging);
+        if (isDisposing) return;
+        if (!isTimelineDragging) FanOutPlaybackAdvanced();
         if (isDisposing) return;
         if (!session.ContainsViewport(ViewportStartSeconds) &&
             !session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
@@ -180,16 +193,61 @@ public sealed partial class RecordingReviewViewModel
         PublishPlaybackChanges(wasPlaying, wasCompleted);
         if (requestAnalysis)
         {
-            if (IsSpectralInspectionPanelOpen) _ = RequestSpectralWindowAsync(PositionSeconds);
-            else analysisBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
+            FanOutCursorSelected();
         }
-        else if (IsSpectralInspectionPanelOpen)
+        else
         {
-            CancelSpectralWindowLoad();
-            CancelSpectralProjection();
-            CancelCustomFrequencyProjection();
-            if (IsSpectralValuesPanelOpen) SpectralValues.Clear("游标拖动中，等待目标窗口。");
-            if (IsCustomFrequencyInspectionPanelOpen) CustomFrequencyInspection.Clear("游标拖动中，等待目标窗口。");
+            foreach (var slot in OpenAnalysisSlots)
+            {
+                if (!slot.IsSpectralInspection) continue;
+                CancelSpectralWindowLoad(slot);
+                if (slot.AlgorithmId == SpectralValuesPanelId)
+                {
+                    CancelSpectralProjection();
+                    SpectralValues.Clear("游标拖动中，等待目标窗口。");
+                }
+                if (slot.AlgorithmId == CustomFrequencyInspectionPanelId)
+                {
+                    CancelCustomFrequencyProjection();
+                    CustomFrequencyInspection.Clear("游标拖动中，等待目标窗口。");
+                }
+            }
+        }
+    }
+
+    private void FanOutPlaybackActive(bool active)
+    {
+        var generation = playback.Snapshot.Generation;
+        foreach (var slot in OpenAnalysisSlots) slot.Binding?.SetPlaybackActive(active, generation);
+    }
+
+    private void FanOutCursorDragCompleted()
+    {
+        var generation = playback.Snapshot.Generation;
+        foreach (var slot in OpenAnalysisSlots)
+        {
+            if (slot.IsSpectralInspection) _ = RequestSpectralWindowAsync(slot, PositionSeconds);
+            else slot.Binding?.OnCursorDragCompleted(PositionSeconds, generation);
+        }
+    }
+
+    private void FanOutPlaybackAdvanced()
+    {
+        var generation = playback.Snapshot.Generation;
+        foreach (var slot in OpenAnalysisSlots)
+        {
+            if (slot.IsSpectralInspection) _ = RequestSpectralWindowAsync(slot, PositionSeconds, playbackAdvance: true);
+            else slot.Binding?.OnPlaybackCursorAdvanced(PositionSeconds, generation);
+        }
+    }
+
+    private void FanOutCursorSelected()
+    {
+        var generation = playback.Snapshot.Generation;
+        foreach (var slot in OpenAnalysisSlots)
+        {
+            if (slot.IsSpectralInspection) _ = RequestSpectralWindowAsync(slot, PositionSeconds);
+            else slot.Binding?.OnCursorPositionSelected(PositionSeconds, generation);
         }
     }
 

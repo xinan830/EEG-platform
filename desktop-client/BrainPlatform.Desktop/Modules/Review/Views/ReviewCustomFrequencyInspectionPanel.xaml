@@ -107,7 +107,14 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}" StatusText="">
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               MaximizeCommand="{Binding MaximizeCommand, FallbackValue={x:Null}}"
+                               MaximizeToolTip="{Binding MaximizeToolTip, FallbackValue=放大 / 还原}"
+                               IsMaximizeVisible="{Binding CanMaximize, FallbackValue=False}"
+                               IsMaximized="{Binding IsMaximized, FallbackValue=False}"
+                               CloseCommand="{Binding CloseAnalysisCommand}" StatusText="">
         <!-- 顶部工具栏胶囊区域 (复刻 HTML 的 .controls) -->
         <shared:AnalysisPanelShell.HeaderContent>
             <DockPanel LastChildFill="False" VerticalAlignment="Center">

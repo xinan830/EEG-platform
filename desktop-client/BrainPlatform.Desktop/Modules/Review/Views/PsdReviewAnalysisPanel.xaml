@@ -13,7 +13,13 @@
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </UserControl.Resources>
-    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}"
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}" CloseCommand="{Binding CloseAnalysisCommand}"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               MaximizeCommand="{Binding MaximizeCommand, FallbackValue={x:Null}}"
+                               MaximizeToolTip="{Binding MaximizeToolTip, FallbackValue=放大 / 还原}"
+                               IsMaximizeVisible="{Binding CanMaximize, FallbackValue=False}"
+                               IsMaximized="{Binding IsMaximized, FallbackValue=False}"
                                StatusText="{Binding AnalysisPreparationText}">
         <shared:AnalysisPanelShell.HeaderContent>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

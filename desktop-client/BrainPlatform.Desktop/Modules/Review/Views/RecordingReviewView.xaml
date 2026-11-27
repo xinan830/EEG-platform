@@ -26,6 +26,34 @@
             <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="SpectralValuesPanelTemplate"><analysis:ReviewSpectralValuesPanel /></DataTemplate>
             <DataTemplate x:Key="CustomFrequencyInspectionPanelTemplate"><analysis:ReviewCustomFrequencyInspectionPanel /></DataTemplate>
+            <Style x:Key="ReviewAnalysisPanelContentStyle" TargetType="ContentControl">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Rbp}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Psd}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource PsdPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Stft}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Tnk}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.SpectralValues}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource SpectralValuesPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.CustomFrequencyInspection}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource CustomFrequencyInspectionPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <DataTemplate x:Key="ReviewAnalysisCardTemplate">
+                <ContentControl Content="{Binding}" Style="{StaticResource ReviewAnalysisPanelContentStyle}" />
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -74,27 +102,49 @@
                             <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding Preprocessing.HasAnyActivePreprocessing}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
                         </controls:EegToolButton>
                         <controls:EegToolButton Content="RBP 算法" IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png" Command="{Binding OpenRbpAnalysisCommand}"
-                                                ToolTip="打开相对频段功率算法面板" />
+                                                ToolTip="打开相对频段功率算法面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsRbpSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="PSD" IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png" Command="{Binding OpenPsdAnalysisCommand}"
-                                                ToolTip="打开功率谱密度算法面板" />
+                                                ToolTip="打开功率谱密度算法面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsPsdSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="频段数值" Glyph="&#xE80A;" Command="{Binding OpenSpectralValuesCommand}"
-                                                ToolTip="按导联核查现有 PSD/RBP 结果数值" />
+                                                ToolTip="按导联核查现有 PSD/RBP 结果数值（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsSpectralValuesSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="自定义频段" Glyph="&#xE9D9;" Command="{Binding OpenCustomFrequencyInspectionCommand}"
-                                                ToolTip="核查单个频率或自定义范围的 PSD/RBP 数值" />
+                                                ToolTip="核查单个频率或自定义范围的 PSD/RBP 数值（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsCustomFrequencySlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="STFT 时频" IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png" Command="{Binding OpenStftAnalysisCommand}"
-                                                ToolTip="打开当前窗口的时频算法面板" />
+                                                ToolTip="打开当前窗口的时频算法面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsStftSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="FAA" IconSource="pack://application:,,,/Assets/AlgorithmIcons/faa.png" Command="{Binding OpenFaaAnalysisCommand}"
-                                                ToolTip="打开额叶 Alpha 不对称性面板" />
+                                                ToolTip="打开额叶 Alpha 不对称性面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsFaaSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="IAPF" IconSource="pack://application:,,,/Assets/AlgorithmIcons/iapf.png" Command="{Binding OpenIapfAnalysisCommand}"
-                                                ToolTip="打开个体 Alpha 峰频率面板" />
+                                                ToolTip="打开个体 Alpha 峰频率面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsIapfSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="Theta/Beta" IconSource="pack://application:,,,/Assets/AlgorithmIcons/theta-beta.png" Command="{Binding OpenThetaBetaAnalysisCommand}"
-                                                ToolTip="打开 Theta/Beta 比值面板" />
+                                                ToolTip="打开 Theta/Beta 比值面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsThetaBetaSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="脑节律" IconSource="pack://application:,,,/Assets/AlgorithmIcons/brainbeat.png" Command="{Binding OpenBrainbeatAnalysisCommand}"
-                                                ToolTip="打开脑节律指标面板" />
+                                                ToolTip="打开脑节律指标面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsBrainbeatSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="个体化 BrainBeat" Glyph="&#xE9D2;" Command="{Binding OpenIndividualizedBrainbeatAnalysisCommand}"
-                                                ToolTip="打开 IAPF 相对功率 BrainBeat 面板" />
+                                                ToolTip="打开 IAPF 相对功率 BrainBeat 面板（支持多算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsIndividualizedBrainbeatSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="TNK 指标组" Glyph="&#xE7C4;" Command="{Binding OpenTnkAnalysisCommand}"
-                                                ToolTip="打开 TNK 脑指标组面板" />
+                                                ToolTip="打开 TNK 脑指标组面板（支持与其他算法并行）">
+                            <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding IsTnkSlotOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                        </controls:EegToolButton>
                         <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />
                         <controls:EegToolButton Content="数据信息" Glyph="&#xE946;" Click="OnToggleDataInfoClick" ToolTip="查看记录与数据信息" />
                         <controls:EegToolButton Content="{Binding SignalExportButtonText}" Glyph="&#xE896;" Click="OnExportClick" ToolTip="导出整段原始脑电信号为 EDF/BDF；导出中可取消" />
@@ -232,44 +282,19 @@
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
-            <shared:AnalysisDockHost IsPanelOpen="{Binding IsAnalysisPanelOpen}"
-                                     IsPanelBelowWaveform="{Binding IsTnkAnalysisPanelOpen}"
-                                     PanelTitle="{Binding AnalysisPanelTitle}">
-                <shared:AnalysisDockHost.Waveform>
+            <shared:MultiAnalysisDockHost x:Name="ReviewAnalysisHost"
+                                          RightSlots="{Binding RightDockedAnalysisSlots}"
+                                          BottomSlots="{Binding BottomDockedAnalysisSlots}"
+                                          FloatingSlots="{Binding FloatingAnalysisSlots}"
+                                          PanelTemplate="{StaticResource ReviewAnalysisCardTemplate}"
+                                          FocusSlotCommand="{Binding FocusAnalysisSlotCommand}"
+                                          FloatingWindowClosedCommand="{Binding FloatingWindowClosedCommand}">
+                <shared:MultiAnalysisDockHost.Waveform>
                     <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas"
                         PreviewMouseWheel="OnWaveformMouseWheel"
                         ToolTip="滚轮：向下前进 1 秒，向上后退 1 秒" />
-                </shared:AnalysisDockHost.Waveform>
-                <shared:AnalysisDockHost.Panel>
-                    <ContentControl Content="{Binding}">
-                        <ContentControl.Style>
-                            <Style TargetType="ContentControl">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Rbp}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Psd}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource PsdPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Stft}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Tnk}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.SpectralValues}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource SpectralValuesPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.CustomFrequencyInspection}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource CustomFrequencyInspectionPanelTemplate}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ContentControl.Style>
-                    </ContentControl>
-                </shared:AnalysisDockHost.Panel>
-            </shared:AnalysisDockHost>
+                </shared:MultiAnalysisDockHost.Waveform>
+            </shared:MultiAnalysisDockHost>
         </views:EegWorkspaceShell.Waveform>
 
         <views:EegWorkspaceShell.Overlay>

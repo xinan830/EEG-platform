@@ -164,6 +164,11 @@ public partial class StftHeatmap : UserControl
             groups[^1].Add(index);
         }
 
+        if (double.IsFinite(renderedThroughSeconds) && columnIndexes[0] > 0 &&
+            Math.Abs(preview.TimesSeconds[columnIndexes[0] - 1] - renderedThroughSeconds) <= timeStep * 1e-6 &&
+            AreAdjacent(preview.TimesSeconds[columnIndexes[0] - 1], preview.TimesSeconds[columnIndexes[0]], timeStep))
+            groups[0].Insert(0, columnIndexes[0] - 1);
+
         foreach (var group in groups)
         {
             var height = preview.FrequenciesHz.Length;

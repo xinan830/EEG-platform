@@ -124,11 +124,20 @@ public partial class RecordingReviewView : UserControl
     {
         if (ReferenceEquals(subscribedPreprocessingViewModel, viewModel)) return;
         if (subscribedPreprocessingViewModel is not null)
+        {
             subscribedPreprocessingViewModel.OpenPreprocessingRequested -= OnOpenPreprocessingRequested;
+            subscribedPreprocessingViewModel.ActivateFloatingSlotRequested -= OnActivateFloatingSlotRequested;
+        }
         subscribedPreprocessingViewModel = viewModel;
         if (subscribedPreprocessingViewModel is not null)
+        {
             subscribedPreprocessingViewModel.OpenPreprocessingRequested += OnOpenPreprocessingRequested;
+            subscribedPreprocessingViewModel.ActivateFloatingSlotRequested += OnActivateFloatingSlotRequested;
+        }
     }
+
+    private void OnActivateFloatingSlotRequested(object? sender, BrainPlatform.Desktop.Modules.Review.Analysis.ReviewAnalysisCardViewModel slot) =>
+        ReviewAnalysisHost.ActivateFloatingPanel(slot);
 
     private void OnOpenPreprocessingRequested(object? sender, EventArgs e)
     {

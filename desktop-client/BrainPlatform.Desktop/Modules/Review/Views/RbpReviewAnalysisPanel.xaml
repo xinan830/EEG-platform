@@ -14,7 +14,13 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <shared:AnalysisPanelShell Title="" ToolTip="{Binding RbpAnalysis.WindowText}"
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}" ToolTip="{Binding RbpAnalysis.WindowText}"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               MaximizeCommand="{Binding MaximizeCommand, FallbackValue={x:Null}}"
+                               MaximizeToolTip="{Binding MaximizeToolTip, FallbackValue=放大 / 还原}"
+                               IsMaximizeVisible="{Binding CanMaximize, FallbackValue=False}"
+                               IsMaximized="{Binding IsMaximized, FallbackValue=False}"
                                CloseCommand="{Binding CloseAnalysisCommand}">
         <shared:AnalysisPanelShell.Style>
             <Style TargetType="{x:Type shared:AnalysisPanelShell}" BasedOn="{StaticResource {x:Type shared:AnalysisPanelShell}}">

@@ -61,3 +61,27 @@ def test_full_backlog_does_not_fill_global_interactive_queue(windows):
         repository.create_attempt(row.window_id, row.window_id, producer_mode="full")
     admitted = repository.create_attempt(rows[2].window_id, "interactive", max_active_attempts=1)
     assert admitted.producer_mode == "on_demand"
+
+
+def test_default_resource_policy_allows_concurrent_multi_algorithm_windows(tmp_path):
+    from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+
+    policy = DynamicWindowResourcePolicy()
+    database = tmp_path / "multi.sqlite3"
+    _recording(database)
+    repository = DynamicWindowRepository(database)
+    sessions = [
+        repository.ensure_session(_identity().model_copy(update={"algorithm_id": aid}), configuration={})
+        for aid in ("rbp", "psd", "stft", "faa", "iapf", "tnk_biofeedback")
+    ]
+    rows = [
+        repository.ensure_window(s.session_id, start_sample=0, end_sample=500, start_s=0.0, end_s=5.0)
+        for s in sessions
+    ]
+    for idx, row in enumerate(rows):
+        attempt = repository.create_attempt(
+            row.window_id, f"req-{idx}",
+            max_project_attempts=policy.max_project_attempts,
+            max_recording_attempts=policy.max_recording_attempts,
+        )
+        assert attempt.state == "queued"

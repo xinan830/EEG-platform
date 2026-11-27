@@ -7,8 +7,8 @@ from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
 
 @dataclass(frozen=True)
 class DynamicWindowResourcePolicy:
-    max_project_attempts: int = 8
-    max_recording_attempts: int = 4
+    max_project_attempts: int = 16
+    max_recording_attempts: int = 8
     max_preparation_bytes: int = 8 * 1024**3
     minimum_free_disk_bytes: int = 1024**3
     max_artifact_directory_bytes: int = 2 * 1024**3

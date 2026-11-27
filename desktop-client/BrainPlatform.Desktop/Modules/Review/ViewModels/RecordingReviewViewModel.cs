@@ -27,8 +27,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private readonly OperationNotificationCenter? notifications;
     private readonly IReadOnlyDictionary<string, ReviewAnalysisCoordinator> analysisCoordinators;
     private readonly IReadOnlyDictionary<string, ReviewAlgorithmPanelRegistration> analysisPanels;
-    private ReviewAnalysisCoordinator? analysisCoordinator;
-    private ReviewAnalysisBinding? analysisBinding;
+    private readonly IAlgorithmClient? analysisAlgorithmClient;
     private readonly LatestDelayedTask filterUpdater = new();
     private double highPassHz = 1;
     private double lowPassHz = 30;
@@ -39,9 +38,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private double viewportStartSeconds;
     private RecordingReviewFrame? publishedFrame;
     private double publishedVisibleDuration;
-    private string analysisPreparationText = "算法未准备。";
-    private string? activeAnalysisId;
-    private double analysisPanelStartSeconds;
     private readonly string? analysisRecordingDirectory;
     private RegisteredRecording? analysisRecording;
     private readonly CancellationTokenSource analysisLifetime = new();
@@ -61,8 +57,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public ReviewScalarAnalysisViewModel IapfAnalysis { get; } = new("Hz", ReviewScalarProjectors.Iapf);
     public ReviewScalarAnalysisViewModel ThetaBetaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.ThetaBeta);
     public ReviewScalarAnalysisViewModel BrainbeatAnalysis { get; } = new("ratio", ReviewScalarProjectors.Brainbeat);
-    private long analysisConfigurationRevision;
-    private bool isAnalysisStale;
+    public ReviewScalarAnalysisViewModel IndividualizedBrainbeatAnalysis { get; } = new("ratio", ReviewScalarProjectors.Brainbeat);
 
     public RecordingReviewViewModel(
         IRecordingAccessSession reader,
@@ -114,13 +109,13 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
         this.notifications = notifications;
+        analysisAlgorithmClient = algorithmClient;
         analysisPanels = ReviewAlgorithmPanels.Create(this, montageSelection);
         this.analysisCoordinators = analysisCoordinators is not null
             ? analysisCoordinators.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal)
             : algorithmClient is null ? new Dictionary<string, ReviewAnalysisCoordinator>()
             : analysisPanels.Values.ToDictionary(item => item.AlgorithmId,
                 item => item.CreateCoordinator(algorithmClient), StringComparer.Ordinal);
-        analysisCoordinator = this.analysisCoordinators.Values.FirstOrDefault();
         analysisRecordingDirectory = recordingDirectory;
         analysisRecording = registeredAnalysisRecording;
         this.signalExportClient = signalExportClient ?? algorithmClient as BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient;
@@ -169,12 +164,9 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public System.Windows.Input.ICommand CloseAnalysisCommand { get; }
 
-    public bool IsAnalysisPanelOpen => activeAnalysisId is not null;
-    public ReviewAlgorithmPanelRegistration? ActiveAnalysisPanel => activeAnalysisId is { } id &&
-        analysisPanels.TryGetValue(id, out var panel) ? panel : null;
-    public ReviewAnalysisPanelKind? ActiveAnalysisPanelKind => IsCustomFrequencyInspectionPanelOpen
-        ? ReviewAnalysisPanelKind.CustomFrequencyInspection
-        : IsSpectralValuesPanelOpen ? ReviewAnalysisPanelKind.SpectralValues : ActiveAnalysisPanel?.PanelKind;
+    public bool IsAnalysisPanelOpen => OpenAnalysisSlots.Count > 0;
+    public ReviewAlgorithmPanelRegistration? ActiveAnalysisPanel => ActiveAnalysisSlot?.Registration;
+    public ReviewAnalysisPanelKind? ActiveAnalysisPanelKind => ActiveAnalysisSlot?.PanelKind;
     public bool IsRbpAnalysisPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.Rbp;
     public bool IsPsdAnalysisPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.Psd;
     public bool IsStftAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Stft;
@@ -183,17 +175,20 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public bool IsIapfAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId == "iapf";
     public bool IsThetaBetaAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId == "theta_beta";
     public bool IsBrainbeatAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId is "brainbeat" or "brainbeat_individualized";
-    public ReviewScalarParameters? ActiveScalarParameters => ActiveAnalysisPanel?.Configuration as ReviewScalarParameters;
-    public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Scalar
-        ? ActiveAnalysisPanel.Presentation as ReviewScalarAnalysisViewModel : null;
-    public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat" or "brainbeat_individualized";
-    public string AnalysisPanelTitle => IsCustomFrequencyInspectionPanelOpen ? "自定义频段" :
-        IsSpectralValuesPanelOpen ? "频段数值核查" : ActiveAnalysisPanel?.DisplayName ?? "算法分析";
+    public ReviewScalarParameters? ActiveScalarParameters => ActiveAnalysisSlot?.ActiveScalarParameters;
+    public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => ActiveAnalysisSlot?.ActiveScalarAnalysis;
+    public bool HasSecondaryScalarChannel => ActiveAnalysisSlot?.HasSecondaryScalarChannel == true;
+    public string AnalysisPanelTitle => ActiveAnalysisSlot?.DisplayName ?? "算法分析";
 
     public string AnalysisPreparationText
     {
-        get => analysisPreparationText;
-        private set => SetProperty(ref analysisPreparationText, value);
+        get => ActiveAnalysisSlot?.AnalysisPreparationText ?? fallbackAnalysisPreparationText;
+        private set
+        {
+            if (ActiveAnalysisSlot is { } slot) slot.AnalysisPreparationText = value;
+            else fallbackAnalysisPreparationText = value;
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
+        }
     }
 
     public bool CanEditSelectedEvent => SelectedRecordingEvent is { Source: EventSource.ManualButton or EventSource.KeyboardShortcut };
@@ -217,7 +212,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public double PositionSeconds => playback.PositionSeconds;
 
-    public double AnalysisPanelStartSeconds => analysisPanelStartSeconds;
+    public double AnalysisPanelStartSeconds => ActiveAnalysisSlot?.AnalysisPanelStartSeconds ?? fallbackAnalysisPanelStartSeconds;
 
     public Guid ReviewSessionId => session.ReviewSessionId;
 
@@ -252,22 +247,22 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public string StatusText => session.StatusText;
 
-    public WindowPreviewResponse? CurrentAnalysisWindow => isAnalysisStale ? null : analysisBinding?.CurrentWindow;
+    public WindowPreviewResponse? CurrentAnalysisWindow => ActiveAnalysisSlot?.CurrentWindow;
 
     /// <summary>Requested cursor and displayed backend window are intentionally separate.</summary>
-    public long TargetAnalysisCursorSample => analysisBinding?.TargetCursorSample ?? -1;
+    public long TargetAnalysisCursorSample => ActiveAnalysisSlot?.TargetAnalysisCursorSample ?? -1;
 
-    public long? DisplayedAnalysisCursorSample => isAnalysisStale ? null : analysisBinding?.DisplayedCursorSample;
+    public long? DisplayedAnalysisCursorSample => ActiveAnalysisSlot?.DisplayedAnalysisCursorSample;
 
-    public string AnalysisWindowState => isAnalysisStale ? "stale" : analysisBinding?.DisplayedWindowStatus ?? "none";
+    public string AnalysisWindowState => ActiveAnalysisSlot?.AnalysisWindowState ?? "none";
 
-    public bool IsAnalysisTargetDisplayed => !isAnalysisStale && analysisBinding?.IsTargetDisplayed == true;
+    public bool IsAnalysisTargetDisplayed => ActiveAnalysisSlot?.IsAnalysisTargetDisplayed == true;
 
-    public bool IsAnalysisLoading => analysisBinding?.IsLoading ?? false;
+    public bool IsAnalysisLoading => ActiveAnalysisSlot?.IsAnalysisLoading == true;
 
-    public string AnalysisStatusText => isAnalysisStale ? "参数已改变，等待自动分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
+    public string AnalysisStatusText => ActiveAnalysisSlot?.AnalysisStatusText ?? "未绑定分析结果。";
 
-    public bool IsAnalysisAttached => analysisBinding?.RunId is not null || analysisBinding?.IsOnDemandAttached == true;
+    public bool IsAnalysisAttached => ActiveAnalysisSlot?.IsAnalysisAttached == true;
 
     public ReviewPreparationState PreparationState => session.PreparationState;
 
@@ -427,7 +422,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         CancelEventPlacement();
         playback.Pause();
         analysisLifetime.Cancel();
-        analysisPreparation?.Cancel();
+        foreach (var openSlot in OpenAnalysisSlots.ToArray()) openSlot.PreparationCancellation?.Cancel();
         analysisUpdater.Dispose();
         DisposePreprocessing();
         CustomFrequencyInspection.PropertyChanged -= OnCustomFrequencyInspectionChanged;
@@ -438,9 +433,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         filterUpdater.Dispose();
         displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
         session.Changed -= OnSessionChanged;
-        await analysisPreparationGate.WaitAsync();
-        try { await DetachAnalysisAsync(); }
-        finally { analysisPreparationGate.Release(); }
+        await DetachAnalysisAsync();
         await session.DisposeAsync();
         temporaryWaveformMontage = null;
         if (ownsPlayback) playback.Dispose();
@@ -481,6 +474,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RaisePropertyChanged(nameof(PreparationState));
         RaisePropertyChanged(nameof(PreparationProgress));
         TnkAnalysis.SetCursor(PositionSeconds);
+        NotifyOpenSlotsPositionChanged();
     }
 
 
@@ -490,6 +484,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         if (wasPlaying != IsPlaying) RaisePropertyChanged(nameof(IsPlaying));
         if (wasCompleted != IsCompleted) RaisePropertyChanged(nameof(IsCompleted));
         TnkAnalysis.SetCursor(PositionSeconds);
+        NotifyOpenSlotsPositionChanged();
     }
 
     private void ScheduleFilterUpdate()

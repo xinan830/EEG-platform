@@ -30,8 +30,7 @@ public sealed class RecordingReviewQueuedTargetTests
         var binding = new ReviewAnalysisBinding(coordinator, "recording", reader.Manifest.SamplingRateHz,
             checked((long)(reader.DurationSeconds * reader.Manifest.SamplingRateHz)));
         binding.AttachRun("run");
-        typeof(RecordingReviewViewModel).GetField("analysisBinding", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(vm, binding);
+        vm.AttachBindingForTest(coordinator, binding);
 
         vm.BeginTimelineDrag();
         vm.PreviewSeek(105);

@@ -66,7 +66,7 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnPreprocessingConfigurationChanged(object? sender, EventArgs e)
     {
-        if (activeAnalysisId is not null)
+        if (OpenAnalysisSlots.Count > 0)
             InvalidateAnalysisConfiguration();
     }
 

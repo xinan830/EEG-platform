@@ -12,7 +12,10 @@
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </UserControl.Resources>
-    <shared:AnalysisPanelShell Title="" Padding="6,4" CloseCommand="{Binding CloseAnalysisCommand}">
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}" Padding="6,4"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               CloseCommand="{Binding CloseAnalysisCommand}">
         <shared:AnalysisPanelShell.HeaderContent>
             <ItemsControl x:Name="ChannelSelectors" ItemsSource="{Binding TnkParameters.Roles}">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="5" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>

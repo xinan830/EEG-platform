@@ -16,21 +16,22 @@ public sealed partial class RecordingReviewViewModel
     private Action<TnkPlaybackGap>? tnkGapHandler;
     private long tnkSubscriptionRevision;
 
-    private void SubscribeTnkPlaybackEvents(ReviewAnalysisCoordinator coordinator)
+    private void SubscribeTnkPlaybackEvents(ReviewAnalysisCardViewModel slot)
     {
         UnsubscribeTnkPlaybackEvents();
+        var coordinator = slot.Coordinator;
         if (coordinator.AlgorithmId != "tnk_biofeedback" ||
             coordinator.GetCapability<IReviewTnkPlaybackEvents>() is not { } eventSource) return;
         tnkEventCoordinator = coordinator;
         tnkEventSource = eventSource;
-        var revision = analysisConfigurationRevision;
+        var revision = slot.ConfigurationRevision;
         tnkSubscriptionRevision = revision;
         tnkWindowHandler = response =>
         {
             var dispatchStarted = Stopwatch.GetTimestamp();
             DispatchTnkEvent(() =>
             {
-                var reason = !IsCurrentTnkSubscription(coordinator, revision) ? "stale_subscription"
+                var reason = !IsCurrentTnkSubscription(slot, coordinator, revision) ? "stale_subscription"
                     : !eventSource.IsCurrent(response) ? "stale_delivery"
                     : response.Identity is not { ValueKind: System.Text.Json.JsonValueKind.Object } identity ? "missing_identity"
                     : !identity.TryGetProperty("recording_id", out var id) || id.GetString() != analysisRecording?.Id
@@ -46,21 +47,23 @@ public sealed partial class RecordingReviewViewModel
                     DesktopLog.Warning($"review_tnk_frame_ui_dropped reason={reason}{context}");
                     return;
                 }
-                var added = TnkAnalysis.Apply(response, AnalysisPanelStartSeconds);
+                var added = TnkAnalysis.Apply(response, slot.AnalysisPanelStartSeconds);
                 DesktopLog.Info($"review_tnk_frame_ui_applied history_added={added}{context}");
             });
         };
         tnkGapHandler = gap => DispatchTnkEvent(() =>
         {
-            if (IsCurrentTnkSubscription(coordinator, revision) && eventSource.IsCurrent(gap))
-                TnkAnalysis.AddGap(gap, AnalysisPanelStartSeconds);
+            if (IsCurrentTnkSubscription(slot, coordinator, revision) && eventSource.IsCurrent(gap))
+                TnkAnalysis.AddGap(gap, slot.AnalysisPanelStartSeconds);
         });
         eventSource.WindowCompleted += tnkWindowHandler;
         eventSource.GapReported += tnkGapHandler;
     }
 
-    private void UnsubscribeTnkPlaybackEvents()
+    private void UnsubscribeTnkPlaybackEvents(ReviewAnalysisCardViewModel? slot = null)
     {
+        if (slot is not null && tnkEventCoordinator is not null && !ReferenceEquals(tnkEventCoordinator, slot.Coordinator))
+            return;
         if (tnkEventCoordinator is not null)
         {
             if (tnkEventSource is not null && tnkWindowHandler is not null)
@@ -74,10 +77,10 @@ public sealed partial class RecordingReviewViewModel
         tnkGapHandler = null;
     }
 
-    private bool IsCurrentTnkSubscription(ReviewAnalysisCoordinator coordinator, long revision) =>
-        ReferenceEquals(tnkEventCoordinator, coordinator) && ReferenceEquals(analysisCoordinator, coordinator) &&
-        activeAnalysisId == "tnk_biofeedback" && tnkSubscriptionRevision == revision &&
-        revision == analysisConfigurationRevision;
+    private bool IsCurrentTnkSubscription(ReviewAnalysisCardViewModel slot, ReviewAnalysisCoordinator coordinator, long revision) =>
+        !slot.IsClosed && ReferenceEquals(tnkEventCoordinator, coordinator) &&
+        ReferenceEquals(slot.Coordinator, coordinator) && tnkSubscriptionRevision == revision &&
+        revision == slot.ConfigurationRevision;
 
     private static void DispatchTnkEvent(Action action)
     {

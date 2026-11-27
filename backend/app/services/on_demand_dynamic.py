@@ -73,7 +73,7 @@ class DynamicWindowService:
         self._logger = logging.getLogger("brain_platform.dynamic_window")
         self._artifact_store = DynamicWindowArtifactStore(self.artifacts_dir, self.repository)
         self._artifact_store.cleanup()
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dynamic-window")
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="dynamic-window")
         self._lock = threading.RLock()
         self._pending: dict[str, Any] = {}
         self.playback_delivery = TnkPlaybackDeliveryService(self.repository, self._logger)

@@ -17,14 +17,14 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnPsdPresentationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (activeAnalysisId != "psd") return;
+        if (GetOpenSlot("psd") is not { } psdSlot) return;
         if (e.PropertyName == nameof(PsdReviewAnalysisViewModel.SelectedChannel))
-            PsdAnalysis.Apply(CurrentAnalysisWindow);
+            PsdAnalysis.Apply(psdSlot.CurrentWindow);
         if (e.PropertyName is nameof(PsdReviewAnalysisViewModel.SelectedView) or
             nameof(PsdReviewAnalysisViewModel.SelectedTopomapBandId))
         {
-            if (PsdAnalysis.IsTopomapSelected) _ = RefreshPsdTopomapAsync();
-            else CancelTopomapRequest();
+            if (PsdAnalysis.IsTopomapSelected) _ = RefreshPsdTopomapAsync(psdSlot);
+            else CancelTopomapRequest(psdSlot);
         }
     }
 }

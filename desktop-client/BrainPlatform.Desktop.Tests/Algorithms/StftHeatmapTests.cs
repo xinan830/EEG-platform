@@ -85,7 +85,10 @@ public sealed class StftHeatmapTests
                     .Where(segment => !ReferenceEquals(segment, oldSegment))
                     .ToArray();
                 Assert.NotEmpty(newSegments);
-                Assert.All(newSegments, segment => Assert.Equal(4, segment.DataSeries!.Count));
+                var appendedData = Assert.IsType<NonUniformHeatmapDataSeries<double, double, double>>(Assert.Single(newSegments).DataSeries);
+                Assert.Equal(6, appendedData.Count);
+                Assert.Equal(1.5, appendedData.XMin);
+                Assert.Equal(4.5, appendedData.XMax);
             }
             catch (Exception exception) { failure = exception; }
         });

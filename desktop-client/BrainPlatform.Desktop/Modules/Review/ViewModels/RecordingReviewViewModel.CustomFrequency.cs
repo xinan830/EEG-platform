@@ -20,7 +20,7 @@ public sealed partial class RecordingReviewViewModel
 
     public ReviewCustomFrequencyInspectionViewModel CustomFrequencyInspection { get; } = new();
     public ICommand OpenCustomFrequencyInspectionCommand { get; private set; } = null!;
-    public bool IsCustomFrequencyInspectionPanelOpen => activeAnalysisId == CustomFrequencyInspectionPanelId;
+    public bool IsCustomFrequencyInspectionPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.CustomFrequencyInspection;
 
     private void InitializeCustomFrequencyInspection()
     {
@@ -31,22 +31,29 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnCustomFrequencyInspectionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (!IsCustomFrequencyInspectionPanelOpen) return;
+        if (!IsCustomFrequencySlotOpen) return;
         if (e.PropertyName is nameof(ReviewCustomFrequencyInspectionViewModel.RangeLowHz) or
             nameof(ReviewCustomFrequencyInspectionViewModel.RangeHighHz) or
             nameof(ReviewCustomFrequencyInspectionViewModel.Mode))
             _ = ScheduleCustomFrequencyRangeProjection();
     }
 
-    private async Task RefreshCustomFrequencyInspectionAsync()
+    private void ClearCustomFrequencySlot(ReviewAnalysisCardViewModel slot)
     {
-        if (!IsCustomFrequencyInspectionPanelOpen) return;
-        var psd = analysisBinding?.CurrentWindow;
-        var rbp = spectralRbpBinding?.CurrentWindow;
+        CancelSpectralWindowLoad(slot);
+        CancelCustomFrequencyProjection();
+        CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
+    }
+
+    private async Task RefreshCustomFrequencyInspectionAsync(ReviewAnalysisCardViewModel slot)
+    {
+        if (slot.IsClosed || slot.AlgorithmId != CustomFrequencyInspectionPanelId) return;
+        var psd = slot.Binding?.CurrentWindow;
+        var rbp = slot.SpectralRbpBinding?.CurrentWindow;
         if (isTimelineDragging || psd is null || rbp is null)
         {
             CancelCustomFrequencyProjection();
-            CustomFrequencyInspection.Clear($"PSD：{analysisBinding?.StatusText ?? "准备中"}；RBP：{spectralRbpBinding?.StatusText ?? "准备中"}");
+            CustomFrequencyInspection.Clear($"PSD：{slot.Binding?.StatusText ?? "准备中"}；RBP：{slot.SpectralRbpBinding?.StatusText ?? "准备中"}");
             return;
         }
         if (ReferenceEquals(psd, customFrequencyPsdWindow) &&
@@ -65,9 +72,9 @@ public sealed partial class RecordingReviewViewModel
             ReviewSpectralSources.Validate(psd, rbp, PsdParameters.Channels);
             if (CustomFrequencyInspection.HasBins) CustomFrequencyInspection.SetPendingWindow(psd.CursorSeconds);
             else CustomFrequencyInspection.Clear("正在读取当前 PSD/RBP 频率网格…");
-            var provider = analysisCoordinators["psd"].GetCapability<IReviewCustomFrequencyProvider>() ??
+            var provider = slot.Coordinator.GetCapability<IReviewCustomFrequencyProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供自定义频率投影。");
-            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            var prepared = CurrentPreparedSpectralWindow(slot, psd, rbp);
             if (prepared is { Bins: null, ProjectionError: { } error }) throw error;
             var fetchStarted = Stopwatch.GetTimestamp();
             var (values, completedAt) = await AlgorithmWindowPerformanceDiagnostics.WithCompletionTimeAsync(
@@ -105,7 +112,7 @@ public sealed partial class RecordingReviewViewModel
     private Task ScheduleCustomFrequencyRangeProjection(bool debounce = true)
     {
         CancelCustomFrequencyRangeProjection();
-        if (!IsCustomFrequencyInspectionPanelOpen ||
+        if (!IsCustomFrequencySlotOpen ||
             CustomFrequencyInspection.Mode != ReviewCustomFrequencyMode.Range ||
             !CustomFrequencyInspection.HasBins || customFrequencyBinsLoading) return Task.CompletedTask;
         if (!CustomFrequencyInspection.IsRangeValid)
@@ -134,9 +141,11 @@ public sealed partial class RecordingReviewViewModel
         {
             CustomFrequencyInspection.ClearRangeProjection("正在投影当前自定义范围…");
             if (debounce) await Task.Delay(180, request.Token);
-            var provider = analysisCoordinators["psd"].GetCapability<IReviewCustomFrequencyProvider>() ??
+            var customSlot = GetOpenSlot(CustomFrequencyInspectionPanelId)
+                ?? throw new InvalidOperationException("自定义频段面板未打开。");
+            var provider = customSlot.Coordinator.GetCapability<IReviewCustomFrequencyProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供自定义频率投影。");
-            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            var prepared = CurrentPreparedSpectralWindow(customSlot, psd, rbp);
             var matchesRange = prepared?.RangeLowHz == lowHz && prepared?.RangeHighHz == highHz;
             if (matchesRange && prepared?.ProjectionError is { } error) throw error;
             var fetchStarted = Stopwatch.GetTimestamp();
@@ -167,7 +176,7 @@ public sealed partial class RecordingReviewViewModel
     }
 
     private bool IsCurrentCustomFrequencyWindow(long revision, WindowPreviewResponse psd, WindowPreviewResponse rbp) =>
-        IsCustomFrequencyInspectionPanelOpen && !isTimelineDragging && revision == customFrequencyWindowRevision &&
+        IsCustomFrequencySlotOpen && !isTimelineDragging && revision == customFrequencyWindowRevision &&
         ReferenceEquals(psd, customFrequencyPsdWindow) && ReferenceEquals(rbp, customFrequencyRbpWindow);
 
     private bool IsCurrentCustomFrequencyRange(long windowRevision, long rangeRevision,

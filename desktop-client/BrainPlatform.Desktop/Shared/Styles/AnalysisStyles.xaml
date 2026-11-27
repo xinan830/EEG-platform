@@ -62,8 +62,14 @@
                                                   Content="{TemplateBinding HeaderContent}"
                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Button x:Name="PART_MaximizeButton" Style="{DynamicResource ToolbarGearButtonStyle}"
+                                            Command="{TemplateBinding MaximizeCommand}"
+                                            ToolTip="{TemplateBinding MaximizeToolTip}" AutomationProperties.Name="放大或还原"
+                                            Visibility="Collapsed" Margin="0,0,6,0">
+                                        <TextBlock x:Name="PART_MaximizeGlyph" FontFamily="Segoe MDL2 Assets" Text="&#xE740;" FontSize="13" />
+                                    </Button>
                                     <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
-                                            ToolTip="停靠 / 分离" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
+                                            ToolTip="{TemplateBinding DockToolTip}" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
                                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
                                     </Button>
                                     <Button Style="{DynamicResource ModernCloseCrossButtonStyle}" Command="{TemplateBinding CloseCommand}"
@@ -86,6 +92,12 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMaximizeVisible" Value="True">
+                            <Setter TargetName="PART_MaximizeButton" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMaximized" Value="True">
+                            <Setter TargetName="PART_MaximizeGlyph" Property="Text" Value="&#xE73F;" />
+                        </Trigger>
                         <Trigger Property="Parameters" Value="{x:Null}">
                             <Setter TargetName="PART_Parameters" Property="Visibility" Value="Collapsed" />
                         </Trigger>

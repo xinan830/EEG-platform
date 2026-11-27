@@ -125,7 +125,14 @@
     </UserControl.Resources>
 
     <!-- StatusText 留空以消除横在头部正中间的冗长灰色系统字 -->
-    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}" StatusText="">
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               MaximizeCommand="{Binding MaximizeCommand, FallbackValue={x:Null}}"
+                               MaximizeToolTip="{Binding MaximizeToolTip, FallbackValue=放大 / 还原}"
+                               IsMaximizeVisible="{Binding CanMaximize, FallbackValue=False}"
+                               IsMaximized="{Binding IsMaximized, FallbackValue=False}"
+                               CloseCommand="{Binding CloseAnalysisCommand}" StatusText="">
         <!-- 精致紧凑的头部工具栏：标题 + 频段切换 + 窗口信息胶囊 -->
         <shared:AnalysisPanelShell.HeaderContent>
             <DockPanel LastChildFill="False" VerticalAlignment="Center">

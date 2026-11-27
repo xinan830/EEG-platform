@@ -6,28 +6,26 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
 public sealed partial class RecordingReviewViewModel
 {
-    private ReviewPlaybackBuffer<ReviewPreparedSpectralWindow>? spectralPlaybackBuffer;
-    private ReviewPreparedSpectralWindow? preparedSpectralWindow;
-    private bool spectralSourcesLoading;
-
     private long SpectralStepSamples => Math.Max(1, (long)Math.Round(
         PsdParameters.StepSeconds * samplingRateHz, MidpointRounding.AwayFromZero));
 
-    private void PrepareUpcomingSpectralWindows()
+    private void PrepareUpcomingSpectralWindows(ReviewAnalysisCardViewModel slot)
     {
-        if (!playback.IsPlaying || !IsSpectralInspectionPanelOpen || isTimelineDragging ||
-            isDisposing || spectralSourcesLoading || analysisBinding?.CurrentWindow is null ||
-            spectralRbpBinding?.CurrentWindow is null) return;
-        spectralPlaybackBuffer ??= new ReviewPlaybackBuffer<ReviewPreparedSpectralWindow>(PrepareSpectralWindowAsync, analysisLifetime.Token);
+        if (!playback.IsPlaying || !slot.IsSpectralInspection || slot.IsClosed || isTimelineDragging ||
+            isDisposing || slot.SpectralSourcesLoading || slot.Binding?.CurrentWindow is null ||
+            slot.SpectralRbpBinding?.CurrentWindow is null) return;
+        slot.SpectralPlaybackBuffer ??= new ReviewPlaybackBuffer<ReviewPreparedSpectralWindow>(
+            (sample, token) => PrepareSpectralWindowAsync(slot, sample, token), analysisLifetime.Token);
         var sample = RecordingTimeMapper.ToCursorSample(PositionSeconds, samplingRateHz, playback.DurationSamples);
-        spectralPlaybackBuffer.Advance(sample, SpectralStepSamples, playback.DurationSamples);
+        slot.SpectralPlaybackBuffer.Advance(sample, SpectralStepSamples, playback.DurationSamples);
     }
 
-    private async Task<ReviewPreparedSpectralWindow> PrepareSpectralWindowAsync(long sample, CancellationToken token)
+    private async Task<ReviewPreparedSpectralWindow> PrepareSpectralWindowAsync(
+        ReviewAnalysisCardViewModel slot, long sample, CancellationToken token)
     {
-        var psdBinding = analysisBinding ?? throw new InvalidOperationException("PSD 未绑定。");
-        var rbpBinding = spectralRbpBinding ?? throw new InvalidOperationException("RBP 未绑定。");
-        var custom = IsCustomFrequencyInspectionPanelOpen;
+        var psdBinding = slot.Binding ?? throw new InvalidOperationException("PSD 未绑定。");
+        var rbpBinding = slot.SpectralRbpBinding ?? throw new InvalidOperationException("RBP 未绑定。");
+        var custom = slot.AlgorithmId == CustomFrequencyInspectionPanelId;
         var range = custom && CustomFrequencyInspection.Mode == ReviewCustomFrequencyMode.Range &&
             CustomFrequencyInspection.IsRangeValid;
         var low = CustomFrequencyInspection.RangeLowHz;
@@ -45,7 +43,7 @@ public sealed partial class RecordingReviewViewModel
             ReviewSpectralSources.Validate(result.Psd, result.Rbp, PsdParameters.Channels);
             if (custom)
             {
-                var provider = analysisCoordinators["psd"].GetCapability<IReviewCustomFrequencyProvider>() ??
+                var provider = slot.Coordinator.GetCapability<IReviewCustomFrequencyProvider>() ??
                     throw new InvalidOperationException("PSD adapter 不提供自定义频率投影。");
                 result = result with { Bins = await provider.LoadBinsAsync(result.Psd, result.Rbp, token) };
                 if (range) result = result with
@@ -55,7 +53,7 @@ public sealed partial class RecordingReviewViewModel
             }
             else
             {
-                var psdProvider = analysisCoordinators["psd"].GetCapability<IReviewScalarProvider>() ??
+                var psdProvider = slot.Coordinator.GetCapability<IReviewScalarProvider>() ??
                     throw new InvalidOperationException("PSD adapter 不提供频段投影。");
                 var rbpProvider = analysisCoordinators["rbp"].GetCapability<IReviewScalarProvider>() ??
                     throw new InvalidOperationException("RBP adapter 不提供振幅投影。");
@@ -78,15 +76,16 @@ public sealed partial class RecordingReviewViewModel
         return result;
     }
 
-    private ReviewPreparedSpectralWindow? CurrentPreparedSpectralWindow(
+    private static ReviewPreparedSpectralWindow? CurrentPreparedSpectralWindow(
+        ReviewAnalysisCardViewModel slot,
         BrainPlatform.Desktop.Modules.Algorithms.Contracts.WindowPreviewResponse psd,
         BrainPlatform.Desktop.Modules.Algorithms.Contracts.WindowPreviewResponse rbp) =>
-        preparedSpectralWindow is { } prepared && ReferenceEquals(prepared.Psd, psd) &&
+        slot.PreparedSpectralWindow is { } prepared && ReferenceEquals(prepared.Psd, psd) &&
         ReferenceEquals(prepared.Rbp, rbp) ? prepared : null;
 
-    private void StopSpectralPreparation()
+    private static void StopSpectralPreparation(ReviewAnalysisCardViewModel slot)
     {
-        spectralPlaybackBuffer?.Dispose();
-        spectralPlaybackBuffer = null;
+        slot.SpectralPlaybackBuffer?.Dispose();
+        slot.SpectralPlaybackBuffer = null;
     }
 }

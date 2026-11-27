@@ -20,6 +20,12 @@ public sealed class ReviewAnalysisCoordinator
         this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
     }
 
+    internal ReviewAnalysisCoordinator CloneForSlot() => provider is not null
+        ? new ReviewAnalysisCoordinator(provider)
+        : loadWindow is not null
+            ? new ReviewAnalysisCoordinator(loadWindow)
+            : throw new InvalidOperationException("当前分析协调器无法复制。");
+
     internal TCapability? GetCapability<TCapability>() where TCapability : class => provider as TCapability;
 
     public ReviewAnalysisContext? Context { get; private set; }

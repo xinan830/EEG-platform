@@ -4,12 +4,11 @@ using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
-/// <summary>Pairs the existing PSD/RBP adapters on the single review clock.</summary>
+/// <summary>Pairs the existing PSD/RBP adapters per spectral inspection card.</summary>
 public sealed partial class RecordingReviewViewModel
 {
     private const string SpectralValuesPanelId = "spectral-values";
     private const string CustomFrequencyInspectionPanelId = "custom-frequency-inspection";
-    private ReviewAnalysisBinding? spectralRbpBinding;
     private CancellationTokenSource? spectralProjectionCancellation;
     private long spectralProjectionRevision;
     private WindowPreviewResponse? projectedPsdWindow;
@@ -17,18 +16,18 @@ public sealed partial class RecordingReviewViewModel
 
     public ReviewSpectralValuesViewModel SpectralValues { get; } = new();
     public System.Windows.Input.ICommand OpenSpectralValuesCommand { get; private set; } = null!;
-    public bool IsSpectralValuesPanelOpen => activeAnalysisId == SpectralValuesPanelId;
+    public bool IsSpectralValuesPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.SpectralValues;
     public bool IsSpectralInspectionPanelOpen => IsSpectralValuesPanelOpen || IsCustomFrequencyInspectionPanelOpen;
 
     private void InitializeSpectralValues() => OpenSpectralValuesCommand =
         new AsyncRelayCommand(() => OpenAnalysisAsync(SpectralValuesPanelId), ReportCommandError);
 
-    private void AttachSpectralRbp(AlgorithmCatalogItem algorithm,
+    private void AttachSpectralRbp(ReviewAnalysisCardViewModel slot, AlgorithmCatalogItem algorithm,
         WorkspaceMontageSelectionSnapshot<MontageProfile> selection, HistoricalMontageDescriptor? montage)
     {
         var recording = analysisRecording!;
-        SpectralValues.InitializeChannels(PsdParameters.Channels);
-        CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
+        if (slot.AlgorithmId == SpectralValuesPanelId) SpectralValues.InitializeChannels(PsdParameters.Channels);
+        if (slot.AlgorithmId == CustomFrequencyInspectionPanelId) CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
         var config = analysisPanels["rbp"].BuildConfigurationForSelection(
             recording.DurationSeconds ?? DurationSeconds, recording.SamplingRateHz ?? samplingRateHz, selection, montage);
         config = AttachActivePreprocessing(config, algorithm);
@@ -36,20 +35,22 @@ public sealed partial class RecordingReviewViewModel
             throw new InvalidOperationException("现有 PSD/RBP 目录窗口设置不一致，不能合并数值。");
         if (!RbpParameters.ResolveAnalysisChannels(montage).SequenceEqual(PsdParameters.Channels, StringComparer.Ordinal))
             throw new InvalidOperationException("现有 PSD/RBP 导联顺序不一致，不能合并数值。");
-        spectralRbpBinding = new ReviewAnalysisBinding(analysisCoordinators["rbp"], recording.Id,
+        var rbpCoordinator = CreateSlotCoordinator("rbp");
+        var rbpBinding = new ReviewAnalysisBinding(rbpCoordinator, recording.Id,
             samplingRateHz, playback.DurationSamples, recording);
-        spectralRbpBinding.AttachOnDemand(new AnalysisRunRequest(recording.Id, "official_algorithm", config), algorithm);
+        slot.SpectralRbpBinding = rbpBinding;
+        rbpBinding.AttachOnDemand(new AnalysisRunRequest(recording.Id, "official_algorithm", config), algorithm);
     }
 
-    private async Task RefreshSpectralValuesAsync()
+    private async Task RefreshSpectralValuesAsync(ReviewAnalysisCardViewModel slot)
     {
-        if (!IsSpectralValuesPanelOpen) return;
-        var psd = analysisBinding?.CurrentWindow;
-        var rbp = spectralRbpBinding?.CurrentWindow;
+        if (slot.IsClosed || slot.AlgorithmId != SpectralValuesPanelId) return;
+        var psd = slot.Binding?.CurrentWindow;
+        var rbp = slot.SpectralRbpBinding?.CurrentWindow;
         if (isTimelineDragging || psd is null || rbp is null)
         {
             CancelSpectralProjection();
-            SpectralValues.Clear($"PSD：{analysisBinding?.StatusText ?? "准备中"}；RBP：{spectralRbpBinding?.StatusText ?? "准备中"}");
+            SpectralValues.Clear($"PSD：{slot.Binding?.StatusText ?? "准备中"}；RBP：{slot.SpectralRbpBinding?.StatusText ?? "准备中"}");
             return;
         }
         if (ReferenceEquals(psd, projectedPsdWindow) && ReferenceEquals(rbp, projectedRbpWindow)) return;
@@ -63,11 +64,11 @@ public sealed partial class RecordingReviewViewModel
         {
             ReviewSpectralSources.Validate(psd, rbp, PsdParameters.Channels);
             SpectralValues.Clear("正在读取当前窗口的频段投影…");
-            var psdProvider = analysisCoordinators["psd"].GetCapability<IReviewScalarProvider>() ??
+            var psdProvider = slot.Coordinator.GetCapability<IReviewScalarProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供现有频段投影。");
             var rbpProvider = analysisCoordinators["rbp"].GetCapability<IReviewScalarProvider>() ??
                 throw new InvalidOperationException("RBP adapter 不提供振幅投影。");
-            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            var prepared = CurrentPreparedSpectralWindow(slot, psd, rbp);
             if (prepared?.ProjectionError is { } error) throw error;
             var density = prepared?.Density is { } savedDensity ? Task.FromResult(savedDensity) :
                 psdProvider.LoadScalarsAsync(psd, request.Token,
@@ -92,7 +93,7 @@ public sealed partial class RecordingReviewViewModel
     }
 
     private bool IsCurrentSpectralProjection(long revision, WindowPreviewResponse psd, WindowPreviewResponse rbp) =>
-        IsSpectralValuesPanelOpen && !isTimelineDragging && revision == spectralProjectionRevision &&
+        IsSpectralValuesSlotOpen && !isTimelineDragging && revision == spectralProjectionRevision &&
         ReferenceEquals(psd, projectedPsdWindow) && ReferenceEquals(rbp, projectedRbpWindow);
 
     private void CancelSpectralProjection()
@@ -103,28 +104,44 @@ public sealed partial class RecordingReviewViewModel
         projectedPsdWindow = projectedRbpWindow = null;
     }
 
-    private void InvalidateSpectralValues()
+    private void ClearSpectralValuesSlot(ReviewAnalysisCardViewModel slot)
     {
-        CancelSpectralWindowLoad();
+        CancelSpectralWindowLoad(slot);
         CancelSpectralProjection();
-        CancelCustomFrequencyProjection();
-        spectralRbpBinding?.DetachRun();
         SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
-        CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
     }
 
-    private async ValueTask DetachSpectralValuesAsync()
+    private void InvalidateSpectralSlot(ReviewAnalysisCardViewModel slot)
     {
-        CancelSpectralWindowLoad();
-        CancelSpectralProjection();
-        CancelCustomFrequencyProjection();
-        var binding = spectralRbpBinding;
-        spectralRbpBinding = null;
-        SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
-        CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
-        if (binding is not null)
+        CancelSpectralWindowLoad(slot);
+        if (slot.AlgorithmId == SpectralValuesPanelId)
         {
-            await binding.DisposeAsync();
+            CancelSpectralProjection();
+            SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
         }
+        if (slot.AlgorithmId == CustomFrequencyInspectionPanelId)
+        {
+            CancelCustomFrequencyProjection();
+            CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
+        }
+        slot.SpectralRbpBinding?.DetachRun();
+    }
+
+    private async ValueTask DetachSpectralSlotAsync(ReviewAnalysisCardViewModel slot)
+    {
+        CancelSpectralWindowLoad(slot);
+        if (slot.AlgorithmId == SpectralValuesPanelId)
+        {
+            CancelSpectralProjection();
+            SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
+        }
+        if (slot.AlgorithmId == CustomFrequencyInspectionPanelId)
+        {
+            CancelCustomFrequencyProjection();
+            CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
+        }
+        var binding = slot.SpectralRbpBinding;
+        slot.SpectralRbpBinding = null;
+        if (binding is not null) await binding.DisposeAsync();
     }
 }

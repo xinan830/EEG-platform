@@ -1,13 +1,13 @@
-using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
-/// <summary>One active algorithm panel; preparation is serialized and cancelled on selection changes.</summary>
+/// <summary>Multi-panel algorithm lifecycle; each open panel owns an isolated coordinator and binding.</summary>
 public sealed partial class RecordingReviewViewModel
 {
-    private readonly SemaphoreSlim analysisPreparationGate = new(1, 1);
-    private CancellationTokenSource? analysisPreparation;
+    private readonly SemaphoreSlim recordingRegistrationGate = new(1, 1);
     private bool hasUnresolvedAnalysisMontage;
     private bool loadingAnalysisParameters;
     private readonly LatestDelayedTask analysisUpdater = new();
@@ -18,91 +18,183 @@ public sealed partial class RecordingReviewViewModel
             ? !analysisCoordinators.ContainsKey("psd") || !analysisCoordinators.ContainsKey("rbp")
             : !analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
             throw new InvalidOperationException($"回放页未配置 {algorithmId} 算法。");
-        SetActiveAnalysis(algorithmId);
-        await PrepareAnalysisAsync(algorithmId, analysisLifetime.Token);
+
+        if (GetOpenSlot(algorithmId) is { } existing)
+        {
+            FocusAnalysisSlot(algorithmId);
+            if (existing.IsStale || !existing.IsAnalysisAttached)
+            {
+                existing.AnalysisPanelStartSeconds = PositionSeconds;
+                existing.IsStale = false;
+                await PrepareSlotAsync(existing, analysisLifetime.Token);
+            }
+            return;
+        }
+
+        var slot = CreateSlot(algorithmId);
+        if (!slot.IsBottomPreferred && RightDockedAnalysisSlots.Count >= MaxRightDockedPanels)
+        {
+            slot.IsFloating = true;
+            notifications?.PublishInformation($"右侧停靠区最多同屏展示 {MaxRightDockedPanels} 个算法，已将「{slot.DisplayName}」以独立窗口打开。");
+        }
+        else if (!slot.IsBottomPreferred)
+        {
+            foreach (var right in OpenAnalysisSlots.Where(item => !item.IsBottomPreferred))
+                right.IsMaximized = false;
+        }
+
+        OpenAnalysisSlots.Add(slot);
+        RebuildDockCollections();
+        SetActiveSlot(slot);
+        fallbackAnalysisPanelStartSeconds = slot.AnalysisPanelStartSeconds;
+        await PrepareSlotAsync(slot, analysisLifetime.Token);
     }
 
     internal async Task CloseAnalysisAsync()
     {
-        SetActiveAnalysis(null);
-        var revision = analysisConfigurationRevision;
-        await analysisPreparationGate.WaitAsync();
-        try
+        var slots = OpenAnalysisSlots.ToArray();
+        if (slots.Length == 0)
         {
-            if (activeAnalysisId is null && revision == analysisConfigurationRevision) await DetachAnalysisAsync();
+            SetActiveSlot(null);
+            fallbackAnalysisPreparationText = "算法面板已关闭。";
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
+            return;
         }
-        finally { analysisPreparationGate.Release(); }
-        if (!IsAnalysisPanelOpen) AnalysisPreparationText = "算法面板已关闭。";
+        foreach (var slot in slots) MarkSlotClosed(slot);
+        OpenAnalysisSlots.Clear();
+        RebuildDockCollections();
+        SetActiveSlot(null);
+        await Task.WhenAll(slots.Select(CloseSlotRuntimeAsync));
+        if (!IsAnalysisPanelOpen)
+        {
+            fallbackAnalysisPreparationText = "算法面板已关闭。";
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
+        }
     }
 
-    private void SetActiveAnalysis(string? algorithmId)
+    public async Task CloseAnalysisAsync(string algorithmId)
     {
-        analysisPreparation?.Cancel();
-        InvalidateSpectralValues();
-        analysisBinding?.DetachRun();
-        analysisConfigurationRevision++;
-        activeAnalysisId = algorithmId;
-        analysisPanelStartSeconds = PositionSeconds;
-        foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
-        RaisePropertyChanged(nameof(AnalysisPanelStartSeconds));
-        RaisePropertyChanged(nameof(IsAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(IsSpectralValuesPanelOpen));
-        RaisePropertyChanged(nameof(IsCustomFrequencyInspectionPanelOpen));
-        RaisePropertyChanged(nameof(IsRbpAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(IsPsdAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(IsStftAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(IsTnkAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(ActiveAnalysisPanel));
-        RaisePropertyChanged(nameof(ActiveAnalysisPanelKind));
-        RaisePropertyChanged(nameof(AnalysisPanelTitle));
-        RaisePropertyChanged(nameof(ActiveScalarParameters));
-        RaisePropertyChanged(nameof(ActiveScalarAnalysis));
-        RaisePropertyChanged(nameof(HasSecondaryScalarChannel));
+        if (GetOpenSlot(algorithmId) is not { } slot) return;
+        MarkSlotClosed(slot);
+        OpenAnalysisSlots.Remove(slot);
+        RebuildDockCollections();
+        if (ReferenceEquals(activeAnalysisSlot, slot))
+            SetActiveSlot(OpenAnalysisSlots.LastOrDefault());
+        await CloseSlotRuntimeAsync(slot);
+        if (!IsAnalysisPanelOpen)
+        {
+            fallbackAnalysisPreparationText = "算法面板已关闭。";
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
+        }
     }
 
-    private async Task PrepareAnalysisAsync(string algorithmId, CancellationToken cancellationToken)
+    private ReviewAnalysisCardViewModel CreateSlot(string algorithmId)
     {
-        analysisPreparation?.Cancel();
-        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, analysisLifetime.Token);
-        analysisPreparation = preparation;
-        var token = preparation.Token;
-        var revision = analysisConfigurationRevision;
+        var sourceId = algorithmId is SpectralValuesPanelId or CustomFrequencyInspectionPanelId ? "psd" : algorithmId;
+        var coordinator = CreateSlotCoordinator(sourceId);
+        if (algorithmId == SpectralValuesPanelId)
+        {
+            return new ReviewAnalysisCardViewModel(this, algorithmId, "频段数值核查",
+                ReviewAnalysisPanelKind.SpectralValues, null, coordinator, PositionSeconds);
+        }
+        if (algorithmId == CustomFrequencyInspectionPanelId)
+        {
+            return new ReviewAnalysisCardViewModel(this, algorithmId, "自定义频段",
+                ReviewAnalysisPanelKind.CustomFrequencyInspection, null, coordinator, PositionSeconds);
+        }
+        var registration = analysisPanels[algorithmId];
+        return new ReviewAnalysisCardViewModel(this, algorithmId, registration.DisplayName,
+            registration.PanelKind, registration, coordinator, PositionSeconds);
+    }
+
+    private ReviewAnalysisCoordinator CreateSlotCoordinator(string sourceAlgorithmId)
+    {
+        var primary = analysisCoordinators[sourceAlgorithmId];
+        var inUse = OpenAnalysisSlots.Any(slot => ReferenceEquals(slot.Coordinator, primary));
+        if (!inUse) return primary;
+        if (analysisAlgorithmClient is not null && analysisPanels.TryGetValue(sourceAlgorithmId, out var registration))
+            return registration.CreateCoordinator(analysisAlgorithmClient);
+        return primary.CloneForSlot();
+    }
+
+    private void MarkSlotClosed(ReviewAnalysisCardViewModel slot)
+    {
+        slot.IsClosed = true;
+        slot.PreparationCancellation?.Cancel();
+        slot.ConfigurationRevision++;
+        slot.Binding?.DetachRun();
+        slot.SpectralRbpBinding?.DetachRun();
+        if (slot.AlgorithmId == SpectralValuesPanelId) ClearSpectralValuesSlot(slot);
+        if (slot.AlgorithmId == CustomFrequencyInspectionPanelId) ClearCustomFrequencySlot(slot);
+        slot.ApplyPresentation(null);
+    }
+
+    private async Task CloseSlotRuntimeAsync(ReviewAnalysisCardViewModel slot)
+    {
+        await slot.PreparationGate.WaitAsync();
+        try { await DetachSlotAsync(slot); }
+        finally { slot.PreparationGate.Release(); }
+    }
+
+    private async Task<RegisteredRecording> EnsureRegisteredAnalysisRecordingAsync(
+        ReviewAnalysisCoordinator coordinator, CancellationToken token)
+    {
+        if (analysisRecording is { } existing) return existing;
+        await recordingRegistrationGate.WaitAsync(token);
         try
         {
-            await analysisPreparationGate.WaitAsync(token);
+            if (analysisRecording is { } doubleChecked) return doubleChecked;
+            if (analysisRecordingDirectory is null)
+                throw new InvalidOperationException("当前回溯记录缺少可用于算法分析的来源身份。");
+            analysisRecording = await coordinator.RegisterAsync(analysisRecordingDirectory, token,
+                montageSelection.AvailableMontages.ToArray());
+            return analysisRecording;
+        }
+        finally { recordingRegistrationGate.Release(); }
+    }
+
+    private async Task PrepareSlotAsync(ReviewAnalysisCardViewModel slot, CancellationToken cancellationToken)
+    {
+        slot.PreparationCancellation?.Cancel();
+        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, analysisLifetime.Token);
+        slot.PreparationCancellation = preparation;
+        var token = preparation.Token;
+        var revision = slot.ConfigurationRevision;
+        try
+        {
+            await slot.PreparationGate.WaitAsync(token);
             try
             {
                 token.ThrowIfCancellationRequested();
-                if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision) return;
-                await DetachAnalysisAsync();
+                if (slot.IsClosed || revision != slot.ConfigurationRevision) return;
+                await DetachSlotAsync(slot);
                 token.ThrowIfCancellationRequested();
-                var sourceId = IsSpectralInspectionPanelOpen ? "psd" : algorithmId;
-                analysisCoordinator = analysisCoordinators[sourceId];
-                SubscribeTnkPlaybackEvents(analysisCoordinator);
-                AnalysisPreparationText = $"正在准备 {analysisCoordinator.AlgorithmDisplayName}…";
-                if (analysisRecording is null)
-                {
-                    if (analysisRecordingDirectory is null)
-                        throw new InvalidOperationException("当前回溯记录缺少可用于算法分析的来源身份。");
-                    analysisRecording = await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, token,
-                        montageSelection.AvailableMontages.ToArray());
-                }
+                if (slot.IsClosed || revision != slot.ConfigurationRevision) return;
+
+                if (slot.AlgorithmId == "tnk_biofeedback") SubscribeTnkPlaybackEvents(slot);
+                slot.AnalysisPreparationText = $"正在准备 {slot.Coordinator.AlgorithmDisplayName}…";
+                RaiseActiveSlotPreparationIfSame(slot);
+
+                var recorded = await EnsureRegisteredAnalysisRecordingAsync(slot.Coordinator, token);
                 token.ThrowIfCancellationRequested();
-                var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
-                var rbpAlgorithm = IsSpectralInspectionPanelOpen
+                var algorithm = await slot.Coordinator.GetAlgorithmAsync(token);
+                var rbpAlgorithm = slot.IsSpectralInspection
                     ? await analysisCoordinators["rbp"].GetAlgorithmAsync(token) : null;
                 token.ThrowIfCancellationRequested();
+
                 var selection = montageSelection.Capture();
-                var montage = ResolveAnalysisMontage(analysisRecording, selection.SelectedMontage);
+                var montage = ResolveAnalysisMontage(recorded, selection.SelectedMontage);
                 hasUnresolvedAnalysisMontage = selection.SelectedMontage is not null && montage is null;
                 if (hasUnresolvedAnalysisMontage)
                     throw new ReviewInputMappingException("montage_snapshot_unavailable",
                         "后端没有当前导联快照，不能沿用旧导联结果。", "montage");
-                var inputs = await ResolvePreprocessingAnalysisInputsAsync(analysisRecording, montage, algorithm, token);
+                var inputs = await ResolvePreprocessingAnalysisInputsAsync(recorded, montage, algorithm, token);
                 token.ThrowIfCancellationRequested();
-                if (revision != analysisConfigurationRevision || selection.Revision != montageSelection.Revision) return;
+                if (slot.IsClosed || revision != slot.ConfigurationRevision || selection.Revision != montageSelection.Revision)
+                    return;
+
                 montage = inputs.Montage;
-                var panel = analysisPanels[sourceId];
+                var panel = analysisPanels[slot.SourceAlgorithmId];
                 loadingAnalysisParameters = true;
                 try
                 {
@@ -111,56 +203,77 @@ public sealed partial class RecordingReviewViewModel
                         analysisPanels["rbp"].InitializeForSelection(inputs.Recording, rbpAlgorithm, selection, montage);
                 }
                 finally { loadingAnalysisParameters = false; }
-                var duration = analysisRecording.DurationSeconds ?? DurationSeconds;
-                var rate = analysisRecording.SamplingRateHz ?? samplingRateHz;
+
+                var duration = recorded.DurationSeconds ?? DurationSeconds;
+                var rate = recorded.SamplingRateHz ?? samplingRateHz;
                 var config = panel.BuildConfigurationForSelection(duration, rate, selection, montage);
                 config = AttachActivePreprocessing(config, algorithm);
-                if (selection.Revision != montageSelection.Revision) return;
-                if (rbpAlgorithm is not null) AttachSpectralRbp(rbpAlgorithm, selection, montage);
-                var request = new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config);
+                if (slot.IsClosed || selection.Revision != montageSelection.Revision) return;
+
+                var request = new AnalysisRunRequest(recorded.Id, "official_algorithm", config);
                 if (rbpAlgorithm is not null)
                 {
-                    var binding = CreateAnalysisBinding(analysisCoordinator);
+                    AttachSpectralRbp(slot, rbpAlgorithm, selection, montage);
+                    var binding = CreateSlotBinding(slot, slot.Coordinator);
                     binding.AttachOnDemand(request, algorithm);
-                    isAnalysisStale = false;
+                    slot.IsStale = false;
+                    slot.RaiseWindowStateChanged();
                     RaiseAnalysisPropertiesChanged();
-                    await RequestSpectralWindowAsync(PositionSeconds, cancellationToken: token);
+                    await RequestSpectralWindowAsync(slot, PositionSeconds, cancellationToken: token);
                 }
-                else await AttachOnDemandAnalysisAsync(request, token);
+                else
+                {
+                    await AttachOnDemandSlotAsync(slot, request, token);
+                }
+
                 token.ThrowIfCancellationRequested();
-                AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
+                slot.AnalysisPreparationText = slot.CurrentWindow is null ? slot.AnalysisStatusText : "";
+                RaiseActiveSlotPreparationIfSame(slot);
             }
-            finally { analysisPreparationGate.Release(); }
+            finally { slot.PreparationGate.Release(); }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (token.IsCancellationRequested || revision != analysisConfigurationRevision) return;
-            if (IsSpectralValuesPanelOpen) SpectralValues.Clear($"数值准备失败：{exception.Message}");
-            if (IsCustomFrequencyInspectionPanelOpen) CustomFrequencyInspection.Clear($"数值准备失败：{exception.Message}");
-            AnalysisPreparationText = $"算法准备失败：{exception.Message}";
+            if (token.IsCancellationRequested || slot.IsClosed || revision != slot.ConfigurationRevision) return;
+            if (slot.AlgorithmId == SpectralValuesPanelId) SpectralValues.Clear($"数值准备失败：{exception.Message}");
+            if (slot.AlgorithmId == CustomFrequencyInspectionPanelId) CustomFrequencyInspection.Clear($"数值准备失败：{exception.Message}");
+            slot.AnalysisPreparationText = $"算法准备失败：{exception.Message}";
+            RaiseActiveSlotPreparationIfSame(slot);
             throw;
         }
         finally
         {
-            if (ReferenceEquals(analysisPreparation, preparation)) analysisPreparation = null;
+            if (ReferenceEquals(slot.PreparationCancellation, preparation)) slot.PreparationCancellation = null;
         }
+    }
+
+    private void RaiseActiveSlotPreparationIfSame(ReviewAnalysisCardViewModel slot)
+    {
+        if (ReferenceEquals(activeAnalysisSlot, slot))
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
     }
 
     private void OnAnalysisConfigurationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (loadingAnalysisParameters || activeAnalysisId is not { } activeId ||
-            !analysisPanels.TryGetValue(activeId, out var panel) || !ReferenceEquals(sender, panel.Configuration)) return;
-        if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Channels) or
+        if (loadingAnalysisParameters || OpenAnalysisSlots.Count == 0) return;
+        if (e.PropertyName is not (nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Channels) or
             nameof(ReviewScalarParameters.Channel) or nameof(ReviewScalarParameters.SecondaryChannel) or
             nameof(ReviewScalarParameters.FrequencyMode) or
             nameof(ReviewStftParameters.Channel) or nameof(ReviewPsdParameters.Channels) or
-            nameof(ReviewTnkParameters.RoleMapping))
-            InvalidateAnalysisConfiguration();
+            nameof(ReviewTnkParameters.RoleMapping)))
+            return;
+
+        var matchingSlots = OpenAnalysisSlots.Where(slot =>
+            ReferenceEquals(slot.Registration?.Configuration, sender) ||
+            (slot.IsSpectralInspection && (ReferenceEquals(sender, PsdParameters) || ReferenceEquals(sender, RbpParameters))))
+            .ToArray();
+        if (matchingSlots.Length > 0) InvalidateSlots(matchingSlots);
     }
 
     private void UpdateAlgorithmMontageInputs(RegisteredRecording recording,
-        WorkspaceMontageSelectionSnapshot<MontageProfile> previousSelection, WorkspaceMontageSelectionSnapshot<MontageProfile> selectedSelection)
+        WorkspaceMontageSelectionSnapshot<MontageProfile> previousSelection,
+        WorkspaceMontageSelectionSnapshot<MontageProfile> selectedSelection)
     {
         var previous = ResolveAnalysisMontage(recording, previousSelection.SelectedMontage);
         var selected = ResolveAnalysisMontage(recording, selectedSelection.SelectedMontage);
@@ -174,7 +287,7 @@ public sealed partial class RecordingReviewViewModel
                 panel.RefreshForSelection(recording, previousSelection, selectedSelection, previous, selected);
             PsdAnalysis.SetChannels(PsdParameters.Channels);
             RbpAnalysis.InitializeChannels(RbpParameters.ResolveAnalysisChannels(selected));
-            if (IsSpectralInspectionPanelOpen)
+            if (IsSpectralValuesSlotOpen || IsCustomFrequencySlotOpen)
             {
                 SpectralValues.InitializeChannels(PsdParameters.Channels);
                 CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
@@ -188,28 +301,42 @@ public sealed partial class RecordingReviewViewModel
             string.Equals(item.Id, selected.Id, StringComparison.Ordinal) ||
             string.Equals(item.SourceProfileId, selected.Id, StringComparison.Ordinal));
 
-    private void InvalidateAnalysisConfiguration()
+    private void InvalidateAnalysisConfiguration() => InvalidateSlots(OpenAnalysisSlots.ToArray());
+
+    private void InvalidateSlots(IReadOnlyList<ReviewAnalysisCardViewModel> slots)
     {
-        analysisPreparation?.Cancel();
-        InvalidateSpectralValues();
-        analysisBinding?.DetachRun();
-        analysisConfigurationRevision++;
-        isAnalysisStale = true;
-        foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
-        AnalysisPreparationText = "参数已改变，等待自动分析。";
+        if (slots.Count == 0) return;
+        foreach (var slot in slots)
+        {
+            slot.PreparationCancellation?.Cancel();
+            if (slot.AlgorithmId == SpectralValuesPanelId) InvalidateSpectralSlot(slot);
+            if (slot.AlgorithmId == CustomFrequencyInspectionPanelId) InvalidateSpectralSlot(slot);
+            slot.Binding?.DetachRun();
+            slot.ConfigurationRevision++;
+            slot.IsStale = true;
+            slot.ApplyPresentation(null);
+            slot.AnalysisPreparationText = "参数已改变，等待自动分析。";
+        }
         RaiseAnalysisPropertiesChanged();
         if (Preprocessing.AreScientificInputsBlocked)
         {
-            AnalysisPreparationText = Preprocessing.HasUnsavedChannelIdentities ? "通道身份尚未保存，分析已暂停。" : Preprocessing.ReferenceStatusText;
+            var blocked = Preprocessing.HasUnsavedChannelIdentities ? "通道身份尚未保存，分析已暂停。" : Preprocessing.ReferenceStatusText;
+            foreach (var slot in slots) slot.AnalysisPreparationText = blocked;
+            RaisePropertyChanged(nameof(AnalysisPreparationText));
             return;
         }
-        if (activeAnalysisId is not { } algorithmId || analysisLifetime.IsCancellationRequested) return;
-        var revision = analysisConfigurationRevision;
+        if (analysisLifetime.IsCancellationRequested) return;
+        var snapshots = slots.Select(slot => (Slot: slot, Revision: slot.ConfigurationRevision)).ToArray();
         analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>
         {
-            if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision || analysisLifetime.IsCancellationRequested) return;
-            try { await PrepareAnalysisAsync(algorithmId, token); }
-            catch (Exception exception) when (!token.IsCancellationRequested) { ReportCommandError(exception); }
+            var pending = snapshots
+                .Where(entry => !entry.Slot.IsClosed && entry.Revision == entry.Slot.ConfigurationRevision)
+                .Select(async entry =>
+                {
+                    try { await PrepareSlotAsync(entry.Slot, token); }
+                    catch (Exception exception) when (!token.IsCancellationRequested) { ReportCommandError(exception); }
+                });
+            await Task.WhenAll(pending);
         });
     }
 }
