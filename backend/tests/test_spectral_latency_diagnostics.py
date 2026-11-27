@@ -10,8 +10,8 @@ from app.persistence import connect_database
 from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
 
 
-def test_timing_scopes_count_connections_and_reset_after_failures(tmp_path, caplog):
-    caplog.set_level(logging.INFO)
+def test_timing_scopes_count_connections_and_reset_after_failures(tmp_path, backend_caplog):
+    backend_caplog.set_level(logging.INFO)
     with diagnostics.performance_trace("test_window_perf", request_id="outer") as outer:
         with pytest.raises(ValueError):
             with diagnostics.performance_trace("test_window_perf", request_id="inner") as inner:
@@ -26,11 +26,11 @@ def test_timing_scopes_count_connections_and_reset_after_failures(tmp_path, capl
     assert inner.metrics["database_connect_calls"] == 1
     assert inner.metrics["metadata_calls"] == 1
     assert outer.metrics == {}
-    assert any("request_id=inner outcome=error" in record.getMessage() for record in caplog.records)
+    assert any("request_id=inner outcome=error" in record.getMessage() for record in backend_caplog.records)
 
 
-def test_admission_distinguishes_lock_wait_from_work(monkeypatch, caplog):
-    caplog.set_level(logging.INFO)
+def test_admission_distinguishes_lock_wait_from_work(monkeypatch, backend_caplog):
+    backend_caplog.set_level(logging.INFO)
     clock = [0.0]
     monkeypatch.setattr(diagnostics, "perf_counter", lambda: clock[0])
     monkeypatch.setattr("app.services.analysis.windows.on_demand_dynamic.time.perf_counter", lambda: clock[0])
@@ -54,7 +54,7 @@ def test_admission_distinguishes_lock_wait_from_work(monkeypatch, caplog):
                               _planner=SimpleNamespace(prepare=prepare))
     payload = SimpleNamespace(request_id="warm-request", algorithm_id="rbp", recording_id="recording", cursor_sample=79000)
     assert DynamicWindowService._ensure(service, payload)["window_id"] == "saved-window"
-    message = next(record.getMessage() for record in caplog.records if "dynamic_window_admission_perf" in record.getMessage())
+    message = next(record.getMessage() for record in backend_caplog.records if "dynamic_window_admission_perf" in record.getMessage())
     assert "window_id=saved-window" in message
     assert "lock_wait_ms=25.000" in message
     assert "lock_held_ms=10.000" in message

@@ -47,7 +47,7 @@ public sealed class LiveSciChartCanvas : UserControl
     private readonly Grid channelLabels = new();
     private readonly Grid chartHost = new();
     private readonly Grid rootLayout = WaveformPlotLayout.CreateRootGrid();
-    private readonly Canvas eventMarkers = new();
+    private readonly LiveWaveformAnnotationOverlay annotationOverlay = new();
     private readonly TextBlock emptyMessage = new()
     {
         Text = "等待设备连接并开始记录",
@@ -67,7 +67,6 @@ public sealed class LiveSciChartCanvas : UserControl
     private double activeDisplayWindowSeconds;
     private int activeTraceCount;
     private Thickness? lastLabelPlotMargin;
-    private string? lastMarkerLayoutSignature;
     private Window? owningWindow;
     private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
 
@@ -120,7 +119,7 @@ public sealed class LiveSciChartCanvas : UserControl
         Grid.SetColumn(channelLabels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
-        chartHost.Children.Add(eventMarkers);
+        chartHost.Children.Add(annotationOverlay.Visual);
         Grid.SetColumn(chartHost, 2);
         chartHost.Margin = new Thickness(0);
         layout.Children.Add(channelLabels);
@@ -229,7 +228,7 @@ public sealed class LiveSciChartCanvas : UserControl
             plotHeight);
         if (revision == lastRequestedRevision)
         {
-            UpdateEventMarkers(currentFrame, monitor);
+            annotationOverlay.Update(currentFrame, monitor, WaveformPlotLayout.GetPlotArea(surface));
             return;
         }
 
@@ -332,10 +331,7 @@ public sealed class LiveSciChartCanvas : UserControl
                 }
             }
         }
-        if (UpdateEventMarkers(frame, DataContext as LiveMonitoringViewModel))
-        {
-            UpdateLifecycleBoundaries(frame, DataContext as LiveMonitoringViewModel);
-        }
+        annotationOverlay.Update(frame, DataContext as LiveMonitoringViewModel, WaveformPlotLayout.GetPlotArea(surface));
     }
 
     private static bool ShouldRejectOlderFrame(
@@ -364,8 +360,7 @@ public sealed class LiveSciChartCanvas : UserControl
         emptyMessage.Visibility = Visibility.Visible;
         eraseBand.IsHidden = true;
         eraseWrapBand.IsHidden = true;
-        eventMarkers.Children.Clear();
-        lastMarkerLayoutSignature = null;
+        annotationOverlay.Clear();
         currentFrame = null;
         activeDisplayWindowSeconds = 0;
         activeTraceCount = 0;
@@ -451,186 +446,6 @@ public sealed class LiveSciChartCanvas : UserControl
         annotation.Y1 = 0d;
         annotation.Y2 = (double)traceCount;
         annotation.IsHidden = false;
-    }
-
-    private bool UpdateEventMarkers(WaveformDisplayFrame? frame, LiveMonitoringViewModel? monitor)
-    {
-        if (frame is null || monitor is null || eventMarkers.ActualWidth <= 0 || eventMarkers.ActualHeight <= 0)
-        {
-            lastMarkerLayoutSignature = null;
-            return false;
-        }
-
-        var pageStart = frame.WindowStartSampleCounter;
-        var pageEndExclusive = checked(pageStart + frame.WindowSampleCount);
-        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
-        if (plotArea.Width <= 0 || plotArea.Height <= 0)
-        {
-            lastMarkerLayoutSignature = null;
-            return false;
-        }
-
-        var markerSignature = CreateMarkerLayoutSignature(frame, monitor, plotArea);
-        if (StringComparer.Ordinal.Equals(markerSignature, lastMarkerLayoutSignature))
-        {
-            return false;
-        }
-
-        lastMarkerLayoutSignature = markerSignature;
-        eventMarkers.Children.Clear();
-
-        foreach (var item in monitor.LiveRecordingEvents)
-        {
-            if (!item.IsDisplayable)
-            {
-                continue;
-            }
-
-            var start = monitor.ToDisplayCounterFromRecordingSample(item.StartSample);
-            if (start is null)
-            {
-                continue;
-            }
-
-            var end = item.IsInterval
-                ? monitor.ToDisplayCounterFromRecordingSample(item.EndSampleExclusive)
-                : start;
-            if (start.Value < pageStart || start.Value >= pageEndExclusive || end is null)
-            {
-                continue;
-            }
-
-            var leftFraction = (start.Value - pageStart) / (double)frame.WindowSampleCount;
-            var rightFraction = item.IsInterval
-                ? Math.Clamp((end.Value - pageStart) / (double)frame.WindowSampleCount, leftFraction, 1d)
-                : leftFraction;
-            var color = ParseColor(item.DefinitionSnapshot.Color);
-            var isPendingStart = string.Equals(
-                item.Id,
-                AcquisitionWorkspaceViewModel.PendingIntervalEventId,
-                StringComparison.Ordinal);
-            var leftX = plotArea.Left + leftFraction * plotArea.Width;
-            var marker = new Border
-            {
-                ToolTip = isPendingStart
-                    ? $"{item.DefinitionSnapshot.Name}（{item.DefinitionSnapshot.EffectiveStartLabel} · 进行中）"
-                    : monitor.FormatEventMarker(item),
-                IsHitTestVisible = !item.IsInterval,
-                Width = item.IsInterval
-                    ? Math.Max(2d, (rightFraction - leftFraction) * plotArea.Width)
-                    : 2d,
-                Height = plotArea.Height,
-                Background = item.IsInterval
-                    ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
-                    : new SolidColorBrush(color),
-                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(165, color.R, color.G, color.B)) : null,
-                BorderThickness = item.IsInterval ? new Thickness(1.5, 0, 1.5, 0) : new Thickness(0),
-            };
-            Canvas.SetLeft(marker, leftX);
-            Canvas.SetTop(marker, plotArea.Top);
-            eventMarkers.Children.Add(marker);
-            if (monitor.FormatEventClockTime(item) is { } clockTime)
-            {
-                var startLabelText = isPendingStart
-                    ? $"▶ {item.DefinitionSnapshot.EffectiveStartLabel} {clockTime}"
-                    : item.IsInterval
-                        ? $"{item.DefinitionSnapshot.EffectiveStartLabel} {clockTime}"
-                        : $"{item.DefinitionSnapshot.Name} {clockTime}";
-                WaveformEventTimeLabel.Add(
-                    eventMarkers,
-                    leftX,
-                    plotArea.Top + 3,
-                    startLabelText,
-                    color,
-                    marker.ToolTip?.ToString() ?? clockTime);
-
-                if (item.IsInterval && end.Value < pageEndExclusive)
-                {
-                    var rightX = plotArea.Left + rightFraction * plotArea.Width;
-                    if (rightX - leftX >= 56)
-                    {
-                        WaveformEventTimeLabel.Add(
-                            eventMarkers,
-                            rightX,
-                            plotArea.Top + 3,
-                            item.DefinitionSnapshot.EffectiveEndLabel,
-                            color,
-                            marker.ToolTip?.ToString() ?? item.DefinitionSnapshot.EffectiveEndLabel);
-                    }
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static string CreateMarkerLayoutSignature(
-        WaveformDisplayFrame frame,
-        LiveMonitoringViewModel monitor,
-        Rect plotArea)
-    {
-        var events = string.Join(';', monitor.LiveRecordingEvents.Select(item =>
-            $"{item.Id}:{item.StartSample}:{item.DurationSamples}:{item.CoordinateStatus}:{item.DefinitionSnapshot.Color}"));
-        var boundaries = string.Join(';', monitor.LiveLifecycleBoundaries.Select(boundary =>
-            $"{boundary.Kind}:{boundary.SampleCounter}:{boundary.OccurredAtUtc.UtcTicks}"));
-        return string.Join('|',
-            frame.WindowStartSampleCounter,
-            frame.WindowSampleCount,
-            plotArea.Width.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-            plotArea.Height.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-            events,
-            boundaries);
-    }
-
-    private void UpdateLifecycleBoundaries(WaveformDisplayFrame frame, LiveMonitoringViewModel? monitor)
-    {
-        foreach (var line in eventMarkers.Children.OfType<Line>().ToArray()) eventMarkers.Children.Remove(line);
-        if (monitor is null) return;
-        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
-        var pageStart = frame.WindowStartSampleCounter;
-        var pageEnd = pageStart + frame.WindowSampleCount;
-        foreach (var boundary in monitor.LiveLifecycleBoundaries)
-        {
-            var recordingFirst = monitor.RecordingFirstSampleCounter;
-            if (recordingFirst is null) continue;
-            var relative = boundary.SampleCounter - recordingFirst.Value;
-            var display = monitor.ToDisplayCounterFromRecordingSample(relative);
-            if (display is null || display < pageStart || display >= pageEnd) continue;
-            var x = plotArea.Left + (display.Value - pageStart) / (double)frame.WindowSampleCount * plotArea.Width;
-            eventMarkers.Children.Add(new Line
-            {
-                X1 = x, X2 = x, Y1 = plotArea.Top, Y2 = plotArea.Bottom,
-                Stroke = new SolidColorBrush(Color.FromRgb(51, 65, 85)),
-                StrokeThickness = 1.2,
-                StrokeDashArray = new DoubleCollection { 3, 2 },
-                IsHitTestVisible = false,
-            });
-            WaveformEventTimeLabel.Add(
-                eventMarkers,
-                x,
-                plotArea.Top + 3,
-                RecordingClockLabelFormatter.FormatSampleMilliseconds(
-                    monitor.RecordingStartUtc ?? DateTimeOffset.UtcNow,
-                    relative,
-                    monitor.SamplingRateHz),
-                Color.FromRgb(51, 65, 85),
-                BoundaryText(boundary.Kind));
-        }
-    }
-
-    private static string BoundaryText(RecordingLifecycleBoundaryKind kind) => kind switch
-    {
-        RecordingLifecycleBoundaryKind.Started => "开始记录",
-        RecordingLifecycleBoundaryKind.Paused => "暂停记录",
-        RecordingLifecycleBoundaryKind.Resumed => "恢复记录",
-        RecordingLifecycleBoundaryKind.Stopped => "结束记录",
-        _ => kind.ToString(),
-    };
-
-    private static Color ParseColor(string value)
-    {
-        try { return (Color)ColorConverter.ConvertFromString(value); }
-        catch { return Color.FromRgb(37, 99, 235); }
     }
 
     private void EnsureTraceSeries(IReadOnlyList<WaveformDisplayTrace> traces)

@@ -133,7 +133,7 @@ def config_for(module, mode, channel, duration, **extra):
 def audit_result(module, config, result, context):
     identifier = module.manifest.algorithm_id
     dynamic = config.mode == "dynamic"
-    comparison, alternative = Comparison(), Comparison()
+    comparison = Comparison()
     unavailable = 0
     count = len(result.windows) if dynamic else 1
     for index in range(count):
@@ -176,8 +176,6 @@ def audit_result(module, config, result, context):
         actual = result.values[index] if dynamic else result.value
         comparison.compare(actual, expected)
         unavailable += int(expected is None)
-        if identifier == "brainbeat" and expected is not None:
-            alternative.compare(actual, ref.scalar(identifier, freq, density, config, brainbeat_interpolate=True))
     timing = Comparison()
     if dynamic:
         bounds = [(w.start_s, w.end_s) if hasattr(w, "start_s") else (w["start_s"], w["end_s"])
@@ -189,8 +187,7 @@ def audit_result(module, config, result, context):
         timing.compare([right for _, right in bounds],
                        np.arange(bounds[0][1], config.end_s + 1e-9, config.step_s), atol=1e-9)
     return dict(windows=count, unavailable=unavailable, result=comparison.report(), timing=timing.report(),
-                spectrum=context.spectra.report(), quality=context.quality.report(),
-                brainbeat_interpolated_boundary_comparison=alternative.report())
+                spectrum=context.spectra.report(), quality=context.quality.report())
 
 
 def audit(directory):

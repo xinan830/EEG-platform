@@ -66,7 +66,8 @@ public sealed partial class RecordingReviewViewModel
             SpectralValues.Clear("正在读取当前窗口的频段投影…");
             var psdProvider = slot.Coordinator.GetCapability<IReviewScalarProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供现有频段投影。");
-            var rbpProvider = analysisCoordinators["rbp"].GetCapability<IReviewScalarProvider>() ??
+            var rbpProvider = (slot.SpectralRbpBinding?.Coordinator ?? analysisCoordinators["rbp"])
+                .GetCapability<IReviewScalarProvider>() ??
                 throw new InvalidOperationException("RBP adapter 不提供振幅投影。");
             var prepared = CurrentPreparedSpectralWindow(slot, psd, rbp);
             if (prepared?.ProjectionError is { } error) throw error;

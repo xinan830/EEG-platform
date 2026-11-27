@@ -22,7 +22,8 @@ from combined_strategy_support import ALGORITHM_IDS
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX_PATH = ROOT / "docs/validation/official-algorithm-strategy-matrix.json"
+MATRIX_PATH = Path(__file__).parent / "fixtures/official-algorithm-contracts-20261127.json"
+HISTORICAL_IDS = {"band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "stft", "theta_beta"}
 RTOL = 1e-10
 ATOL = 1e-20
 
@@ -50,7 +51,7 @@ def _contract_snapshot() -> dict[str, dict[str, object]]:
 def test_frozen_contract_matrix_matches_all_current_official_modules() -> None:
     frozen = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
     assert frozen["contract_snapshot"] == _contract_snapshot()
-    assert len(frozen["contract_snapshot"]) == 10
+    assert set(frozen["contract_snapshot"]) == set(ALGORITHM_IDS) | {"tnk_biofeedback"}
 
 
 def test_every_declared_reuse_path_has_algorithm_scoped_test_evidence() -> None:
@@ -120,14 +121,16 @@ def test_numeric_reference_report_has_frozen_environment_tolerances_and_checksum
     assert report["environment"]["numpy"] == "2.3.4"
     assert report["environment"]["scipy"] == "1.16.3"
     assert report["array_artifact"]["sha256"]
-    assert set(report["algorithms"]) == set(ALGORITHM_IDS)
+    artifact = ROOT / report["array_artifact"]["path"]
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == report["array_artifact"]["sha256"]
+    assert set(report["algorithms"]) == HISTORICAL_IDS
 
 
 def test_strategy_baseline_freezes_all_nine_algorithm_series_and_artifact_arrays() -> None:
     report = json.loads((ROOT / "docs/validation/official-algorithm-strategy-baseline.json").read_text(encoding="utf-8"))
     artifact_path = ROOT / report["artifact"]["path"]
     assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == report["artifact"]["sha256"]
-    expected_ids = set(ALGORITHM_IDS)
+    expected_ids = HISTORICAL_IDS
     assert set(report["algorithms"]) == expected_ids
     with np.load(artifact_path, allow_pickle=False) as artifact:
         for algorithm_id in expected_ids:

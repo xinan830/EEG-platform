@@ -117,9 +117,64 @@ public sealed partial class RecordingReviewViewModelTests
             ((string?)element.Attribute("Text"))?.Contains("SignalExportStatus") == true);
     }
 
+    [Fact]
+    public async Task ImportedRecordingWithoutLocalDirectoryExportsByRegisteredRecordingId()
+    {
+        var configuration = Configuration();
+        var profile = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(profile, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]), [new CompatibleRecordingMontage(profile)], []);
+        var client = new CompletedSignalExportClient(fail: false);
+        var registered = new BrainPlatform.Desktop.Modules.Algorithms.Contracts.RegisteredRecording(
+            "rec-imported-42", "imported.edf", ".edf", "2026-11-27", 100, 10, ["F3"], "sha-42");
+        var root = Directory.CreateTempSubdirectory("review-export-imported-").FullName;
+        OperationNotificationCenter notifications = null!;
+        RecordingReviewViewModel vm = null!;
+        WpfTestApplication.Run(() =>
+        {
+            notifications = new OperationNotificationCenter();
+            vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog,
+                notifications: notifications, recordingDirectory: null, signalExportClient: client,
+                registeredAnalysisRecording: registered);
+        });
+        try
+        {
+            var target = Path.Combine(root, "imported.edf");
+            Task pending = null!;
+            WpfTestApplication.Run(() => pending = vm.ExportRecordingAsync(target, "edf"));
+            await pending;
+            Assert.Equal(["rec-imported-42"], client.ExportedRecordingIds);
+            Assert.Empty(client.ExportedDirectories);
+            Assert.True(File.Exists(target));
+            Assert.True(File.Exists(target + ".labels.json"));
+            Assert.Equal("整段录音已导出。", vm.SignalExportStatus);
+        }
+        finally
+        {
+            await vm.DisposeAsync();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class CompletedSignalExportClient(bool fail) : IRecordingSignalExportClient
     {
+        public List<string> ExportedDirectories { get; } = [];
+        public List<string> ExportedRecordingIds { get; } = [];
+
         public Task DownloadRawSignalExportAsync(string directory, string format, Stream destination, CancellationToken token)
+        {
+            ExportedDirectories.Add(directory);
+            return WriteOrFail(destination);
+        }
+
+        public Task DownloadRegisteredRecordingSignalExportAsync(string recordingId, string format, Stream destination,
+            CancellationToken token)
+        {
+            ExportedRecordingIds.Add(recordingId);
+            return WriteOrFail(destination);
+        }
+
+        private Task WriteOrFail(Stream destination)
         {
             if (fail) throw new IOException("导出连接中断");
             using var archive = new ZipArchive(destination, ZipArchiveMode.Create, leaveOpen: true);
@@ -140,5 +195,9 @@ public sealed partial class RecordingReviewViewModelTests
             Started.SetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
         }
+
+        public Task DownloadRegisteredRecordingSignalExportAsync(string recordingId, string format, Stream destination,
+            CancellationToken token) =>
+            DownloadRawSignalExportAsync(recordingId, format, destination, token);
     }
 }

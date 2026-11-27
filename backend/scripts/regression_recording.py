@@ -17,7 +17,7 @@ from scripts.regression_store import Differences, checksum
 
 
 ALGORITHMS = ("psd", "stft", "peak_frequency", "iapf", "band_ratio",
-              "theta_beta", "rbp", "faa", "brainbeat")
+              "theta_beta", "rbp", "faa", "brainbeat", "brainbeat_individualized")
 DURATION_S = 30
 
 
@@ -58,10 +58,11 @@ def source_setup(directory: Path):
 
 
 def scenario_config(identifier, mode, montage):
-    roles = ["F3", "F4"] if identifier == "faa" else ["Fz", "Pz"] if identifier == "brainbeat" else ["Fz"]
+    roles = ["F3", "F4"] if identifier == "faa" else ["Fz", "Pz"] if identifier in {"brainbeat", "brainbeat_individualized"} else ["Fz"]
     outputs = [next(output for output in montage["outputs"] if output["role"] == role) for role in roles]
     config = dict(algorithm_id=identifier, time=dict(start_s=0, end_s=DURATION_S),
-                  channel=outputs[0]["id"], mode=mode, dynamic_window_s=20 if identifier == "faa" else 5,
+                  channel=outputs[0]["id"], mode=mode,
+                  dynamic_window_s=20 if identifier in {"faa", "iapf", "theta_beta", "brainbeat", "brainbeat_individualized"} else 5,
                   refresh_step_s=1, analysis_montage_id=montage["id"],
                   analysis_montage_revision=montage["revision"],
                   analysis_montage_fingerprint=montage["fingerprint"],
@@ -120,7 +121,7 @@ def snapshot_run(service, run, config, aliases):
 
 
 def replay(directory: Path, temporary: Path, progress=print):
-    """Read originals, execute 36 current Runs in disposable DB/artifact storage."""
+    """Read originals, execute 40 current Runs in disposable DB/artifact storage."""
     from scripts.regression_reference import validate_scenario
 
     before = source_checksums(directory)

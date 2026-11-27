@@ -1,4 +1,4 @@
-"""Create/replay a private, independently checked nine-algorithm baseline."""
+"""Create/replay a private, independently checked ten-algorithm baseline."""
 
 import argparse
 import gc

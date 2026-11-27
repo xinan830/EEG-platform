@@ -24,14 +24,37 @@ public sealed partial class HttpAlgorithmClient : IRecordingSignalExportClient
             .ConfigureAwait(false);
     }
 
+    public async Task DownloadRegisteredRecordingSignalExportAsync(string recordingId, string format,
+        Stream destination, CancellationToken cancellationToken)
+    {
+        if (format is not ("edf" or "bdf")) throw new ArgumentOutOfRangeException(nameof(format));
+        RequireId(recordingId);
+        // Long exports use their own cancellable transport, independent of algorithm request timeouts.
+        using var transport = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
+        {
+            BaseAddress = httpClient.BaseAddress,
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+        var client = new HttpAlgorithmClient(transport);
+        await client.DownloadSignalExportByRecordingIdAsync(recordingId, format, destination, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     internal async Task DownloadRegisteredSignalAsync(string sourceDirectory, string format, Stream destination,
         CancellationToken cancellationToken)
     {
         var recording = await SendAsync<RegisteredRecording>(HttpMethod.Post, "api/recordings/register-wpf",
             new WpfRecordingRegistrationRequest(sourceDirectory, SignalMode: "raw", AnalysisMontageProfiles: []),
             cancellationToken).ConfigureAwait(false);
+        await DownloadSignalExportByRecordingIdAsync(recording.Id, format, destination, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal async Task DownloadSignalExportByRecordingIdAsync(string recordingId, string format, Stream destination,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"api/recordings/{Uri.EscapeDataString(RequireId(recording.Id))}/signal-export")
+            $"api/recordings/{Uri.EscapeDataString(RequireId(recordingId))}/signal-export")
         {
             Content = JsonContent.Create(new { format }),
         };

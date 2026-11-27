@@ -50,6 +50,8 @@ public sealed partial class ReviewAnalysisBinding : INotifyPropertyChanged, IAsy
         this.durationSamples = durationSamples;
     }
 
+    internal ReviewAnalysisCoordinator Coordinator => coordinator;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public WindowPreviewResponse? CurrentWindow

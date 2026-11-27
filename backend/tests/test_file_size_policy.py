@@ -58,3 +58,10 @@ def test_policy_thresholds_must_be_strictly_increasing():
     invalid = policy()
     invalid["strong_review_lines"] = 400
     assert validate_policy(invalid)
+
+
+def test_source_roots_include_wpf_desktop_and_exclude_build_dirs():
+    from scripts.check_file_sizes import EXCLUDED_PARTS, ROOT, SOURCE_ROOTS
+
+    assert (ROOT / "desktop-client" / "BrainPlatform.Desktop") in SOURCE_ROOTS
+    assert {"bin", "obj"}.issubset(EXCLUDED_PARTS)

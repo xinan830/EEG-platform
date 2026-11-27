@@ -204,7 +204,8 @@ public sealed class LiveMonitoringViewModelTests
         [
             new AcquisitionBatch(0, 1_000, 12, new double[12_000], DateTimeOffset.UtcNow),
         ];
-        using var monitor = CreateMonitor(() => state, () => metadata, () => batches);
+        using var monitor = CreateMonitor(() => state, () => metadata, () => batches,
+            recordingFirstSampleCounterProvider: () => 0);
         monitor.Refresh();
         _ = monitor.GetWaveformSource();
 
@@ -267,7 +268,10 @@ public sealed class LiveMonitoringViewModelTests
             DateTimeOffset.UtcNow);
         using var monitor = CreateMonitor(() => Snapshot(AcquisitionState.Ready), () => metadata);
 
-        monitor.ConfigureChannels([new ChannelLabelMappingRow(0, "Reference", "V", "Fp1", true)]);
+        monitor.ConfigureChannels([
+            new ChannelLabelMappingRow(0, "Reference", "V", "Fp1", isSelectedForDisplay: true, displayOrder: 0),
+            new ChannelLabelMappingRow(20, "Reference", "V", "", isSelectedForDisplay: false, displayOrder: 1),
+        ]);
         monitor.Refresh();
 
         Assert.Equal(["Fp1"], monitor.VisibleChannelLabels);

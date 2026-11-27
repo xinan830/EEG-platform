@@ -1,0 +1,467 @@
+{
+  "schema": "algorithm-result-boundary-current-v1",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "capture": "Current Run/artifact contracts with independent scalar and unchanged historical array checks.",
+  "environment": {
+    "python": "3.12.0",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  },
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "historical_baseline": {
+    "path": "docs/validation/algorithm-result-boundary-v4-baseline.json",
+    "sha256": "245b64b9ef1d9dfd22ca14e53bfc0f2ca79b2c2cf97beb860703ea5315aadd77",
+    "artifact_sha256": "682e72c05fa39cd965a66917c80803ebb2c74a935b08f012ecc5c7600f3cd00d",
+    "preserved": true
+  },
+  "changes": {
+    "config": "Added frequency_mode and preprocessing fields; exact resolved config digest retained.",
+    "iapf": "Validated alpha peak/COG diagnostics and complete 20-second dynamic windows.",
+    "theta_beta": "Standard 4-8 / 13-30 Hz bands and complete 20-second dynamic windows.",
+    "brainbeat": "Classic absolute Fz 4-8 / Pz 8-12 Hz; separate individualized algorithm ID.",
+    "rbp": "Private custom-frequency projection-source evidence and Definition identity.",
+    "preprocessing": "Structured offline-preprocessing evidence on bounded/rejected outputs."
+  },
+  "independent_reference": "backend/scripts/recording_audit_reference.py",
+  "artifact": {
+    "path": "backend/tests/fixtures/algorithm-result-boundary-20261127.npz",
+    "sha256": "878bd78b674ff0d992b7a86a13e21bb3a81a1111a718fa38986c703943e09e0b"
+  },
+  "cases": [
+    {
+      "case": "band_ratio__static__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "band_ratio__static__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "band_ratio__dynamic__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "band_ratio__dynamic__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__static__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "brainbeat__static__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "brainbeat__dynamic__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__dynamic__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat_individualized__static__clean",
+      "algorithm_id": "brainbeat_individualized",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "brainbeat_individualized__static__rejected",
+      "algorithm_id": "brainbeat_individualized",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "brainbeat_individualized__dynamic__clean",
+      "algorithm_id": "brainbeat_individualized",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat_individualized__dynamic__rejected",
+      "algorithm_id": "brainbeat_individualized",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__static__clean",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__static__rejected",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__dynamic__clean",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__dynamic__rejected",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__static__clean",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "iapf__static__rejected",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "iapf__dynamic__clean",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__dynamic__rejected",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "peak_frequency__dynamic__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__dynamic__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "psd__static__clean",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "axis_frequency_hz",
+        "band_share",
+        "psd"
+      ]
+    },
+    {
+      "case": "psd__static__rejected",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "axis_frequency_hz",
+        "band_share",
+        "psd"
+      ]
+    },
+    {
+      "case": "psd__dynamic__clean",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "axis_frequency_hz",
+        "band_share",
+        "psd",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "psd__dynamic__rejected",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "axis_frequency_hz",
+        "band_share",
+        "psd",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "rbp__static__clean",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "alpha",
+        "alpha_absolute_power",
+        "axis_channel_index",
+        "axis_time_s",
+        "beta",
+        "beta_absolute_power",
+        "delta",
+        "delta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "theta",
+        "theta_absolute_power"
+      ]
+    },
+    {
+      "case": "rbp__static__rejected",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "alpha",
+        "alpha_absolute_power",
+        "axis_channel_index",
+        "axis_time_s",
+        "beta",
+        "beta_absolute_power",
+        "delta",
+        "delta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "theta",
+        "theta_absolute_power"
+      ]
+    },
+    {
+      "case": "rbp__dynamic__clean",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "alpha",
+        "alpha_absolute_power",
+        "axis_channel_index",
+        "axis_time_s",
+        "beta",
+        "beta_absolute_power",
+        "delta",
+        "delta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "rbp__dynamic__rejected",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "alpha",
+        "alpha_absolute_power",
+        "axis_channel_index",
+        "axis_time_s",
+        "beta",
+        "beta_absolute_power",
+        "delta",
+        "delta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "stft__static__clean",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "axis_frequency_hz",
+        "axis_time_center_s",
+        "power_db",
+        "power_linear"
+      ]
+    },
+    {
+      "case": "stft__static__rejected",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "axis_frequency_hz",
+        "axis_time_center_s",
+        "power_db",
+        "power_linear"
+      ]
+    },
+    {
+      "case": "stft__dynamic__clean",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "axis_frequency_hz",
+        "axis_time_center_s",
+        "power_db",
+        "power_linear",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "stft__dynamic__rejected",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "axis_frequency_hz",
+        "axis_time_center_s",
+        "power_db",
+        "power_linear",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "theta_beta__static__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "theta_beta__static__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "theta_beta__dynamic__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "theta_beta__dynamic__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    }
+  ]
+}

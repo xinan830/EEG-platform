@@ -72,6 +72,16 @@ def test_malformed_historical_manifest_cannot_publish_a_fake_ready_result(tmp_pa
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     corrupted = source_hashes(root)
     try:
+        payload = {"recording_id": recording.id, "algorithm_id": "psd",
+                   "config": psd_config(recording), "cursor_sample": 1000}
+        if damage == "json":
+            response = client.post("/api/analysis-windows/ensure", json=payload)
+            assert response.status_code == 422
+            assert response.json()["code"] == "WINDOW_REQUEST_INVALID"
+            assert response.json()["message"]
+            assert not list(service.artifacts_dir.iterdir())
+            assert source_hashes(root) == corrupted
+            return
         ensured = service.ensure(DynamicWindowRequest(recording_id=recording.id, algorithm_id="psd",
             config=psd_config(recording), cursor_sample=1000))
         result = wait_window(client, ensured["window_id"])

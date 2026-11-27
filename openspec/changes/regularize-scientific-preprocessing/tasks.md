@@ -14,3 +14,9 @@
 ## 4. Integration verification
 - [x] 4.1 Align current architecture documentation and produce a dated verification report covering preserved formulas, unit/time/channel semantics and known failures.
 - [x] 4.2 Run broader related backend tests, architecture boundaries, strict OpenSpec validation, whitespace and file-size checks; report exact scope and remaining failures.
+
+## 5. Historical regression closure
+- [x] 5.1 Reproduce remaining failures and distinguish stale fixtures/contracts from runtime defects; preserve frozen numerical evidence.
+- [x] 5.2 Repair isolated test ownership, valid migration setup, source-metadata failure handling and registration checks with focused regressions.
+- [x] 5.3 Align current algorithm windows, filters and registry expectations; independently verify any superseded scientific baselines before recording current evidence.
+- [x] 5.4 Run the complete backend suite, architecture/size gates and strict OpenSpec validation; retain exact validation scope and remaining limitations. Complete backend: 1884 passed, 2 skipped, 7 warnings in 355.06 s; gates: 59 passed. See regression-verification.md.

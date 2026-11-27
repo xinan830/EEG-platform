@@ -19,9 +19,9 @@ def running(admission):
     return service, response, attempt
 
 
-def test_many_checks_share_one_connection_and_dispose_it(running, caplog):
+def test_many_checks_share_one_connection_and_dispose_it(running, backend_caplog):
     service, response, attempt = running
-    caplog.set_level("INFO")
+    backend_caplog.set_level("INFO")
     with performance_trace("reader_test") as trace:
         reader = DynamicExecutionStateReader(service.repository.database_path, response["window_id"],
                                              attempt.attempt_id, attempt.lease_token)

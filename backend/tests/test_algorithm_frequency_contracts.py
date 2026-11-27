@@ -69,7 +69,7 @@ def test_snapshot_preserves_explicit_notch_independently_of_high_cut(module, mod
     assert filters["notch_hz"] == notch
     assert filters["notch_quality_factor"] == (None if notch is None else 30)
     if isinstance(module, PsdAlgorithm):
-        assert snapshot.window["output_frequency_range_hz"] == [1, high]
+        assert snapshot.window["output_frequency_range_hz"] == ([1, 50] if mode == "dynamic" else [1, high])
     else:
         assert snapshot.quality_rules["frequency_range_hz"] == [1.0, high]
 

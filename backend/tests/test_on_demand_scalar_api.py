@@ -36,11 +36,14 @@ def _wait_window(client, window_id):
 def test_scalar_real_file_api_matches_each_full_run_point(
     tmp_path, algorithm_id, field, unit, parameters, gap, rejected
 ):
-    client, recording, service, runs, root = configure_api(tmp_path, gap=gap, rejected=rejected)
+    client, recording, service, runs, root = configure_api(
+        tmp_path, duration_s=22 if algorithm_id in {"iapf", "theta_beta"} else 12,
+        gap=gap, rejected=rejected)
     before = source_hashes(root)
     config = {"algorithm_id": algorithm_id, "channel": "F3-REF", "mode": "dynamic",
               "time": {"start_s": 0, "end_s": recording.duration_s},
-              "dynamic_window_s": 5, "refresh_step_s": 1, **parameters}
+              "dynamic_window_s": 20 if algorithm_id in {"iapf", "theta_beta"} else 5,
+              "refresh_step_s": 1, **parameters}
     try:
         response = client.post("/api/runs", json={"recording_id": recording.id,
             "analysis_type": "official_algorithm", "config": config})

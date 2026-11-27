@@ -23,21 +23,40 @@ public sealed class RecordingTimeChartModeTests
             null, null, start, start);
         var preview = RbpResultPreview.Parse(run);
         var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };
-        RecordingTimeAxisPresentation.SetContext(chart, context);
-        var surface = Assert.IsType<SciChartSurface>(chart.Content);
-        var axis = surface.XAxes[0];
-        var data = surface.RenderableSeries[0].DataSeries;
-        context.IsClockTime = true;
-        Assert.Equal(context.FormatAxis(5), axis.LabelProvider.FormatLabel(5d));
-        Assert.Same(data, surface.RenderableSeries[0].DataSeries);
+        var host = new Window
+        {
+            Content = chart,
+            Width = 400,
+            Height = 300,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+            WindowStyle = WindowStyle.None,
+            Left = -10000,
+            Top = -10000,
+        };
+        host.Show();
+        try
+        {
+            RecordingTimeAxisPresentation.SetContext(chart, context);
+            var surface = Assert.IsType<SciChartSurface>(chart.Content);
+            var axis = surface.XAxes[0];
+            var data = surface.RenderableSeries[0].DataSeries;
+            context.IsClockTime = true;
+            Assert.Equal(context.FormatAxis(5), axis.LabelProvider.FormatLabel(5d));
+            Assert.Same(data, surface.RenderableSeries[0].DataSeries);
 
-        chart.IsTrend = false;
-        context.IsRecordTime = true;
-        context.IsClockTime = true;
-        Assert.Equal("频段", axis.AxisTitle);
-        Assert.Equal(chart.Bands![0].Label, axis.LabelProvider.FormatLabel(0d));
-        chart.IsTrend = true;
-        Assert.Equal(context.FormatAxis(5), axis.LabelProvider.FormatLabel(5d));
+            chart.IsTrend = false;
+            context.IsRecordTime = true;
+            context.IsClockTime = true;
+            Assert.Equal("频段", axis.AxisTitle);
+            Assert.Equal(chart.Bands![0].Label, axis.LabelProvider.FormatLabel(0d));
+            chart.IsTrend = true;
+            Assert.Equal(context.FormatAxis(5), axis.LabelProvider.FormatLabel(5d));
+        }
+        finally
+        {
+            host.Close();
+        }
     });
 
     [Fact]

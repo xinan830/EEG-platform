@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from types import SimpleNamespace
 
 from scripts import recording_audit_reference as ref
 
@@ -35,3 +36,14 @@ def test_reference_iapf_ols_and_faa_log_ratio():
     time = np.arange(fs * 20) / fs
     left = 10e-6 * np.sin(2 * np.pi * 10 * time)
     assert ref.faa(np.column_stack([left, 2 * left]), fs) == pytest.approx(np.log(4), abs=1e-12)
+
+
+def test_current_reference_bands_and_narrow_peak_gate():
+    freq = np.arange(1., 50.25, .25)
+    density = np.ones((2, len(freq)))
+    density[0] *= 2
+    assert ref.scalar('brainbeat', freq, density, SimpleNamespace()) == pytest.approx(2)
+    assert ref.scalar('theta_beta', freq, density, SimpleNamespace(frequency_mode='standard')) == pytest.approx(4 / 17)
+    power = (1e-12 / freq ** 1.3)[None, :]
+    power[0, np.flatnonzero(freq == 10)[0]] += 1e-14
+    assert ref.iapf(freq, power) is None

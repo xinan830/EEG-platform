@@ -16,7 +16,9 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
     private readonly ConfiguredAcquisitionRuntime runtime;
     private readonly LiveMonitoringViewModel monitor;
     private readonly Func<LiveDisplayPreferences, Task> persistAsync;
+    private readonly Func<bool> isPreparationInProgress;
     private readonly SemaphoreSlim saveGate = new(1, 1);
+    private Task pendingFilterUpdate = Task.CompletedTask;
     private double highPassHz;
     private double lowPassHz;
     private double notchHz;
@@ -28,11 +30,13 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         ConfiguredAcquisitionRuntime runtime,
         LiveMonitoringViewModel monitor,
         LiveDisplayPreferences initialPreferences,
-        Func<LiveDisplayPreferences, Task> persistAsync)
+        Func<LiveDisplayPreferences, Task> persistAsync,
+        Func<bool> isPreparationInProgress)
     {
         this.runtime = runtime;
         this.monitor = monitor;
         this.persistAsync = persistAsync;
+        this.isPreparationInProgress = isPreparationInProgress;
         highPassHz = initialPreferences.HighPassHz;
         lowPassHz = initialPreferences.LowPassHz;
         notchHz = initialPreferences.NotchHz;
@@ -49,6 +53,7 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         get => highPassHz;
         set
         {
+            if (!CanConfigureFilters) { RaisePropertyChanged(); return; }
             if (SetProperty(ref highPassHz, value))
             {
                 ApplyFilter();
@@ -62,6 +67,7 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         get => lowPassHz;
         set
         {
+            if (!CanConfigureFilters) { RaisePropertyChanged(); return; }
             if (SetProperty(ref lowPassHz, value))
             {
                 ApplyFilter();
@@ -76,6 +82,7 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         get => notchHz;
         set
         {
+            if (!CanConfigureFilters) { RaisePropertyChanged(); return; }
             if (SetProperty(ref notchHz, value))
             {
                 ApplyFilter();
@@ -84,7 +91,8 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         }
     }
 
-    public bool CanConfigureFilters => runtime.State.State is not AcquisitionState.Starting and not AcquisitionState.Stopping;
+    public bool CanConfigureFilters => !isPreparationInProgress() &&
+        runtime.State.State is not AcquisitionState.Starting and not AcquisitionState.Stopping;
 
     public LiveDisplayFilterSettings FilterSettings => new(
         LiveHighPassHz,
@@ -100,6 +108,12 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         monitor.TimebaseSecondsPerScreen);
 
     public void RefreshAvailability() => RaisePropertyChanged(nameof(CanConfigureFilters));
+
+    internal Task CompletePendingFilterUpdatesAsync()
+    {
+        Interlocked.Increment(ref filterApplyRevision);
+        return pendingFilterUpdate;
+    }
 
     public void Dispose()
     {
@@ -124,9 +138,11 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
     }
 
     private void ApplyFilter() =>
-        _ = ApplyLatestFilterAsync(Interlocked.Increment(ref filterApplyRevision), FilterSettings);
+        pendingFilterUpdate = ApplyLatestFilterAsync(
+            pendingFilterUpdate, Interlocked.Increment(ref filterApplyRevision), FilterSettings);
 
     private async Task ApplyLatestFilterAsync(
+        Task previousUpdate,
         long expectedRevision,
         LiveDisplayFilterSettings settings)
     {
@@ -135,8 +151,8 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
             // A selection can raise several property notifications in quick
             // succession. Build the large raw warm-up snapshot away from the
             // dispatcher and apply only the latest user choice.
-            await Task.Delay(150);
-            if (disposed || expectedRevision != Volatile.Read(ref filterApplyRevision))
+            await Task.WhenAll(previousUpdate, Task.Delay(150));
+            if (disposed || !CanConfigureFilters || expectedRevision != Volatile.Read(ref filterApplyRevision))
             {
                 return;
             }

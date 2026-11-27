@@ -15,6 +15,8 @@ from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenan
 from app.services.analysis.windows.cache_maintenance import CacheMaintenanceService
 from app.services.viewer.live_filter import LiveFilterService
 from app.services.live_analysis.live_recording_access import LiveRecordingAccessService
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
 from on_demand_fixtures import configure_api, psd_config, source_hashes
 from test_on_demand_psd_api import wait_window
 
@@ -241,10 +243,13 @@ def test_requests_are_rejected_while_clear_owns_gate(setup, monkeypatch):
     assert client.get("/api/analysis-windows/absent").status_code == 404
 
 
-def test_live_batches_continue_during_maintenance_and_keep_their_state(setup):
+def test_live_batches_continue_during_maintenance_and_keep_their_state(setup, request):
     client, _, _, _, _, _, gate = setup
     client.app.state.live_filter_service = LiveFilterService()
     client.app.state.live_recording_access_service = LiveRecordingAccessService()
+    coordinator = LiveAnalysisCoordinator(LiveAnalysisAlgorithmRegistry(()))
+    client.app.state.live_analysis_coordinator = coordinator
+    request.addfinalizer(coordinator.shutdown)
     client.app.include_router(live_filters_router)
     client.app.include_router(live_recordings_router)
     assert client.post("/api/live-filters/sessions", json={

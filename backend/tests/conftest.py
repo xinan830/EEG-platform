@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 import pytest
 
 
@@ -37,6 +38,14 @@ def isolate_app_state():
     finally:
         app.state._state.clear()
         app.state._state.update(snapshot)
+
+
+@pytest.fixture
+def backend_caplog(caplog, monkeypatch):
+    """Opt diagnostic tests into INFO capture without changing production handlers."""
+    caplog.set_level(logging.INFO, logger="brain_platform")
+    monkeypatch.setattr(logging.getLogger("brain_platform"), "propagate", True)
+    return caplog
 
 
 @pytest.fixture

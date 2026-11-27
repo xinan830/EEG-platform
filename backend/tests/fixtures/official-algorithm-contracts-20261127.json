@@ -1,0 +1,609 @@
+{
+  "schema": "official-algorithm-strategy-matrix-v2",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "generated_from_current_manifests": true,
+  "contract_snapshot": {
+    "band_ratio": {
+      "scientific_version": "official-band-ratio-v2",
+      "implementation_identity": "band-ratio-runtime-v3-shared-1-50-notch",
+      "manifest_sha256": "bc93b4ddf8b8c9c4845fe3862fcd30c1db0b662dcca9c8aa5601479f676d19d7",
+      "parameter_schema_sha256": "99b7938846049e44f16cc1a7f4e53eaf1ce9afd11598ccdd28c237fd4e43d345",
+      "output_schema_sha256": "79914734c5843be1535c9b7b6de6c1c75542ace70090cb840fffe4bb38190268",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "brainbeat": {
+      "scientific_version": "official-brainbeat-v6-classic-absolute",
+      "implementation_identity": "brainbeat-runtime-v6-classic-fixed-band-absolute",
+      "manifest_sha256": "3fa6b702928326d84f7866b028931b6c6638bb89ba0f419634f9fa2447ba2a44",
+      "parameter_schema_sha256": "fd8f31da823f0e0330c894c67d6aedbcbcc06b4319f3a7ac098a161436730559",
+      "output_schema_sha256": "6d95e1bf6d0daf6081830173fc62676c37e9aa264ab0f9055a98a22491f78190",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "brainbeat_individualized": {
+      "scientific_version": "official-brainbeat-individualized-v1-relative",
+      "implementation_identity": "brainbeat-individualized-runtime-v1-iapf-relative",
+      "manifest_sha256": "5bd680d1b1149b96b3c040a0e4cc3848d4ec2a0b2592ed5bf136c12f10558fa9",
+      "parameter_schema_sha256": "fd8f31da823f0e0330c894c67d6aedbcbcc06b4319f3a7ac098a161436730559",
+      "output_schema_sha256": "46391fc69cfde363de5b63cbc16226719f8526f411a2fdfc0e319e9ade7f285e",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "faa": {
+      "scientific_version": "official-faa-v2",
+      "implementation_identity": "faa-runtime-v2",
+      "manifest_sha256": "9bdff29740eaa255f2bb4a548a34ddceb5997801210f29563d5f7ac576c07c8c",
+      "parameter_schema_sha256": "b40b57565e25b2dd8821d693ff2b002151631e1b868b262a6e9f8a82b0d7fc7e",
+      "output_schema_sha256": "423bdd833b5e5687246e1f8f968207b1170c967ed05c81ec9ae1264bd4cda109",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "iapf": {
+      "scientific_version": "official-iapf-v5",
+      "implementation_identity": "iapf-runtime-v7-20s-segment-diagnostics",
+      "manifest_sha256": "431c77146f829dca3a98dada803dac67a03c211778a61e4b0dea27c0e356add7",
+      "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
+      "output_schema_sha256": "7255731ece9fdd7acbc59321b99efb0a22c47ad99ed89d1c6dd2689753591e6f",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "peak_frequency": {
+      "scientific_version": "official-peak-frequency-v2",
+      "implementation_identity": "peak-frequency-runtime-v3-shared-1-50-notch",
+      "manifest_sha256": "798fb5820aa1a28537f0eced475b4e17456ba883bc62f7f9daf7a2ee6f34794d",
+      "parameter_schema_sha256": "a7ab3923871e0f05213e465c40c7cb2a1839a0677041e8b452e495447a5fd770",
+      "output_schema_sha256": "fbedac20cfc59f606b1043a217bfa7a26f8ef70b842b4d4efcdc4622a6003ebc",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "psd": {
+      "scientific_version": "offline-spectral-v6-shared-1-50-notch",
+      "implementation_identity": "psd-runtime-v6-shared-1-50-notch",
+      "manifest_sha256": "955f219706bc9fe126832279e0dc561a6b6e33350b53a65681cac3f59803e200",
+      "parameter_schema_sha256": "757df72c6b96bac461b41381ff5f2e55aba3054df5e6dc1aca94345dd817aca3",
+      "output_schema_sha256": "8224d17f766bda2d1b64bdb4a7d465e35613ad4bb0a16aa44d99d2b9fdc07baa",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "rbp": {
+      "scientific_version": "official-rbp-v4",
+      "implementation_identity": "rbp-runtime-v9-private-projection-source",
+      "manifest_sha256": "3f99e74b5de3fff998c66a8f9c4efd5ba5251e7cf9261727d20f843eba0488e8",
+      "parameter_schema_sha256": "aa7ba1506d548bd1a55dc194f9341a666cba1ba6bab17e599ac03031213893d5",
+      "output_schema_sha256": "8ccd361b7edc58cdb5b50e38ea1942c6c60395f655bf5151fabe932de16c6b7a",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "stft": {
+      "scientific_version": "spectrogram-v4-bounded-notch",
+      "implementation_identity": "stft-runtime-v8-bounded-notch",
+      "manifest_sha256": "55c50e5b5e1c6cd3e77acf35c0ecb26f211e459987162db0b8de08fd1df57bc2",
+      "parameter_schema_sha256": "6c633b8e08bf0d1bbc706b593927d3eb87ed1be4b7afa5eac23e336666ca01be",
+      "output_schema_sha256": "0bc3780ab29d3e15cbf895a089a0299a2bc63b2ab797aade33bd6ffd33921624",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "theta_beta": {
+      "scientific_version": "official-theta-beta-v5",
+      "implementation_identity": "theta-beta-runtime-v4-iapf-v5-frequency-modes",
+      "manifest_sha256": "6bf51efcdb54a5442c2d66310026e8ca497ec07cb161c5ad6489bc4addce055e",
+      "parameter_schema_sha256": "1fc2eac09f034fd30eb4cd6f06fedb93d55ad7c1d6334e6f9f028f67466533cc",
+      "output_schema_sha256": "47d783a280a398fa3d7aeda0d376517fb12e6f23337eac5b29a6bb1e8a42bdc1",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "tnk_biofeedback": {
+      "scientific_version": "tnk-biofeedback-group-v3",
+      "implementation_identity": "tnk-biofeedback-group-v3-shared-1-50-notch-tnk-child-graph-v1:245e554753a8ccc872594cb14d47c5b2109d4eb8d8ea3ec0667f0e8a359fa546",
+      "manifest_sha256": "bef85622455dcb7a6ab7e73c193d6bc8a350735b487ee470e3efec7cb4545740",
+      "parameter_schema_sha256": "4e0764b15e744ce696627d4fec3b6628bcc4e1d0536a3e2a8d40a21af1e06e72",
+      "output_schema_sha256": "14cdbf7b8b7285eba86c71a6b95146a99fea51db1d6cf9a63f432369cdf64b3c",
+      "supported_modes": [
+        "dynamic"
+      ]
+    }
+  },
+  "algorithms": {
+    "band_ratio": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_peak_frequency_band_ratio.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_peak_frequency_band_ratio.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "brainbeat": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_brainbeat_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_brainbeat_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not declare a safe full-result projection contract."
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "faa": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_faa_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_faa_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not declare a safe full-result projection contract."
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "iapf": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "peak_frequency": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_peak_frequency_band_ratio.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_peak_frequency_band_ratio.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "psd": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_psd_on_demand_capability.py",
+            "backend/tests/test_offline_window_reuse.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_psd_on_demand_capability.py",
+            "backend/tests/test_offline_window_reuse.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_psd_on_demand_capability.py",
+            "backend/tests/test_offline_window_reuse.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_directional_reuse.py"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        }
+      }
+    },
+    "rbp": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_rbp_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_rbp_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_rbp_on_demand_capability.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "stft": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_stft_on_demand_capability.py",
+            "backend/tests/test_stft_offline_reuse.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_stft_on_demand_capability.py",
+            "backend/tests/test_stft_offline_reuse.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_stft_on_demand_capability.py",
+            "backend/tests/test_stft_offline_reuse.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_directional_reuse.py"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        }
+      }
+    },
+    "theta_beta": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_scalar_on_demand_capabilities.py"
+          ]
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "tnk_biofeedback": {
+      "paths": {
+        "full": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_tnk_group.py"
+          ],
+          "reason": "\u7ec4\u7ea7\u6267\u884c\u56fe\u4e0e\u7ed3\u679c\u5951\u7ea6\u5df2\u6709\u6d4b\u8bd5\uff1b\u5b8c\u6574\u771f\u5b9e\u5f55\u97f3\u9a8c\u6536\u5c1a\u672a\u5b8c\u6210\u3002"
+        },
+        "on_demand": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_tnk_group.py"
+          ],
+          "reason": "\u76ee\u6807\u7a97\u56de\u653e\u4f7f\u7528\u76f8\u540c\u7ec4\u5e27\u6267\u884c\u5668\uff1b\u771f\u5b9e\u5f55\u97f3\u9a8c\u6536\u5c1a\u672a\u5b8c\u6210\u3002"
+        },
+        "combined_preview_background_full": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [],
+          "reason": "\u7ec4\u7ea7 combined parity \u5c1a\u5f85\u9a8c\u6536\u3002"
+        },
+        "full_result_to_preview": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "\u7ec4\u7ed3\u679c\u4e0d\u80fd\u4ece\u5355\u4e2a\u6807\u91cf\u9884\u89c8\u4e2d\u53cd\u5411\u6295\u5f71\u3002"
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "\u7ec4\u7ea7\u7cbe\u786e\u7a97\u53e3\u53cd\u5411\u590d\u7528\u672a\u58f0\u660e\u3002"
+        }
+      }
+    },
+    "brainbeat_individualized": {
+      "paths": {
+        "full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_brainbeat_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "on_demand": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_brainbeat_on_demand_capability.py",
+            "backend/tests/test_official_algorithm_numeric_reference_audit.py",
+            "backend/tests/test_real_recording_regression.py",
+            "backend/tests/test_result_boundary_baseline.py"
+          ]
+        },
+        "combined_preview_background_full": {
+          "status": "validated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_official_combined_strategies.py",
+            "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"
+          ],
+          "evidence_scope": "algorithm-scoped synthetic integration, numerical parity and cancellation; not clinical or large-recording performance validation"
+        },
+        "full_result_to_preview": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not declare a safe full-result projection contract."
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    }
+  },
+  "historical_matrix_sha256": "e3bdf70c3d92f5886d17fff4118704b5aceafe7cde5361d6283568a6476d3c73"
+}

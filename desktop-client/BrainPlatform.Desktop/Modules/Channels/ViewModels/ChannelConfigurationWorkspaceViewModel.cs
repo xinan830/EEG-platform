@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
 using BrainPlatform.Desktop.Modules.Channels.Api;
 using BrainPlatform.Desktop.Modules.Channels.Domain;
@@ -7,43 +8,23 @@ using BrainPlatform.Desktop.Modules.Channels.Views;
 
 namespace BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
-/// <summary>Coordinates user presets with the device-validated live mapping.</summary>
+/// <summary>Coordinates channel profile persistence, device refresh, and draft/catalogue state.</summary>
 public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 {
     private readonly ChannelMappingViewModel mapping;
     private readonly ChannelConfigurationProfileStore store;
     private readonly ChannelConfigurationReferencePolicy referencePolicy;
     private readonly IElectrodeLocationClient? electrodeLocationClient;
-    private readonly DeviceSessionManager? deviceSession;
+    private readonly ChannelDraftLocationResolver locationResolver;
     private readonly OperationNotificationCenter? notifications;
-    private ChannelConfigurationProfile? selectedProfile;
-    private string? observedDeviceSignature;
-    private string statusText = "请先连接放大器，读取实际物理通道后再管理通道配置。";
-    private string draftName = string.Empty;
-    private string draftDescription = string.Empty;
-    private string draftReferenceElectrodeLocation = "REF";
-    private string draftGroundElectrodeLocation = "GND";
-    private AcquisitionDeviceDescriptor? draftDevice;
-    private AcquisitionDeviceDescriptor? pendingDeviceSelection;
-    private ChannelConfigurationProfile? draftSourceProfile;
-    private string? draftProfileId;
-    private DateTimeOffset? draftCreatedAtUtc;
-    private bool isDraftOpen;
-    private bool isReadOnlyDraft;
-    private bool isSignalLockedDraft;
-    private bool isCreatingVersion;
-    private bool isDevicePickerVisible;
-    private string searchText = string.Empty;
-    private string deviceModelFilter = "全部型号";
-    private string sourceFilter = "全部来源";
-    private string statusFilter = "全部状态";
-    private int pageSize = 10;
-    private int currentPage = 1;
-    private string channelSearchText = string.Empty;
-    private bool isBulkDisplayUpdate;
-    private ChannelConfigurationProfile? savedDraftBaseline;
+    private readonly ChannelProfileCatalogueView catalogue;
+    private readonly ChannelConfigurationDraftEditor draft;
     private readonly RelayCommand showAllDraftChannelsCommand;
     private readonly RelayCommand hideAllDraftChannelsCommand;
+    private ChannelConfigurationProfile? selectedProfile;
+    private string? observedDeviceSignature;
+    private long refreshGeneration;
+    private string statusText = "请先连接放大器，读取实际物理通道后再管理通道配置。";
 
     public ChannelConfigurationWorkspaceViewModel(
         ChannelMappingViewModel mapping,
@@ -56,123 +37,58 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         this.mapping = mapping;
         this.store = store ?? new ChannelConfigurationProfileStore();
         referencePolicy = new ChannelConfigurationReferencePolicy(montageStore);
-        this.deviceSession = deviceSession;
         this.notifications = notifications;
         this.electrodeLocationClient = electrodeLocationClient;
+        locationResolver = new ChannelDraftLocationResolver(electrodeLocationClient);
+        catalogue = new ChannelProfileCatalogueView(() => this.mapping.HasLoadedDevice);
+        draft = new ChannelConfigurationDraftEditor(mapping, deviceSession, message => this.notifications?.PublishSuccess(message));
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCommandError);
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
         ResolveElectrodeLocationsCommand = new AsyncRelayCommand(ResolveElectrodeLocationsAsync, ReportCommandError);
         CloseDraftCommand = new AsyncRelayCommand(() => { CloseDraft(); return Task.CompletedTask; }, ReportCommandError);
-        ConfirmDeviceSelectionCommand = new AsyncRelayCommand(
-            () => { ConfirmPendingDeviceSelection(); return Task.CompletedTask; },
-            ReportCommandError);
+        ConfirmDeviceSelectionCommand = new AsyncRelayCommand(() => { ConfirmPendingDeviceSelection(); return Task.CompletedTask; }, ReportCommandError);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
         PreviousPageCommand = new RelayCommand(() => CurrentPage--, () => CanPreviousPage);
         NextPageCommand = new RelayCommand(() => CurrentPage++, () => CanNextPage);
         showAllDraftChannelsCommand = new RelayCommand(
-            () => SetAllDraftEegChannelsDisplayed(true),
+            () => draft.SetAllEegChannelsDisplayed(true),
             () => CanEditSignalDraft && DraftRows.Any(row => row.IsEegInput && !row.IsEnabled));
         hideAllDraftChannelsCommand = new RelayCommand(
-            () => SetAllDraftEegChannelsDisplayed(false),
+            () => draft.SetAllEegChannelsDisplayed(false),
             () => CanEditSignalDraft && DraftRows.Any(row => row.IsEegInput && row.IsEnabled));
-        mapping.DisplayChannelsChanged += OnMappingChanged;
-        DraftHardwareLandmarks.PropertyChanged += OnHardwareLandmarksChanged;
-    }
-
-    public ObservableCollection<ChannelConfigurationProfile> Profiles { get; } = [];
-
-    public ObservableCollection<ChannelConfigurationProfile> FilteredProfiles { get; } = [];
-
-    public IReadOnlyList<string> SourceFilterOptions { get; } = ["全部来源", "系统预设", "用户自定义"];
-
-    public IReadOnlyList<string> StatusFilterOptions { get; } =
-        ["全部状态", "可用", "设备不匹配", "待连接", "被导联引用", "不可修改"];
-
-    public IReadOnlyList<int> PageSizeOptions { get; } = [10, 20, 50];
-
-    public int PageSize
-    {
-        get => pageSize;
-        set
-        {
-            var normalized = PageSizeOptions.Contains(value) ? value : 10;
-            if (SetProperty(ref pageSize, normalized))
-            {
-                currentPage = 1;
-                RaisePropertyChanged(nameof(CurrentPage));
-                ApplyFilters();
-            }
-        }
-    }
-
-    public int CurrentPage
-    {
-        get => currentPage;
-        set
-        {
-            var normalized = Math.Clamp(value, 1, TotalPages);
-            if (SetProperty(ref currentPage, normalized))
-            {
-                ApplyFilters();
-            }
-        }
-    }
-
-    public int TotalItemCount { get; private set; }
-
-    public int TotalPages { get; private set; } = 1;
-
-    public bool CanPreviousPage => CurrentPage > 1;
-
-    public bool CanNextPage => CurrentPage < TotalPages;
-
-    public IReadOnlyList<string> DeviceModelFilterOptions =>
-        ["全部型号", .. Profiles.Select(profile => profile.DeviceModelLabel).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value)];
-
-    public string SearchText
-    {
-        get => searchText;
-        set { if (SetProperty(ref searchText, value)) ApplyFilters(resetToFirstPage: true); }
-    }
-
-    public string DeviceModelFilter
-    {
-        get => deviceModelFilter;
-        set { if (SetProperty(ref deviceModelFilter, value)) ApplyFilters(resetToFirstPage: true); }
-    }
-
-    public string SourceFilter
-    {
-        get => sourceFilter;
-        set { if (SetProperty(ref sourceFilter, value)) ApplyFilters(resetToFirstPage: true); }
-    }
-
-    public string StatusFilter
-    {
-        get => statusFilter;
-        set { if (SetProperty(ref statusFilter, value)) ApplyFilters(resetToFirstPage: true); }
+        this.mapping.DisplayChannelsChanged += OnMappingChanged;
+        catalogue.PropertyChanged += OnCataloguePropertyChanged;
+        catalogue.FilteredProfilesUpdated += OnFilteredProfilesUpdated;
+        draft.PropertyChanged += OnDraftPropertyChanged;
     }
 
     public event EventHandler? ProfilesChanged;
+    public ObservableCollection<ChannelConfigurationProfile> Profiles => catalogue.Profiles;
+    public ObservableCollection<ChannelConfigurationProfile> FilteredProfiles => catalogue.FilteredProfiles;
+    public IReadOnlyList<string> SourceFilterOptions => catalogue.SourceFilterOptions;
+    public IReadOnlyList<string> StatusFilterOptions => catalogue.StatusFilterOptions;
+    public IReadOnlyList<int> PageSizeOptions => catalogue.PageSizeOptions;
+    public int PageSize { get => catalogue.PageSize; set => catalogue.PageSize = value; }
+    public int CurrentPage { get => catalogue.CurrentPage; set => catalogue.CurrentPage = value; }
+    public int TotalItemCount => catalogue.TotalItemCount;
+    public int TotalPages => catalogue.TotalPages;
+    public bool CanPreviousPage => catalogue.CanPreviousPage;
+    public bool CanNextPage => catalogue.CanNextPage;
+    public IReadOnlyList<string> DeviceModelFilterOptions => catalogue.DeviceModelFilterOptions;
+    public string SearchText { get => catalogue.SearchText; set => catalogue.SearchText = value; }
+    public string DeviceModelFilter { get => catalogue.DeviceModelFilter; set => catalogue.DeviceModelFilter = value; }
+    public string SourceFilter { get => catalogue.SourceFilter; set => catalogue.SourceFilter = value; }
+    public string StatusFilter { get => catalogue.StatusFilter; set => catalogue.StatusFilter = value; }
 
     public ICommand RefreshCommand { get; }
-
     public ICommand SaveDraftCommand { get; }
-
     public ICommand ResolveElectrodeLocationsCommand { get; }
-
     public ICommand CloseDraftCommand { get; }
-
     public ICommand ConfirmDeviceSelectionCommand { get; }
-
     public ICommand DeleteSelectedCommand { get; }
-
     public ICommand PreviousPageCommand { get; }
-
     public ICommand NextPageCommand { get; }
-
     public ICommand ShowAllDraftChannelsCommand => showAllDraftChannelsCommand;
-
     public ICommand HideAllDraftChannelsCommand => hideAllDraftChannelsCommand;
 
     public ChannelConfigurationProfile? SelectedProfile
@@ -189,366 +105,113 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         }
     }
 
-    public string StatusText
-    {
-        get => statusText;
-        private set => SetProperty(ref statusText, value);
-    }
-
+    public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
     public bool CanCreateProfile => mapping.HasLoadedDevice;
-
     public string? CurrentDeviceSignature => mapping.HasLoadedDevice ? mapping.GetDeviceSignature() : null;
-
     public bool CanDeleteSelected => SelectedProfile?.CanDelete == true;
-
     public bool CanCreateVersionSelected => SelectedProfile?.CanCreateVersion == true;
 
-    public ObservableCollection<ChannelConfigurationDraftRow> DraftRows { get; } = [];
+    public ObservableCollection<ChannelConfigurationDraftRow> DraftRows => draft.DraftRows;
+    public ElectrodeMapLandmarkDraft DraftHardwareLandmarks => draft.DraftHardwareLandmarks;
+    public ObservableCollection<ChannelConfigurationDraftRow> FilteredDraftRows => draft.FilteredDraftRows;
+    public string ChannelSearchText { get => draft.ChannelSearchText; set => draft.ChannelSearchText = value; }
+    public string DraftSourceLabel => draft.DraftSourceLabel;
+    public string DraftDeviceVendor => draft.DraftDeviceVendor;
+    public string DraftDeviceModel => draft.DraftDeviceModel;
+    public int DraftMontageReferenceCount => draft.DraftMontageReferenceCount;
+    public string DraftCreatedAtText => draft.DraftCreatedAtText;
+    public string DraftUpdatedAtText => draft.DraftUpdatedAtText;
+    public string DraftStatusLabel => draft.DraftStatusLabel;
+    public AcquisitionDeviceDescriptor? DraftDevice { get => draft.DraftDevice; set => draft.DraftDevice = value; }
+    public AcquisitionDeviceDescriptor? PendingDeviceSelection { get => draft.PendingDeviceSelection; set => draft.PendingDeviceSelection = value; }
+    public bool HasPendingDeviceSelection => draft.HasPendingDeviceSelection;
+    public bool IsDraftOpen => draft.IsDraftOpen;
+    public bool IsDevicePickerVisible => draft.IsDevicePickerVisible;
+    public bool CanEditDraft => draft.CanEditDraft;
+    public bool HasUnsavedChanges => draft.HasUnsavedChanges;
+    public bool CanEditSignalDraft => draft.CanEditSignalDraft;
+    public bool IsSignalLockedDraft => draft.IsSignalLockedDraft;
+    public string DraftLockMessage => draft.DraftLockMessage;
+    public string DraftTitle => draft.DraftTitle;
+    public string DraftName { get => draft.DraftName; set => draft.DraftName = value; }
+    public string DraftDescription { get => draft.DraftDescription; set => draft.DraftDescription = value; }
+    public int DraftEegInputCount => draft.DraftEegInputCount;
+    public int DraftEnabledCount => draft.DraftEnabledCount;
+    public string DraftReferenceElectrodeLocation { get => draft.DraftReferenceElectrodeLocation; set => draft.DraftReferenceElectrodeLocation = value; }
+    public string DraftGroundElectrodeLocation { get => draft.DraftGroundElectrodeLocation; set => draft.DraftGroundElectrodeLocation = value; }
 
-    public ElectrodeMapLandmarkDraft DraftHardwareLandmarks { get; } = new();
-
-    public ObservableCollection<ChannelConfigurationDraftRow> FilteredDraftRows { get; } = [];
-
-    public string ChannelSearchText
-    {
-        get => channelSearchText;
-        set
-        {
-            if (SetProperty(ref channelSearchText, value))
-            {
-                ApplyDraftRowFilter();
-            }
-        }
-    }
-
-
-    public string DraftSourceLabel => isReadOnlyDraft && draftSourceProfile?.Source == ChannelConfigurationSource.System
-        ? "系统默认"
-        : "用户创建";
-
-    public string DraftDeviceVendor => DescribeDeviceVendor(DraftDevice?.DriverId ?? draftSourceProfile?.DeviceDriverId);
-
-    public string DraftDeviceModel => DraftDevice?.Model ?? draftSourceProfile?.DeviceModel ?? "设备未提供型号";
-
-    public int DraftMontageReferenceCount => draftProfileId is null && !isReadOnlyDraft
-        ? 0
-        : draftSourceProfile?.MontageReferenceCount ?? 0;
-
-    public string DraftCreatedAtText => draftCreatedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "保存后生成";
-
-    public string DraftUpdatedAtText => draftProfileId is null ? "保存后生成" : draftSourceProfile?.UpdatedAtText ?? "保存后生成";
-
-    public string DraftStatusLabel => isReadOnlyDraft
-        ? "系统默认"
-        : isSignalLockedDraft ? "被导联引用" : "可编辑";
-
-    public AcquisitionDeviceDescriptor? DraftDevice
-    {
-        get => draftDevice;
-        set
-        {
-            if (SetProperty(ref draftDevice, value))
-            {
-                RaisePropertyChanged(nameof(DraftDeviceVendor));
-                RaisePropertyChanged(nameof(DraftDeviceModel));
-                if (value is not null)
-                {
-                    SetDevicePickerVisible(false);
-                    if (deviceSession is not null &&
-                        !string.Equals(deviceSession.SelectedDevice?.DeviceId, value.DeviceId, StringComparison.Ordinal))
-                    {
-                        deviceSession.SelectDevice(value);
-                    }
-                    BuildDraftRows(deviceSession?.SelectedDevice ?? value, draftSourceProfile);
-                    if (savedDraftBaseline is null && (draftSourceProfile is null || isCreatingVersion))
-                    {
-                        savedDraftBaseline = CreateDraftProfile(DateTimeOffset.UtcNow);
-                        RaisePropertyChanged(nameof(HasUnsavedChanges));
-                    }
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// The device highlighted in the picker. It deliberately does not change
-    /// the configuration draft until the operator confirms the selection.
-    /// </summary>
-    public AcquisitionDeviceDescriptor? PendingDeviceSelection
-    {
-        get => pendingDeviceSelection;
-        set
-        {
-            if (SetProperty(ref pendingDeviceSelection, value))
-            {
-                RaisePropertyChanged(nameof(HasPendingDeviceSelection));
-            }
-        }
-    }
-
-    public bool HasPendingDeviceSelection => PendingDeviceSelection is not null;
-
-    public bool IsDraftOpen
-    {
-        get => isDraftOpen;
-        private set
-        {
-            if (SetProperty(ref isDraftOpen, value))
-            {
-                RaisePropertyChanged(nameof(CanEditDraft));
-                RaisePropertyChanged(nameof(DraftTitle));
-            }
-        }
-    }
-
-    public bool IsDevicePickerVisible => isDevicePickerVisible;
-
-    public bool CanEditDraft => IsDraftOpen && !isReadOnlyDraft;
-
-    public bool HasUnsavedChanges => CanEditDraft && savedDraftBaseline is not null &&
-                                     !IsDraftEquivalentTo(savedDraftBaseline);
-
-    public bool CanEditSignalDraft => CanEditDraft && !isSignalLockedDraft;
-
-    public bool IsSignalLockedDraft => isSignalLockedDraft;
-
-    public string DraftLockMessage => isSignalLockedDraft && draftSourceProfile is not null
-        ? $"该配置已被 {draftSourceProfile.MontageReferenceCount} 个导联配置引用。电极映射、显示顺序及 REF/GND 已锁定；名称和说明仍可修改。"
-        : string.Empty;
-
-    public string DraftTitle => CanEditDraft
-        ? isCreatingVersion ? "创建通道配置新版本" : draftProfileId is null ? "新建通道配置" : "编辑通道配置"
-        : "查看通道配置";
-
-    public string DraftName
-    {
-        get => draftName;
-        set { if (SetProperty(ref draftName, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
-    }
-
-    public string DraftDescription
-    {
-        get => draftDescription;
-        set { if (SetProperty(ref draftDescription, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
-    }
-
-    public int DraftEegInputCount => DraftRows.Count(row => row.IsEegInput);
-
-    public int DraftEnabledCount => DraftRows.Count(row => row.IsEegInput && row.IsEnabled);
-
-    /// <summary>Operator-recorded scalp location of the fixed hardware REF lead.</summary>
-    public string DraftReferenceElectrodeLocation
-    {
-        get => draftReferenceElectrodeLocation;
-        set { if (SetProperty(ref draftReferenceElectrodeLocation, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
-    }
-
-    /// <summary>Operator-recorded scalp location of the fixed hardware GND lead.</summary>
-    public string DraftGroundElectrodeLocation
-    {
-        get => draftGroundElectrodeLocation;
-        set { if (SetProperty(ref draftGroundElectrodeLocation, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
-    }
-
-    /// <summary>
-    /// Starts an empty channel-configuration draft. The caller may host device
-    /// selection in a native dialog, in which case the legacy in-page picker is
-    /// deliberately not made visible.
-    /// </summary>
     public void BeginNewProfile(bool showDevicePicker = true)
     {
-        isReadOnlyDraft = false;
-        isSignalLockedDraft = false;
-        isCreatingVersion = false;
         SelectedProfile = null;
-        draftSourceProfile = null;
-        draftProfileId = null;
-        draftCreatedAtUtc = null;
-        DraftName = string.Empty;
-        DraftDescription = string.Empty;
-        DraftReferenceElectrodeLocation = "REF";
-        DraftGroundElectrodeLocation = "GND";
-        ResetDraftMapPositionsToDefaults();
-        DraftDevice = null;
-        DraftRows.Clear();
-        savedDraftBaseline = null;
-        IsDraftOpen = true;
-        PendingDeviceSelection = null;
-        SetDevicePickerVisible(showDevicePicker);
+        draft.BeginNew(showDevicePicker);
         StatusText = "请选择设备；软件会读取实际物理输入并在设备布局匹配时套用默认电极模板。";
-        RaiseDraftModePropertiesChanged();
     }
 
     public void BeginEditSelected()
     {
-        if (SelectedProfile is null)
-        {
-            return;
-        }
-
-        var profile = SelectedProfile;
-        draftSourceProfile = profile;
-        isReadOnlyDraft = profile.Source == ChannelConfigurationSource.System;
-        isSignalLockedDraft = profile.IsSignalLocked;
-        isCreatingVersion = false;
-        draftProfileId = profile.Source == ChannelConfigurationSource.User ? profile.Id : null;
-        draftCreatedAtUtc = profile.Source == ChannelConfigurationSource.User ? profile.CreatedAtUtc : null;
-        DraftName = profile.DisplayName;
-        DraftDescription = profile.DisplayDescription;
-        DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
-        DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
-        DraftHardwareLandmarks.Load(profile);
-        DraftDevice = null;
-        DraftRows.Clear();
-        IsDraftOpen = true;
-        RaiseDraftModePropertiesChanged();
-        var device = deviceSession?.SelectedDevice;
-        if (device is not null)
-        {
-            DraftDevice = device;
-        }
-        else if (mapping.HasLoadedDevice)
-        {
-            BuildDraftRowsFromCurrentDevice(profile);
-        }
-        savedDraftBaseline = profile.Source == ChannelConfigurationSource.User ? profile : null;
-        if (profile.Source == ChannelConfigurationSource.User && CanCreateProfileBaseline())
-        {
-            savedDraftBaseline = CreateDraftProfile(profile.UpdatedAtUtc) with
-            {
-                Name = profile.Name,
-                Description = profile.Description,
-                DeviceSignature = profile.DeviceSignature,
-                HardwareReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF"),
-                HardwareGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND"),
-                ReferenceMapPosition = profile.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference,
-                GroundMapPosition = profile.GroundMapPosition ?? ElectrodeMapDefaults.Ground,
-                Channels = profile.Channels,
-            };
-        }
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
+        if (SelectedProfile is { } profile) draft.BeginEdit(profile);
     }
 
     public void BeginNewVersionSelected()
     {
         var profile = SelectedProfile ?? throw new InvalidOperationException("请先选择一份通道配置。");
-        if (!mapping.HasLoadedDevice ||
-            !string.Equals(profile.DeviceSignature, mapping.GetDeviceSignature(), StringComparison.Ordinal))
-        {
+        if (!mapping.HasLoadedDevice || !string.Equals(profile.DeviceSignature, mapping.GetDeviceSignature(), StringComparison.Ordinal))
             throw new InvalidOperationException("请连接与该通道配置兼容的设备后再创建新版本。");
-        }
-
-        draftSourceProfile = profile;
-        isReadOnlyDraft = false;
-        isSignalLockedDraft = false;
-        isCreatingVersion = true;
-        draftProfileId = null;
-        draftCreatedAtUtc = null;
-        DraftName = $"{profile.DisplayName} 新版本";
-        DraftDescription = profile.DisplayDescription;
-        DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
-        DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
-        DraftHardwareLandmarks.Load(profile);
-        DraftDevice = null;
-        DraftRows.Clear();
-        IsDraftOpen = true;
-        RaiseDraftModePropertiesChanged();
-        BuildDraftRowsFromCurrentDevice(profile);
-        savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
+        draft.BeginNewVersion(profile);
         StatusText = $"已基于“{profile.DisplayName}”创建可编辑的新版本草稿；原配置及其导联引用不会改变。";
     }
 
     public void BeginCopySelected()
     {
         var profile = SelectedProfile ?? throw new InvalidOperationException("请先选择一份通道配置。");
-        draftSourceProfile = profile;
-        isReadOnlyDraft = false;
-        isSignalLockedDraft = false;
-        isCreatingVersion = false;
-        draftProfileId = null;
-        draftCreatedAtUtc = null;
-        DraftName = $"{profile.DisplayName} 副本";
-        DraftDescription = profile.DisplayDescription;
-        DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
-        DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
-        DraftHardwareLandmarks.Load(profile);
-        DraftDevice = null;
-        DraftRows.Clear();
-        ChannelSearchText = string.Empty;
-        IsDraftOpen = true;
-        RaiseDraftModePropertiesChanged();
-
-        if (deviceSession?.SelectedDevice is { } device)
-        {
-            DraftDevice = device;
-        }
-        else if (mapping.HasLoadedDevice &&
-                 string.Equals(profile.DeviceSignature, mapping.GetDeviceSignature(), StringComparison.Ordinal))
-        {
-            BuildDraftRowsFromCurrentDevice(profile);
-        }
-        savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
-
+        draft.BeginCopy(profile);
         StatusText = $"已基于“{profile.DisplayName}”创建副本草稿；保存后将成为独立的用户配置。";
     }
 
-    public void CloseDraft()
+    public void CloseDraft() => draft.Close();
+
+    public void ConfirmPendingDeviceSelection()
     {
-        SetDevicePickerVisible(false);
-        PendingDeviceSelection = null;
-        IsDraftOpen = false;
-        savedDraftBaseline = null;
-        DraftDevice = null;
-        DraftRows.Clear();
-        draftSourceProfile = null;
-        isReadOnlyDraft = false;
-        isSignalLockedDraft = false;
-        isCreatingVersion = false;
-        draftProfileId = null;
-        draftCreatedAtUtc = null;
-        DraftReferenceElectrodeLocation = "REF";
-        DraftGroundElectrodeLocation = "GND";
-        ResetDraftMapPositionsToDefaults();
-        RaiseDraftModePropertiesChanged();
+        var selected = draft.ConfirmPendingDeviceSelection();
+        StatusText = $"已读取设备“{selected.DisplayName}”的物理输入，并生成通道映射草稿。";
+        notifications?.PublishSuccess(StatusText);
     }
+
+    public void ResetDraftMapPositionsToDefaults() => draft.ResetMapPositionsToDefaults();
+    public void CancelDeviceSelection() => draft.CancelDeviceSelection();
 
     public async Task RefreshAsync()
     {
+        var generation = ++refreshGeneration;
         var selectedId = SelectedProfile?.Id;
         var referenceCounts = await referencePolicy.GetReferenceCountsAsync(CancellationToken.None);
+        if (generation != refreshGeneration) return;
+
+        var loadedProfiles = new List<ChannelConfigurationProfile>();
         string? systemLocationStatus = null;
-        Profiles.Clear();
         if (mapping.TryCreateDefaultSystemProfile(out var systemProfile))
         {
             var locationResolution = await AntSystemChannelLocationResolver.TryResolveAsync(
                 systemProfile, electrodeLocationClient, CancellationToken.None);
+            if (generation != refreshGeneration) return;
             systemProfile = locationResolution.Profile;
             systemLocationStatus = locationResolution.Warning;
-
             var systemReferenceCount = SystemMontageProfileFactory.Create(systemProfile).Count;
-            Profiles.Add(PrepareForCurrentDevice(
-                systemProfile,
-                checked(referenceCounts.GetValueOrDefault(systemProfile.Id) + systemReferenceCount)));
+            loadedProfiles.Add(PrepareForCurrentDevice(
+                systemProfile, checked(referenceCounts.GetValueOrDefault(systemProfile.Id) + systemReferenceCount)));
         }
 
         foreach (var profile in await store.LoadAsync(CancellationToken.None))
         {
-            Profiles.Add(PrepareForCurrentDevice(profile, referenceCounts.GetValueOrDefault(profile.Id)));
+            if (generation != refreshGeneration) return;
+            loadedProfiles.Add(PrepareForCurrentDevice(profile, referenceCounts.GetValueOrDefault(profile.Id)));
         }
 
+        catalogue.ReplaceProfiles(loadedProfiles);
         SelectedProfile = selectedId is null
-            ? Profiles.FirstOrDefault()
-            : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
-
-        RaisePropertyChanged(nameof(DeviceModelFilterOptions));
-        if (!DeviceModelFilterOptions.Contains(DeviceModelFilter, StringComparer.OrdinalIgnoreCase))
-        {
-            deviceModelFilter = "全部型号";
-            RaisePropertyChanged(nameof(DeviceModelFilter));
-        }
-        ApplyFilters();
+            ? FilteredProfiles.FirstOrDefault()
+            : FilteredProfiles.FirstOrDefault(profile => profile.Id == selectedId)
+              ?? FilteredProfiles.FirstOrDefault();
 
         StatusText = mapping.HasLoadedDevice
             ? $"已载入 {Profiles.Count} 个通道配置。当前设备有 {mapping.ActualEegInputCount} 个可标注 EEG 输入。"
@@ -563,95 +226,74 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         ProfilesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ApplyFilters(bool resetToFirstPage = false)
+    public async Task SaveDraftAsync()
     {
-        if (resetToFirstPage && currentPage != 1)
+        if (!CanEditDraft) throw new InvalidOperationException("系统默认通道配置只能查看，不能修改。");
+        var profile = draft.CreateProfileSnapshot(DateTimeOffset.UtcNow);
+        if (string.IsNullOrWhiteSpace(profile.Name)) throw new InvalidOperationException("配置名称不能为空。");
+        ChannelConfigurationValidation.Validate(profile);
+        if (draft.DraftSourceProfile is { Source: ChannelConfigurationSource.User } original &&
+            string.Equals(original.Id, profile.Id, StringComparison.Ordinal))
         {
-            currentPage = 1;
-            RaisePropertyChanged(nameof(CurrentPage));
+            await referencePolicy.EnsureSignalChangeAllowedAsync(original, profile, CancellationToken.None);
         }
+        await store.SaveAsync(profile, CancellationToken.None);
+        await RefreshAsync();
+        SelectedProfile = Profiles.FirstOrDefault(item =>
+            item.Id == profile.Id && item.Source == ChannelConfigurationSource.User)
+            ?? throw new InvalidOperationException("保存后未找到用户通道配置。");
+        draft.MarkSavedBaseline(profile);
+        StatusText = $"已保存通道配置“{profile.DisplayName}”。";
+        notifications?.PublishSuccess($"已保存通道配置“{profile.DisplayName}”。请点击“应用”后用于采集。");
+    }
 
-        var search = SearchText.Trim();
-        var filtered = Profiles.Where(profile =>
-            string.IsNullOrWhiteSpace(search) ||
-            profile.DisplayName.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-            profile.DisplayDescription.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-            profile.DeviceModelLabel.Contains(search, StringComparison.CurrentCultureIgnoreCase));
+    public async Task DeleteSelectedAsync()
+    {
+        if (SelectedProfile is not { CanDelete: true } profile)
+            throw new InvalidOperationException("系统默认或已被导联引用的通道配置不能删除。");
+        await referencePolicy.EnsureDeleteAllowedAsync(profile, CancellationToken.None);
+        await store.DeleteAsync(profile.Id, CancellationToken.None);
+        SelectedProfile = null;
+        await RefreshAsync();
+        StatusText = $"已删除通道配置“{profile.DisplayName}”。";
+        notifications?.PublishSuccess($"已删除通道配置“{profile.DisplayName}”。");
+    }
 
-        if (DeviceModelFilter != "全部型号")
-        {
-            filtered = filtered.Where(profile => profile.DeviceModelLabel == DeviceModelFilter);
-        }
+    private async Task ResolveElectrodeLocationsAsync()
+    {
+        var sessionVersion = draft.SessionVersion;
+        await locationResolver.ResolveAsync(DraftRows, CancellationToken.None);
+        if (sessionVersion == draft.SessionVersion)
+            StatusText = "已按 MNE colin27_1020 更新可识别通道的位置；不可识别标签保持不可用。";
+    }
 
-        if (SourceFilter is "系统预设" or "用户自定义")
-        {
-            var source = SourceFilter == "系统预设"
-                ? ChannelConfigurationSource.System
-                : ChannelConfigurationSource.User;
-            filtered = filtered.Where(profile => profile.Source == source);
-        }
+    private void OnCataloguePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(e.PropertyName)) RaisePropertyChanged(e.PropertyName);
+    }
 
-        if (StatusFilter != "全部状态")
-        {
-            filtered = filtered.Where(profile => MatchesStatusFilter(profile, StatusFilter));
-        }
-
-        var results = filtered.ToArray();
-        TotalItemCount = results.Length;
-        TotalPages = Math.Max(1, (int)Math.Ceiling(results.Length / (double)PageSize));
-        if (currentPage > TotalPages)
-        {
-            currentPage = TotalPages;
-            RaisePropertyChanged(nameof(CurrentPage));
-        }
-
-        FilteredProfiles.Clear();
-        foreach (var profile in results.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
-        {
-            FilteredProfiles.Add(profile);
-        }
-
-        // Never leave command actions pointing at an item hidden by a filter or page change.
+    private void OnFilteredProfilesUpdated(object? sender, EventArgs e)
+    {
         if (SelectedProfile is not null && !FilteredProfiles.Contains(SelectedProfile))
-        {
             SelectedProfile = FilteredProfiles.FirstOrDefault();
-        }
-
-        RaisePropertyChanged(nameof(TotalItemCount));
-        RaisePropertyChanged(nameof(TotalPages));
-        RaisePropertyChanged(nameof(CanPreviousPage));
-        RaisePropertyChanged(nameof(CanNextPage));
         RaisePageCommandStateChanged();
     }
 
-    private void RaisePageCommandStateChanged()
+    private void OnDraftPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        (PreviousPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (NextPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        if (!string.IsNullOrEmpty(e.PropertyName)) RaisePropertyChanged(e.PropertyName);
+        if (e.PropertyName is nameof(DraftEegInputCount) or nameof(DraftEnabledCount) or nameof(CanEditSignalDraft))
+        {
+            showAllDraftChannelsCommand.RaiseCanExecuteChanged();
+            hideAllDraftChannelsCommand.RaiseCanExecuteChanged();
+        }
     }
-
-    private bool MatchesStatusFilter(ChannelConfigurationProfile profile, string status) => status switch
-    {
-        // “可用”描述的是配置能否用于当前设备；被导联引用只会锁定编辑，
-        // 不会让一套仍与设备兼容的配置变得不可用。
-        "可用" => mapping.HasLoadedDevice && profile.IsCompatibleWithCurrentDevice,
-        "设备不匹配" => mapping.HasLoadedDevice && !profile.IsCompatibleWithCurrentDevice,
-        "待连接" => !mapping.HasLoadedDevice,
-        "被导联引用" => profile.MontageReferenceCount > 0,
-        // “不可修改”是权限筛选：系统默认和被导联引用的配置都属于只读配置。
-        "不可修改" => profile.IsSignalLocked,
-        _ => true,
-    };
 
     private void OnMappingChanged(object? sender, EventArgs eventArgs)
     {
         RaisePropertyChanged(nameof(CanCreateProfile));
         var currentSignature = mapping.HasLoadedDevice ? mapping.GetDeviceSignature() : null;
-        if (string.Equals(observedDeviceSignature, currentSignature, StringComparison.Ordinal))
-        {
-            return;
-        }
-
+        if (string.Equals(observedDeviceSignature, currentSignature, StringComparison.Ordinal)) return;
         observedDeviceSignature = currentSignature;
         _ = RefreshAsync();
     }
@@ -662,419 +304,29 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             return profile with
             {
-                MontageReferenceCount = montageReferenceCount,
-                IsCompatibleWithCurrentDevice = false,
-                StatusLabel = "待连接",
-                StatusDetail = "连接设备后验证此配置是否可用。",
+                MontageReferenceCount = montageReferenceCount, IsCompatibleWithCurrentDevice = false,
+                StatusLabel = "待连接", StatusDetail = "连接设备后验证此配置是否可用。",
             };
         }
-
         var matchesCurrentDevice = string.Equals(profile.DeviceSignature, mapping.GetDeviceSignature(), StringComparison.Ordinal);
         return profile with
         {
-            IsActive = false,
-            HasUnappliedChanges = false,
-            MontageReferenceCount = montageReferenceCount,
-            IsCompatibleWithCurrentDevice = matchesCurrentDevice,
+            IsActive = false, HasUnappliedChanges = false,
+            MontageReferenceCount = montageReferenceCount, IsCompatibleWithCurrentDevice = matchesCurrentDevice,
             StatusLabel = matchesCurrentDevice ? "可用于导联" : "设备不匹配",
-            StatusDetail = matchesCurrentDevice
-                ? "配置有效且与当前设备兼容，可在导联配置中选择。"
-                : "当前设备的物理输入或通道类型与此配置不匹配。",
+            StatusDetail = matchesCurrentDevice ? "配置有效且与当前设备兼容，可在导联配置中选择。" : "当前设备的物理输入或通道类型与此配置不匹配。",
         };
     }
 
-    private void BuildDraftRows(AcquisitionDeviceDescriptor device, ChannelConfigurationProfile? profile)
+    private void RaisePageCommandStateChanged()
     {
-        DraftRows.Clear();
-        var capabilities = device.ChannelCapabilities ?? [];
-        var eeg = capabilities.Where(IsEeg).ToArray();
-        var hasDefault = DefaultChannelLabelTemplate.TryGetFor(eeg, out var defaults);
-        var entries = profile?.Channels.ToDictionary(entry => entry.NativeChannelIndex) ?? [];
-        foreach (var capability in capabilities.Where(IsEeg).OrderBy(item => item.NativeChannelIndex))
-        {
-            entries.TryGetValue(capability.NativeChannelIndex, out var entry);
-            var isEeg = IsEeg(capability);
-            var label = entry?.ElectrodeLabel ?? (hasDefault ? defaults.GetValueOrDefault(capability.NativeChannelIndex) ?? string.Empty : string.Empty);
-            var enabled = entry?.IsSelectedForDisplay ?? (isEeg && !string.IsNullOrWhiteSpace(label));
-            var row = new ChannelConfigurationDraftRow(
-                capability.NativeChannelIndex,
-                capability.Kind.ToString(),
-                capability.Unit,
-                isEeg ? "µV" : capability.Unit,
-                label,
-                enabled,
-                entry?.DisplayOrder ?? capability.NativeChannelIndex,
-                isEeg,
-                entry?.ElectrodeLocation);
-            row.SetManualMapPosition(entry?.ManualMapPosition);
-            row.PropertyChanged += OnDraftRowPropertyChanged;
-            DraftRows.Add(row);
-        }
-        RaiseDraftCounts();
-        ApplyDraftRowFilter();
-        if (IsDraftOpen && profile is not null && profile.Source == ChannelConfigurationSource.User &&
-            savedDraftBaseline is null && !isCreatingVersion)
-        {
-            savedDraftBaseline = CreateDraftProfile(profile.UpdatedAtUtc) with
-            {
-                Name = profile.Name,
-                Description = profile.Description,
-                DeviceSignature = profile.DeviceSignature,
-                HardwareReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF"),
-                HardwareGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND"),
-                ReferenceMapPosition = profile.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference,
-                GroundMapPosition = profile.GroundMapPosition ?? ElectrodeMapDefaults.Ground,
-                Channels = profile.Channels,
-            };
-            RaisePropertyChanged(nameof(HasUnsavedChanges));
-        }
-    }
-
-    private void OnDraftRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
-    {
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
-        if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.IsEnabled))
-        {
-            if (!isBulkDisplayUpdate && sender is ChannelConfigurationDraftRow row)
-            {
-                var identity = string.IsNullOrWhiteSpace(row.ElectrodeLabel)
-                    ? $"设备输入 {row.NativeChannelIndex}"
-                    : $"通道“{row.ElectrodeLabel.Trim()}”";
-                notifications?.PublishSuccess(row.IsEnabled
-                    ? $"已设为显示{identity}。"
-                    : $"已关闭显示{identity}。");
-            }
-            RaiseDraftCounts();
-            return;
-        }
-
-        if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.ElectrodeLabel))
-        {
-            RaiseDraftCounts();
-
-            // Editing a label only changes the visible search result when the
-            // user has explicitly entered a search query. Do not reset the
-            // ListBox collection during ordinary edits, or its scroll position
-            // is lost.
-            if (!string.IsNullOrWhiteSpace(ChannelSearchText))
-            {
-                ApplyDraftRowFilter();
-            }
-        }
-    }
-
-    private void OnHardwareLandmarksChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs) =>
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
-
-    private bool CanCreateProfileBaseline() => DraftDevice is not null && DraftRows.Count > 0;
-
-    private bool IsDraftEquivalentTo(ChannelConfigurationProfile baseline)
-    {
-        if (DraftDevice is null || DraftRows.Count == 0)
-        {
-            return true;
-        }
-
-        var current = CreateDraftProfile(baseline.UpdatedAtUtc);
-        return current.Name == baseline.Name &&
-               current.Description == baseline.Description &&
-               current.DeviceSignature == baseline.DeviceSignature &&
-               current.HardwareReferenceElectrodeLocation == baseline.HardwareReferenceElectrodeLocation &&
-               current.HardwareGroundElectrodeLocation == baseline.HardwareGroundElectrodeLocation &&
-               current.ReferenceMapPosition == (baseline.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference) &&
-               current.GroundMapPosition == (baseline.GroundMapPosition ?? ElectrodeMapDefaults.Ground) &&
-               current.Channels.SequenceEqual(baseline.Channels);
-    }
-
-    private ChannelConfigurationProfile CreateDraftProfile(DateTimeOffset updatedAt)
-    {
-        if (DraftDevice is null || DraftRows.Count == 0)
-        {
-            throw new InvalidOperationException("请先选择设备并读取设备通道。");
-        }
-
-        var name = DraftName.Trim();
-
-        var entries = DraftRows.Where(row => row.IsEegInput).Select(row => new ChannelConfigurationEntry(
-            row.NativeChannelIndex,
-            Enum.Parse<AcquisitionChannelKind>(row.Role),
-            row.ElectrodeLabel.Trim(),
-            row.IsEnabled,
-            row.DisplayOrder,
-            row.ElectrodeLocation,
-            row.ManualMapPosition)).ToArray();
-        return new ChannelConfigurationProfile(
-            draftProfileId ?? Guid.NewGuid().ToString("N"),
-            name,
-            DraftDescription.Trim(),
-            ChannelConfigurationSource.User,
-            AcquisitionDeviceCompatibility.CreateSignature(DraftDevice.DriverId, DraftDevice.ChannelCapabilities),
-            entries,
-            draftCreatedAtUtc ?? updatedAt,
-            updatedAt,
-            DraftDevice.DisplayName,
-            AcquisitionDeviceCompatibility.NormalizeDriverId(DraftDevice.DriverId),
-            DraftDevice.Model ?? string.Empty,
-            NormalizeLocation(DraftReferenceElectrodeLocation),
-            NormalizeLocation(DraftGroundElectrodeLocation),
-            DraftHardwareLandmarks.ReferencePosition,
-            DraftHardwareLandmarks.GroundPosition);
-    }
-
-    private void BuildDraftRowsFromCurrentDevice(ChannelConfigurationProfile profile)
-    {
-        if (deviceSession?.SelectedDevice is { } selectedDevice)
-        {
-            DraftDevice = selectedDevice;
-            return;
-        }
-
-        var current = mapping.AllRows.Select(row => new AcquisitionChannelCapability(
-            row.NativeChannelIndex,
-            Enum.Parse<AcquisitionChannelKind>(row.Role),
-            row.Unit)).ToArray();
-        var snapshot = new AcquisitionDeviceDescriptor(
-            mapping.CurrentDeviceKey ?? string.Empty,
-            mapping.CurrentDeviceDisplayName ?? string.Empty,
-            null,
-            [],
-            ChannelCapabilities: current,
-            Model: mapping.CurrentDeviceModel,
-            DriverId: mapping.CurrentDeviceDriverId);
-        SetProperty(ref draftDevice, snapshot);
-        BuildDraftRows(snapshot, profile);
-    }
-
-    public void ConfirmPendingDeviceSelection()
-    {
-        if (!CanEditSignalDraft)
-        {
-            throw new InvalidOperationException("当前通道配置不允许修改设备输入。");
-        }
-
-        var selected = PendingDeviceSelection
-            ?? throw new InvalidOperationException("请选择一个已检测到的设备后再确认。");
-
-        // The published discovery list is the device-state source of truth.
-        // Do not build a configuration from a descriptor for hardware that has
-        // already disappeared since the dialog was opened.
-        if (deviceSession is not null &&
-            !deviceSession.Devices.Any(device => string.Equals(device.DeviceId, selected.DeviceId, StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException("所选设备已不在当前检测列表中，请重新检测后选择。");
-        }
-
-        DraftDevice = selected;
-        PendingDeviceSelection = null;
-        StatusText = $"已读取设备“{selected.DisplayName}”的物理输入，并生成通道映射草稿。";
-        notifications?.PublishSuccess(StatusText);
-    }
-
-    public void ResetDraftMapPositionsToDefaults()
-    {
-        DraftHardwareLandmarks.Reset();
-    }
-
-    public void CancelDeviceSelection()
-    {
-        PendingDeviceSelection = null;
-        SetDevicePickerVisible(false);
-    }
-
-    private void SetDevicePickerVisible(bool value)
-    {
-        if (isDevicePickerVisible == value)
-        {
-            return;
-        }
-
-        isDevicePickerVisible = value;
-        RaisePropertyChanged(nameof(IsDevicePickerVisible));
-    }
-
-    public async Task SaveDraftAsync()
-    {
-        if (!CanEditDraft)
-        {
-            throw new InvalidOperationException("系统默认通道配置只能查看，不能修改。");
-        }
-        if (DraftDevice is null || DraftRows.Count == 0)
-        {
-            throw new InvalidOperationException("请先选择设备并读取设备通道。");
-        }
-        var profile = CreateDraftProfile(DateTimeOffset.UtcNow);
-        if (string.IsNullOrWhiteSpace(profile.Name))
-        {
-            throw new InvalidOperationException("配置名称不能为空。");
-        }
-        ChannelConfigurationValidation.Validate(profile);
-        if (draftSourceProfile is { Source: ChannelConfigurationSource.User } original &&
-            string.Equals(original.Id, profile.Id, StringComparison.Ordinal))
-        {
-            await referencePolicy.EnsureSignalChangeAllowedAsync(original, profile, CancellationToken.None);
-        }
-        await store.SaveAsync(profile, CancellationToken.None);
-        await RefreshAsync();
-        SelectedProfile = Profiles.FirstOrDefault(item =>
-            item.Id == profile.Id && item.Source == ChannelConfigurationSource.User)
-            ?? throw new InvalidOperationException("保存后未找到用户通道配置。");
-        savedDraftBaseline = profile;
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
-        StatusText = $"已保存通道配置“{profile.DisplayName}”。";
-        notifications?.PublishSuccess($"已保存通道配置“{profile.DisplayName}”。请点击“应用”后用于采集。");
-    }
-
-    private async Task ResolveElectrodeLocationsAsync()
-    {
-        if (electrodeLocationClient is null)
-        {
-            throw new InvalidOperationException("标准位置解析服务尚未连接，请确认后端已启动。通道配置仍可正常使用。");
-        }
-
-        var rows = DraftRows.Where(row => row.IsEegInput).ToArray();
-        var labels = rows.Select(row => row.ElectrodeLabel).ToArray();
-        var revisions = rows.Select(row => row.ElectrodeLabelRevision).ToArray();
-        var results = await electrodeLocationClient.ResolveAsync(labels, CancellationToken.None);
-        if (results.Count != rows.Length)
-        {
-            throw new InvalidOperationException("标准位置解析响应数量与请求通道数不一致。");
-        }
-
-        for (var index = 0; index < rows.Length; index++)
-        {
-            var row = rows[index];
-            var result = results[index];
-            if (!string.Equals(result.RequestedLabel, labels[index], StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("标准电极位置解析响应的通道顺序与请求不一致。");
-            }
-            if (result.Status is not ("available" or "unavailable"))
-            {
-                throw new InvalidOperationException("标准电极位置解析响应包含未知状态。");
-            }
-            if (row.ElectrodeLabelRevision != revisions[index] ||
-                !string.Equals(row.ElectrodeLabel, labels[index], StringComparison.Ordinal))
-            {
-                continue;
-            }
-            row.SetElectrodeLocation(result.Status == "available" &&
-                                     result.CanonicalSite is not null &&
-                                     result.Coordinates is { Length: 3 } xyz &&
-                                     result.MapCoordinates is { Length: 2 } map &&
-                                     map.All(double.IsFinite) && map.All(value => value is >= -1 and <= 1) &&
-                                     result.CoordinateFrame == "mri" && result.CoordinateUnit == "m"
-                ? new ElectrodeLocationSnapshot(
-                    result.CanonicalSite, xyz[0], xyz[1], xyz[2], "mri", "m", result.SourceId, result.SourceVersion,
-                    map[0], map[1])
-                : null);
-        }
-
-        StatusText = "已按 MNE colin27_1020 更新可识别通道的位置；不可识别标签保持不可用。";
-    }
-
-    private static bool IsEeg(AcquisitionChannelCapability capability) =>
-        capability.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar;
-
-    private static string NormalizeLocation(string value) => value.Trim();
-
-    private static string DefaultLocation(string? location, string fallback) =>
-        string.IsNullOrWhiteSpace(location) ? fallback : location.Trim();
-
-    private static string DescribeDeviceVendor(string? driverId) =>
-        DeviceProductPresentation.ForDriver(driverId, "未选择设备");
-
-    private void RaiseDraftCounts()
-    {
-        RaisePropertyChanged(nameof(DraftEegInputCount));
-        RaisePropertyChanged(nameof(DraftEnabledCount));
-        showAllDraftChannelsCommand.RaiseCanExecuteChanged();
-        hideAllDraftChannelsCommand.RaiseCanExecuteChanged();
-    }
-
-    private void SetAllDraftEegChannelsDisplayed(bool isDisplayed)
-    {
-        if (!CanEditSignalDraft)
-        {
-            throw new InvalidOperationException("当前通道配置不允许修改显示通道。");
-        }
-
-        var rowsToChange = DraftRows
-            .Where(row => row.IsEegInput && row.IsEnabled != isDisplayed)
-            .ToArray();
-        if (rowsToChange.Length == 0)
-        {
-            return;
-        }
-
-        isBulkDisplayUpdate = true;
-        try
-        {
-            foreach (var row in rowsToChange)
-            {
-                row.IsEnabled = isDisplayed;
-            }
-        }
-        finally
-        {
-            isBulkDisplayUpdate = false;
-        }
-
-        RaiseDraftCounts();
-        notifications?.PublishSuccess(isDisplayed
-            ? $"已全部显示 {rowsToChange.Length} 个 EEG 通道。"
-            : $"已全部关闭显示 {rowsToChange.Length} 个 EEG 通道。");
-    }
-
-    private void ApplyDraftRowFilter()
-    {
-        var search = ChannelSearchText.Trim();
-        FilteredDraftRows.Clear();
-        foreach (var row in DraftRows.Where(row =>
-                     string.IsNullOrWhiteSpace(search) ||
-                     row.NativeChannelIndex.ToString(System.Globalization.CultureInfo.InvariantCulture).Contains(search, StringComparison.Ordinal) ||
-                     row.ElectrodeLabel.Contains(search, StringComparison.CurrentCultureIgnoreCase)))
-        {
-            FilteredDraftRows.Add(row);
-        }
-    }
-
-    public async Task DeleteSelectedAsync()
-    {
-        if (SelectedProfile is not { CanDelete: true } profile)
-        {
-            throw new InvalidOperationException("系统默认或已被导联引用的通道配置不能删除。");
-        }
-
-        await referencePolicy.EnsureDeleteAllowedAsync(profile, CancellationToken.None);
-        await store.DeleteAsync(profile.Id, CancellationToken.None);
-        SelectedProfile = null;
-        await RefreshAsync();
-        StatusText = $"已删除通道配置“{profile.DisplayName}”。";
-        notifications?.PublishSuccess($"已删除通道配置“{profile.DisplayName}”。");
+        (PreviousPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (NextPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     private void ReportCommandError(Exception exception)
     {
         StatusText = exception.Message;
         notifications?.PublishError(exception.Message);
-    }
-
-    private void RaiseDraftModePropertiesChanged()
-    {
-        RaisePropertyChanged(nameof(CanEditDraft));
-        RaisePropertyChanged(nameof(HasUnsavedChanges));
-        RaisePropertyChanged(nameof(CanEditSignalDraft));
-        RaisePropertyChanged(nameof(IsSignalLockedDraft));
-        RaisePropertyChanged(nameof(DraftLockMessage));
-        RaisePropertyChanged(nameof(DraftTitle));
-        RaisePropertyChanged(nameof(DraftSourceLabel));
-        RaisePropertyChanged(nameof(DraftDeviceVendor));
-        RaisePropertyChanged(nameof(DraftDeviceModel));
-        RaisePropertyChanged(nameof(DraftMontageReferenceCount));
-        RaisePropertyChanged(nameof(DraftCreatedAtText));
-        RaisePropertyChanged(nameof(DraftUpdatedAtText));
-        RaisePropertyChanged(nameof(DraftStatusLabel));
-        showAllDraftChannelsCommand.RaiseCanExecuteChanged();
-        hideAllDraftChannelsCommand.RaiseCanExecuteChanged();
     }
 }

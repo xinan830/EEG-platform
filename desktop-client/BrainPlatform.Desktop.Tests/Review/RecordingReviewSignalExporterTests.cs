@@ -99,6 +99,18 @@ public sealed class RecordingReviewSignalExporterTests
         Assert.Equal(0, output.Length);
     }
 
+    [Fact]
+    public async Task Registered_recording_exports_directly_without_wpf_registration()
+    {
+        using var handler = new DirectExportHandler("edf");
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        var client = new HttpAlgorithmClient(http);
+        using var output = new MemoryStream();
+        await client.DownloadSignalExportByRecordingIdAsync("rec-imported-7", "edf", output, CancellationToken.None);
+        Assert.Equal(["/api/recordings/rec-imported-7/signal-export"], handler.Paths);
+        Assert.True(output.Length > 0);
+    }
+
     private static byte[] Package(string format)
     {
         using var stream = new MemoryStream();
@@ -129,6 +141,20 @@ public sealed class RecordingReviewSignalExporterTests
             Assert.Equal(format, body.RootElement.GetProperty("format").GetString());
             if (fail) return new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent(
                 "{\"code\":\"RECORDING_EXPORT_BUSY\",\"message\":\"busy\"}", Encoding.UTF8, "application/json") };
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Package(format)) };
+            response.Content.Headers.ContentType = new("application/zip");
+            return response;
+        }
+    }
+
+    private sealed class DirectExportHandler(string format) : HttpMessageHandler
+    {
+        public List<string> Paths { get; } = [];
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Paths.Add(request.RequestUri!.AbsolutePath);
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            Assert.Equal(format, body.RootElement.GetProperty("format").GetString());
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Package(format)) };
             response.Content.Headers.ContentType = new("application/zip");
             return response;

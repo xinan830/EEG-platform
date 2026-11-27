@@ -46,7 +46,7 @@ def _identity(session, plan) -> DynamicWindowIdentity:
 
 def _config(algorithm_id: str):
     common = dict(channel="F3", mode="dynamic", start_s=0, end_s=DURATION,
-                  window_s=20 if algorithm_id == "iapf" else 5, step_s=1)
+                  window_s=20 if algorithm_id in {"iapf", "theta_beta"} else 5, step_s=1)
     if algorithm_id == "band_ratio":
         return BandRatioConfig(**common, numerator_low_hz=8, numerator_high_hz=12,
                                denominator_low_hz=15, denominator_high_hz=25)

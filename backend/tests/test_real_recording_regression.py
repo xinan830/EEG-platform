@@ -107,7 +107,7 @@ def test_all_algorithms_two_montages_replay_and_detect_tampering(tmp_path):
     baseline, report = tmp_path / "baseline", tmp_path / "report.json"
     result = cli.execute("create", recording, baseline, report, progress=lambda _: None)
     assert result["passed"], [row for row in result["independent"]["checks"] if row["failed"]][:10]
-    assert result["scenarios"] == 36
+    assert result["scenarios"] == 40
     snapshot, arrays = load_baseline(baseline)
     assert "private display label" not in json.dumps(snapshot)
     psd_result = snapshot["scenarios"]["REF/psd/dynamic"]["result"]

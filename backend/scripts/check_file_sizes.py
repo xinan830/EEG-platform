@@ -10,16 +10,22 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = ROOT / "docs" / "code-size-policy.json"
-SOURCE_ROOTS = (ROOT / "backend" / "app", ROOT / "frontend" / "src")
-EXCLUDED_PARTS = {"__pycache__", "node_modules", "dist"}
+SOURCE_ROOTS = (
+    ROOT / "backend" / "app",
+    ROOT / "frontend" / "src",
+    ROOT / "desktop-client" / "BrainPlatform.Desktop",
+)
+EXCLUDED_PARTS = {"__pycache__", "node_modules", "dist", "bin", "obj"}
 VALID_DECISIONS = {"keep", "split", "generated", "approved_exception"}
 
 
 def source_files() -> list[Path]:
     files: list[Path] = []
     for root in SOURCE_ROOTS:
+        if not root.exists():
+            continue
         for path in root.rglob("*"):
-            if path.is_file() and path.suffix in {".py", ".ts", ".vue", ".css"}:
+            if path.is_file() and path.suffix in {".py", ".ts", ".vue", ".css", ".cs", ".xaml", ".js", ".html"}:
                 if not EXCLUDED_PARTS.intersection(path.parts):
                     files.append(path)
     return files

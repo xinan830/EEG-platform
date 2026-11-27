@@ -153,6 +153,12 @@ public sealed class QueuedAcquisitionRawWriter : IAcquisitionRawWriter, IAcquisi
     {
         if (!operations.Writer.TryWrite(operation))
         {
+            if (Failure is { } existingFailure)
+            {
+                operation.Completion?.TrySetException(existingFailure);
+                throw new InvalidOperationException("Raw persistence has failed.", existingFailure);
+            }
+
             var overflow = new InvalidOperationException(
                 "The raw-write queue is full; recording cannot continue without risking silent sample loss.");
             Interlocked.CompareExchange(ref failure, overflow, null);
@@ -186,6 +192,17 @@ public sealed class QueuedAcquisitionRawWriter : IAcquisitionRawWriter, IAcquisi
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            Exception? terminal = Failure;
+            while (operations.Reader.TryRead(out var pending))
+            {
+                terminal ??= shutdown.IsCancellationRequested
+                    ? new OperationCanceledException("The raw-write queue was stopped.", shutdown.Token)
+                    : new InvalidOperationException("The raw-write queue stopped before completing pending operations.");
+                pending.Completion?.TrySetException(terminal);
+            }
         }
     }
 

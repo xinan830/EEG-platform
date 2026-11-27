@@ -25,6 +25,12 @@ Non-goals: new science, changed filter coefficients/order, changed EEG units or 
 - Metadata additions require coordinated desktop contracts and backend tests. No fallback that falsely claims unsupported removal is allowed.
 - Existing API filter and policy defaults, sample-major V/float64, NaN masking, channel projection and numerical behavior remain fixed and regression-tested.
 
+## Historical regression closure (2026-11-27)
+
+Historical failures were reproduced separately from structural changes. Fix stale fixtures at their ownership boundaries: build an actual version-7 database, install and dispose the live coordinator, validate malformed source metadata at the HTTP boundary, and resolve parameterized desktop handlers by their actual class. No production formula, filter, migration, unit, sample bound or channel order changes are required.
+
+Keep all existing docs/validation snapshots and checksums unchanged. Freeze current contracts in backend/tests/fixtures with explicit environments and version changes. Compare the six scientifically unchanged algorithms against historical numeric arrays and reconstruct their old configuration hashes by removing only the two verified additions (frequency_mode and preprocessing). Independently calculate IAPF, both BrainBeat variants and standard Theta/Beta from deterministic raw samples before freezing current results. The file-reader regression now covers ten algorithms, REF/AVG and static/dynamic execution (40 scenarios); this does not constitute clinical or private-recording acceptance. Diagnostic tests explicitly enable their own INFO capture so host log levels cannot disable the behavior they assert.
+
 ## Migration Plan
 
 Add failing lifecycle tests first, implement cache and immutable publication, then migrate facade/spec/helper dependencies, then metadata consumers. Run focused and broader backend tests, desktop build and affected tests, OpenSpec strict validation, source-size checks and whitespace checks. Record evidence in docs/verification and align architecture pages. Roll back these coordinated internal/DTO edits together; no database or raw-file migration.

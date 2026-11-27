@@ -55,7 +55,7 @@ public sealed partial class RecordingReviewViewModel
             {
                 var psdProvider = slot.Coordinator.GetCapability<IReviewScalarProvider>() ??
                     throw new InvalidOperationException("PSD adapter 不提供频段投影。");
-                var rbpProvider = analysisCoordinators["rbp"].GetCapability<IReviewScalarProvider>() ??
+                var rbpProvider = rbpBinding.Coordinator.GetCapability<IReviewScalarProvider>() ??
                     throw new InvalidOperationException("RBP adapter 不提供振幅投影。");
                 var density = psdProvider.LoadScalarsAsync(result.Psd, token,
                     ReviewSpectralSources.Bands.Select(band => $"psd.band-mean-density.{band}").ToArray());

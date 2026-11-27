@@ -201,6 +201,7 @@ public sealed class RbpResultPreviewTests
             {
                 var preview = RbpResultPreview.Parse(DynamicRun());
                 var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(6), Windows = preview.Windows };
+                chart.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
                 var surface = Assert.IsType<SciChartSurface>(chart.Content);
                 Assert.Equal(5, surface.RenderableSeries.Count);
                 var firstLine = Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[0]);
@@ -230,6 +231,7 @@ public sealed class RbpResultPreviewTests
                     """, "official-rbp-v4");
                 var preview = RbpResultPreview.Parse(run);
                 var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };
+                chart.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
                 var surface = Assert.IsType<SciChartSurface>(chart.Content);
                 Assert.Equal(5, surface.RenderableSeries.Count);
                 Assert.Equal("γ Gamma", Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[4]).DataSeries.SeriesName);

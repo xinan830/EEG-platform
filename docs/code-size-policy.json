@@ -3,12 +3,6 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
-    "desktop-client/BrainPlatform.Desktop/Modules/Channels/ViewModels/ChannelConfigurationWorkspaceViewModel.cs": {
-      "decision": "split",
-      "max_lines": 1080,
-      "reason": "High-risk review for POP presentation: existing 1084-line catalogue/draft coordinator shrinks to 1080 lines. Only display properties and shared driver branding change; no lifecycle, signal, persistence or concurrency behavior is added. Splitting state ownership during a branding change would enlarge its regression surface.",
-      "follow_up": "Before adding channel-editor behavior, extract device-backed draft loading and electrode-location resolution into dedicated owners with the existing catalogue retaining selection/save lifecycle; preserve cancellation and saved-baseline tests."
-    },
     "desktop-client/BrainPlatform.Desktop/Modules/Channels/ViewModels/ChannelMappingViewModel.cs": {
       "decision": "keep",
       "max_lines": 536,
@@ -175,8 +169,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
-      "max_lines": 590,
-      "reason": "586 lines after paired-preview integration. Scientific projection and visual ownership remain in the preprocessing partial and overlay; this file only applies the shared channel-compatible comparison predicate when asynchronous ordinary frames or sample markers render. No new scientific calculation or filtering is added. Retain the existing split decision; do not mechanically extract these two guard expressions.",
+      "max_lines": 600,
+      "reason": "594 lines after paired-preview integration. Scientific projection and visual ownership remain in the preprocessing partial and overlay; this file only applies the shared channel-compatible comparison predicate when asynchronous ordinary frames or sample markers render. No new scientific calculation or filtering is added. Retain the existing split decision; do not mechanically extract these two guard expressions.",
       "follow_up": "Split chart binding and viewport concerns from the canvas only when a concrete review behavior needs another owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -184,23 +178,10 @@
       "max_lines": 400,
       "reason": "Output table and color/order presentation are extracted into MontageOutputTable and shared ColorPicker. The remaining 358-line view composes metadata, reference-group controls and save actions."
     },
-    "desktop-client/BrainPlatform.Desktop/Modules/Montages/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
-      "decision": "split",
-      "max_lines": 830,
-      "reason": "High-risk review: the full catalogue/draft owner remains at 823 lines. Session entry is separated by responsibility into the Session partial; save branches only at the existing persistence boundary, reusing the exact same validation and draft model. No new projection, raw storage, reference math or algorithm ownership is added. Further catalogue/draft persistence extraction is outside this feature and remains tracked below.",
-      "follow_up": "Extract catalogue synchronization and draft persistence workflows into dedicated collaborators in a separate maintenance change; preserve the single draft owner and target a composition file below 400 lines."
-    },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/LiveSciChartCanvas.cs": {
-      "decision": "split",
-      "max_lines": 715,
-      "reason": "Existing live renderer remains 707 lines. The change removes its private palette and consumes complete-frame appearance, including same-label Stroke refresh. Shared color policy owns RGB parsing; erase timing and device state remain unchanged.",
-      "follow_up": "Extract live annotation and erase-band visual owners separately before adding more live rendering workflows."
-    },
-    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/LiveMonitoringViewModel.cs": {
-      "decision": "split",
-      "max_lines": 660,
-      "reason": "High-risk review: the monitor keeps its existing whole-profile waveform projection and no longer owns a second appended-trace override. Session profile selection belongs to AcquisitionWorkspaceViewModel.OnlineMontage. The 640-line monitor remains unchanged apart from removing the erroneous appended trace; status/source extraction remains the documented maintenance boundary.",
-      "follow_up": "Extract live source/visibility projection from monitor status coordination in separate acquisition maintenance."
+      "decision": "keep",
+      "max_lines": 600,
+      "reason": "596-line live SciChart waveform renderer after extracting LiveWaveformAnnotationOverlay (183L). Owns surface lifecycle, trace series, sweep erase band, and latest-only frame application."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/WaveformDisplayFrameBuilder.cs": {
       "decision": "keep",
@@ -214,25 +195,24 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
       "decision": "split",
-      "max_lines": 520,
-      "reason": "Shared ColorPicker removes the event-specific color template and popup, reducing the view to 516 lines. Remaining event metadata fields and local form styles are unchanged to avoid unrelated visual regressions.",
+      "max_lines": 620,
+      "reason": "Shared ColorPicker removes the event-specific color template and popup; current view is 609 lines. Remaining event metadata fields and local form styles are unchanged to avoid unrelated visual regressions.",
       "follow_up": "Extract remaining event form styles into scoped resources during separate event-editor visual maintenance."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventListView.xaml": {
       "decision": "keep",
-      "max_lines": 405,
-      "reason": "事件列表视图负责筛选与事件行呈现。本次只替换品牌颜色资源，筛选和事件语义保持不变。"
+      "max_lines": 460,
+      "reason": "事件列表视图（449 行）负责筛选与事件行呈现。保持现有列表、筛选与事件语义完整，不因少量超线机械拆分。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/ViewModels/EventDefinitionWorkspaceViewModel.cs": {
       "decision": "keep",
-      "max_lines": 450,
-      "reason": "Event draft/service coordination remains 444 lines; the obsolete WPF brush and color-click wrapper are removed. Color interaction belongs entirely to the shared control, while event save validation remains service-owned."
+      "max_lines": 530,
+      "reason": "Event draft/service coordination is 520 lines; color interaction belongs to the shared control while event save validation remains service-owned."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
-      "decision": "split",
-      "max_lines": 1220,
-      "reason": "Critical-size review: existing 1207-line acquisition composition validates shared optional demographics and forwards identity, sex and recording age in pre-start context, without new capture/network/scientific ownership. Subject selection and resolution stay in focused preparation/subject components. Preserve the executable device/setup then recording-event extraction plan; no further expansion here.",
-      "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
+      "decision": "keep",
+      "max_lines": 575,
+      "reason": "565-line WPF acquisition root shell after extracting AcquisitionDeviceSetupController (355L), AcquisitionRecordingEventController (348L), and AcquisitionSessionWorkflow (330L). Owns composition, bindings and command/session orchestration, including the full startup parameter guard. Device setup, event persistence and stream workflow retain their existing owners; do not split only to reduce line count."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
       "decision": "keep",
@@ -285,102 +265,11 @@
       "max_lines": 470,
       "reason": "当前 464 行。PSD 静态、动态和按需执行共享同一 Welch 配置、通道校验、频率轴及逐通道质量投影；拆开会分散同一算法的结果契约。本次仅扩展显式通道维度和每通道状态，未改变科学计算公式；继续增加执行策略前重新评估。"
     },
-    "frontend/src/App.vue": {
-      "decision": "split",
-      "max_lines": 500,
-      "reason": "Application shell still coordinates playback, import, montage and analysis range state; splitting before the range contract stabilized would duplicate state ownership.",
-      "follow_up": "Extract shared analysis context and playback session orchestration into composables in the next UI maintenance pass."
-    },
-    "desktop-client/BrainPlatform.Desktop/ViewModels/AcquisitionWorkspaceViewModel.cs": {
-      "decision": "split",
-      "max_lines": 590,
-      "reason": "The existing device lifecycle and channel mapping state now also own pre-start display-filter selection. Splitting this change would risk duplicating acquisition state during active hardware integration.",
-      "follow_up": "Extract amplifier connection state and live display filter settings into dedicated view models before adding further acquisition controls."
-    },
-    "desktop-client/BrainPlatform.Desktop/ViewModels/ChannelConfigurationWorkspaceViewModel.cs": {
-      "decision": "keep",
-      "max_lines": 540,
-      "reason": "The file coordinates one channel-profile catalogue and draft lifecycle. Reusable semantic validation, montage-reference policy, and draft-row state are extracted; further splitting now would divide one UI state owner."
-    },
-    "desktop-client/BrainPlatform.Desktop/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
-      "decision": "keep",
-      "max_lines": 590,
-      "reason": "The file coordinates one montage catalogue and editor lifecycle, including automatic catalogue synchronization when device-backed channel profiles arrive asynchronously. Signal formulas, fingerprints, validation, and row state remain in focused domain/view-model files."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/WaveformDisplayFrameBuilder.cs": {
-      "decision": "keep",
-      "max_lines": 540,
-      "reason": "The file remains one pure visible-frame transformation: sweep paging, montage value selection, sample-counter gap handling, and temporal-extrema decimation share the same counter/span contract. Shared reference-signal computation is extracted to MontageReferenceSignalCache.cs."
-    },
-    "desktop-client/BrainPlatform.Desktop/Acquisition/Analysis/HttpLiveFilterBridge.cs": {
-      "decision": "keep",
-      "max_lines": 530,
-      "reason": "The file owns one serialized local HTTP live-filter session lifecycle: active output, background handoff, transport validation, activation, and cleanup. The transition queue and cancellation state are extracted to PendingLiveFilterTransition.cs; splitting the remaining state owner would introduce competing session locks."
-    },
-    "desktop-client/BrainPlatform.Desktop/ViewModels/LiveMonitoringViewModel.cs": {
-      "decision": "keep",
-      "max_lines": 570,
-      "reason": "The view model coordinates one live waveform display state owner and its bounded frame/render lifecycle; device, raw acquisition, and filter state remain in dedicated services.",
-      "follow_up": "Extract live display command bindings and frame notification adapters before adding further acquisition controls."
-    },
-    "desktop-client/BrainPlatform.Desktop/ViewModels/RecordingReviewViewModel.cs": {
-      "decision": "keep",
-      "max_lines": 530,
-      "reason": "The view model coordinates one review session, playback target, display settings, and latest-only viewport requests; raw reading, caching, and playback clock remain separate owners.",
-      "follow_up": "Extract review toolbar command bindings from the view model before adding further review workflows."
-    },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
       "decision": "split",
       "max_lines": 545,
       "reason": "Display-only temporary selection is composed through the OnlineMontage partial and owning review session. The regular shared analysis montage selection retains its semantics; temporary profiles are excluded from backend registration. Keep one playback cursor and one display session.",
       "follow_up": "Extract remaining display-setting bindings and constructor composition when those workflows change. Keep one playback cursor and event service; target a main composition below 400 lines without mechanical file splitting."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
-      "decision": "keep",
-      "max_lines": 520,
-      "reason": "The canvas owns one live rendering surface, bounded frame worker, sweep erase animation, and display-only geometry; shared axis and plot layout policies are already extracted.",
-      "follow_up": "Extract the live erase-band renderer if additional live annotations are added."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/AcquisitionWorkspaceView.xaml": {
-      "decision": "split",
-      "max_lines": 590,
-      "reason": "The acquisition workspace still composes device selection, recording controls, live display settings, and monitoring panels in one page. This label-only ComboBox fix must not move or duplicate acquisition state while the shared workspace boundaries remain stable.",
-      "follow_up": "Extract the device and recording setup panels into focused views before adding further acquisition controls."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/ChannelDetailView.xaml": {
-      "decision": "split",
-      "max_lines": 760,
-      "reason": "The channel editor contains a large local form and legacy control templates. The current fix only makes object labels explicit; moving templates during the defect repair would mix visual refactoring with channel draft behavior.",
-      "follow_up": "Move the remaining reusable channel-editor control styles into WorkspaceStyles.xaml and extract the channel mapping table into a focused view."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/ChannelListView.xaml": {
-      "decision": "split",
-      "max_lines": 790,
-      "reason": "The channel catalogue page also hosts the new-profile device dialog and copied ComboBox styling. The current change keeps the binding fix local to avoid changing draft ownership or dialog lifecycle.",
-      "follow_up": "Extract the new-channel-profile dialog and replace copied ComboBox templates with shared workspace resources."
-    },
-    "desktop-client/BrainPlatform.Desktop/Views/MontageDetailView.xaml": {
-      "decision": "split",
-      "max_lines": 540,
-      "reason": "The montage editor combines metadata, channel selection, and per-row reference controls. The explicit Name and Label templates repair rendering without altering montage selection or reference semantics.",
-      "follow_up": "Extract the montage reference-row editor and consume shared ComboBox resources before adding more reference modes."
-    },
-    "desktop-client/BrainPlatform.Desktop/Review/RecordingReviewSession.cs": {
-      "decision": "split",
-      "max_lines": 620,
-      "reason": "The review session still owns viewport revision and frame publication, while checkpoint orchestration is extracted into dedicated coordinator and cache classes. Keeping the remaining session owner cohesive avoids duplicating playback state during this change.",
-      "follow_up": "Extract review frame loading and filter-setting command bindings after checkpoint coordinator adoption is complete."
-    },
-    "desktop-client/BrainPlatform.Desktop/Review/RecordingReviewFilter.cs": {
-      "decision": "keep",
-      "max_lines": 430,
-      "reason": "The file remains the single typed desktop-to-Python review-filter transport boundary. The persistent anchor cache and scheduling state are extracted; the four-line soft-limit excess keeps request and checkpoint session payload contracts together."
-    },
-    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/AlgorithmListViewModel.cs": {
-      "decision": "split",
-      "max_lines": 450,
-      "reason": "Run 配置、注册/轮询协调、结果格式化，以及 PSD/STFT/动态预览状态已分别归入专责文件；主 ViewModel 只协调页面输入与业务流程。",
-      "follow_up": "继续保持 Run 配置、执行协调、结果格式化和预览状态分离；新增算法前补充对应行为测试。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.cs": {
       "decision": "split",
@@ -396,8 +285,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/Topomap/Topomap3DScenePreparer.cs": {
       "decision": "split",
-      "max_lines": 470,
-      "reason": "当前 463 行，3D 场景构建、实测字段映射与摄像机几何仍共享同一网格/坐标契约。本次增加真实 TopomapField 映射与 3D 地形预览；先保留共同的坐标投影与网格缓存，避免复制几何计算。",
+      "max_lines": 485,
+      "reason": "当前 477 行，3D 场景构建、实测字段映射与摄像机几何仍共享同一网格/坐标契约。本次增加真实 TopomapField 映射与 3D 地形预览；先保留共同的坐标投影与网格缓存，避免复制几何计算。",
       "follow_up": "提取真实字段到顶点着色的场景构建职责，同时共享现有网格坐标映射和缓存。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/Topomap/Topomap3DView.xaml.cs": {
@@ -408,8 +297,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/viewer.js": {
       "decision": "split",
-      "max_lines": 1250,
-      "reason": "当前 1197 行，WebGL2 查看器仍有统一的 Three.js 场景和 WebView 消息生命周期；本轮加入 MRI、connectome、源定位及纤维层入口，保留唯一场景所有者以避免复制状态。超过 1000 行按高风险登记，扩展前先拆出局部交互/图层协调边界。",
+      "max_lines": 620,
+      "reason": "当前 602 行。WebGL2 查看器保留唯一 Three.js 场景和 WebView 消息生命周期；继续沿用按交互/图层职责拆分的既有计划。本次仅校准过期的 1197 行说明与上限，不改动渲染代码。",
       "follow_up": "将图谱/图例控件与相机交互拆为本地 ES 模块，保持 viewer 入口唯一拥有场景状态和 WebView 消息边界。"
     },
     "tools/build_cortex_atlas_asset.py": {
@@ -488,6 +377,26 @@
       "max_lines": 490,
       "reason": "当前 477 行。该控件统一拥有同一 Review 面板集合的布局和 WPF 可视树生命周期；本次只修复浮窗的卸载/重载同步，不增加新的状态所有者。",
       "follow_up": "Before substantial layout growth, extract adaptive dock layout calculation while keeping slot and floating-window lifecycle under one owner."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Acquisition/AcquisitionWorkspaceCollaboratorTests.cs": {
+      "decision": "keep",
+      "max_lines": 590,
+      "reason": "568-line acquisition workspace regression suite retains one STA dispatcher and device/settings probe fixture. Startup discovery, pending persistence, failure recovery and event coordinates exercise the same session owner; keep the focused fixture together rather than duplicating it to shorten files."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Analysis/HttpLiveFilterBridge.cs": {
+      "decision": "keep",
+      "max_lines": 540,
+      "reason": "529 lines. Single local HTTP boundary and transition state machine for Python-owned live causal display filtering; contains no local DSP formulas."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Filtering/RecordingReviewFilter.cs": {
+      "decision": "keep",
+      "max_lines": 440,
+      "reason": "427 lines. Single HTTP review display-filter settings validator and checkpointed preview client; contains no local DSP formulas."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/LocalRawRecordingReader.cs": {
+      "decision": "keep",
+      "max_lines": 560,
+      "reason": "549 lines. Single local raw WPF recording reader owning manifest/index verification and bounded binary batch reads."
     }
   }
 }

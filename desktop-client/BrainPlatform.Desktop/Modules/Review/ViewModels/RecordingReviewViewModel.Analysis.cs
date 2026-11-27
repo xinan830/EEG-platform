@@ -11,6 +11,7 @@ public sealed partial class RecordingReviewViewModel
     private bool hasUnresolvedAnalysisMontage;
     private bool loadingAnalysisParameters;
     private readonly LatestDelayedTask analysisUpdater = new();
+    private readonly Dictionary<ReviewAnalysisCardViewModel, long> pendingAnalysisRefreshes = new();
 
     internal async Task OpenAnalysisAsync(string algorithmId)
     {
@@ -110,7 +111,10 @@ public sealed partial class RecordingReviewViewModel
     private ReviewAnalysisCoordinator CreateSlotCoordinator(string sourceAlgorithmId)
     {
         var primary = analysisCoordinators[sourceAlgorithmId];
-        var inUse = OpenAnalysisSlots.Any(slot => ReferenceEquals(slot.Coordinator, primary));
+        var inUse = OpenAnalysisSlots.Any(slot =>
+            ReferenceEquals(slot.Coordinator, primary) ||
+            ReferenceEquals(slot.Binding?.Coordinator, primary) ||
+            ReferenceEquals(slot.SpectralRbpBinding?.Coordinator, primary));
         if (!inUse) return primary;
         if (analysisAlgorithmClient is not null && analysisPanels.TryGetValue(sourceAlgorithmId, out var registration))
             return registration.CreateCoordinator(analysisAlgorithmClient);
@@ -120,6 +124,7 @@ public sealed partial class RecordingReviewViewModel
     private void MarkSlotClosed(ReviewAnalysisCardViewModel slot)
     {
         slot.IsClosed = true;
+        pendingAnalysisRefreshes.Remove(slot);
         slot.PreparationCancellation?.Cancel();
         slot.ConfigurationRevision++;
         slot.Binding?.DetachRun();
@@ -321,21 +326,48 @@ public sealed partial class RecordingReviewViewModel
         if (Preprocessing.AreScientificInputsBlocked)
         {
             var blocked = Preprocessing.HasUnsavedChannelIdentities ? "通道身份尚未保存，分析已暂停。" : Preprocessing.ReferenceStatusText;
-            foreach (var slot in slots) slot.AnalysisPreparationText = blocked;
+            foreach (var slot in slots)
+            {
+                pendingAnalysisRefreshes.Remove(slot);
+                slot.AnalysisPreparationText = blocked;
+            }
             RaisePropertyChanged(nameof(AnalysisPreparationText));
             return;
         }
-        if (analysisLifetime.IsCancellationRequested) return;
-        var snapshots = slots.Select(slot => (Slot: slot, Revision: slot.ConfigurationRevision)).ToArray();
+        if (analysisLifetime.IsCancellationRequested)
+        {
+            foreach (var slot in slots) pendingAnalysisRefreshes.Remove(slot);
+            return;
+        }
+        foreach (var slot in slots)
+            pendingAnalysisRefreshes[slot] = slot.ConfigurationRevision;
         analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>
         {
-            var pending = snapshots
-                .Where(entry => !entry.Slot.IsClosed && entry.Revision == entry.Slot.ConfigurationRevision)
-                .Select(async entry =>
+            var snapshots = pendingAnalysisRefreshes
+                .Where(entry => !entry.Key.IsClosed && entry.Value == entry.Key.ConfigurationRevision)
+                .Select(entry => (Slot: entry.Key, Revision: entry.Value))
+                .ToArray();
+            foreach (var closedOrStale in pendingAnalysisRefreshes
+                .Where(entry => entry.Key.IsClosed || entry.Value != entry.Key.ConfigurationRevision)
+                .Select(entry => entry.Key)
+                .ToArray())
+            {
+                pendingAnalysisRefreshes.Remove(closedOrStale);
+            }
+            var pending = snapshots.Select(async entry =>
+            {
+                try { await PrepareSlotAsync(entry.Slot, token); }
+                catch (Exception exception) when (!token.IsCancellationRequested) { ReportCommandError(exception); }
+                finally
                 {
-                    try { await PrepareSlotAsync(entry.Slot, token); }
-                    catch (Exception exception) when (!token.IsCancellationRequested) { ReportCommandError(exception); }
-                });
+                    if (!token.IsCancellationRequested &&
+                        pendingAnalysisRefreshes.TryGetValue(entry.Slot, out var current) &&
+                        current == entry.Revision)
+                    {
+                        pendingAnalysisRefreshes.Remove(entry.Slot);
+                    }
+                }
+            });
             await Task.WhenAll(pending);
         });
     }

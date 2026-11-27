@@ -222,7 +222,7 @@ def test_dynamic_window_topomap_rejects_montage_identity_mismatch():
     assert exc_info.value.code == "TOPOMAP_SOURCE_CONTEXT_INVALID"
 
 
-def test_dynamic_window_topomap_logs_request_correlated_service_stages(caplog):
+def test_dynamic_window_topomap_logs_request_correlated_service_stages(backend_caplog):
     import logging
 
     channels = ["Fz", "Cz", "Pz"]
@@ -230,13 +230,13 @@ def test_dynamic_window_topomap_logs_request_correlated_service_stages(caplog):
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 
-    with caplog.at_level(logging.INFO, logger="brain_platform.topomap"):
+    with backend_caplog.at_level(logging.INFO, logger="brain_platform.topomap"):
         service.build_dynamic_window("window-1", field_ids=["rbp.absolute.alpha"], request_id="request-1")
 
-    assert "topomap_stage_perf request_id=request-1 window_id=window-1 stage=signal_provenance" in caplog.text
-    assert "topomap_stage_perf request_id=request-1 window_id=window-1 stage=dynamic_window_total" in caplog.text
-    assert "payload_ms=" in caplog.text and "input_ms=" in caplog.text
-    assert "context_ms=" in caplog.text and "build_ms=" in caplog.text and "total_ms=" in caplog.text
+    assert "topomap_stage_perf request_id=request-1 window_id=window-1 stage=signal_provenance" in backend_caplog.text
+    assert "topomap_stage_perf request_id=request-1 window_id=window-1 stage=dynamic_window_total" in backend_caplog.text
+    assert "payload_ms=" in backend_caplog.text and "input_ms=" in backend_caplog.text
+    assert "context_ms=" in backend_caplog.text and "build_ms=" in backend_caplog.text and "total_ms=" in backend_caplog.text
 
 
 def test_old_result_absolute_request_returns_explicit_unavailable_map():
@@ -469,7 +469,7 @@ def test_rbp_adapter_does_not_fallback_to_trace_for_old_absolute_results():
     assert result.unavailable["code"] == "ABSOLUTE_POWER_NOT_AVAILABLE"
 
 
-def test_topomap_route_requires_explicit_field_ids_and_rejects_old_query_contract(caplog):
+def test_topomap_route_requires_explicit_field_ids_and_rejects_old_query_contract(backend_caplog):
     import logging
 
     from fastapi import FastAPI
@@ -508,15 +508,15 @@ def test_topomap_route_requires_explicit_field_ids_and_rejects_old_query_contrac
     app.include_router(router)
     app.include_router(dynamic_router)
 
-    with TestClient(app) as client, caplog.at_level(logging.INFO):
+    with TestClient(app) as client, backend_caplog.at_level(logging.INFO):
         explicit = client.get("/api/runs/run/topomap?cursor_s=5&field_ids=rbp.absolute.alpha",
                              headers={"X-Request-ID": "topomap-request-1"})
         assert explicit.status_code == 200
         assert explicit.json()["fields"][0]["field_id"] == "rbp.absolute.alpha"
         assert service.field_ids == ["rbp.absolute.alpha"]
-        assert "topomap_api_perf request_id=topomap-request-1" in caplog.text
-        assert "topomap_interpolation_perf request_id=topomap-request-1" in caplog.text
-        assert "field_count=1 grid_cells=4225" in caplog.text
+        assert "topomap_api_perf request_id=topomap-request-1" in backend_caplog.text
+        assert "topomap_interpolation_perf request_id=topomap-request-1" in backend_caplog.text
+        assert "field_count=1 grid_cells=4225" in backend_caplog.text
 
         omitted = client.get("/api/runs/run/topomap?cursor_s=5")
         assert omitted.status_code == 422

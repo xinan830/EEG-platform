@@ -89,7 +89,9 @@ def integrate(freq, density, low, high, interpolate=True):
     return float(np.trapezoid(values, axis))
 
 
-def iapf(freq, density):
+def iapf_details(freq, density):
+    from scipy.signal import find_peaks
+
     power = density.mean(axis=0)
     fit = (freq >= 3) & (freq <= 30) & ~((freq >= 7) & (freq <= 13))
     x, y = np.log10(freq[fit]), np.log10(power[fit])
@@ -100,15 +102,30 @@ def iapf(freq, density):
     alpha = freq[mask]
     baseline = 10 ** (intercept + slope * np.log10(alpha))
     residual = np.maximum(power[mask] - baseline, 0)
-    index = np.argmax(residual)
-    if residual[index] / max(baseline[index], 1e-20) >= .2:
-        return float(alpha[index])
-    if residual.sum() > 0:
-        return float(np.dot(alpha, residual) / residual.sum())
-    return None
+    mass = float(residual.sum())
+    cog = float(np.dot(alpha, residual) / mass) if mass > 0 else None
+    excess = mass / max(float(baseline.sum()), 1e-20)
+    effective = mass ** 2 / float(np.dot(residual, residual)) if mass > 0 else 0.0
+    peaks, properties = find_peaks(residual, prominence=0, width=1.2)
+    accepted = [(int(p), float(prom / max(baseline[p], 1e-20)), float(width))
+                for p, prom, width in zip(peaks, properties['prominences'], properties['widths'])
+                if prom / max(baseline[p], 1e-20) >= .2]
+    best = max(accepted, key=lambda item: residual[item[0]]) if accepted else None
+    fitted = intercept + slope * x
+    source = 'peak' if best else 'cog' if cog is not None and excess >= .2 and effective >= 3 else None
+    return dict(peak_hz=float(alpha[best[0]]) if best else None, cog_hz=cog, source=source,
+                model_error=float(np.mean(np.abs(y - fitted))),
+                model_r2=float(1 - np.sum((y - fitted) ** 2) / np.sum((y - y.mean()) ** 2)),
+                peak_prominence_ratio=best[1] if best else None, peak_width_bins=best[2] if best else None,
+                cog_excess_ratio=excess, cog_effective_bins=effective)
 
 
-def scalar(algorithm, freq, density, config, *, brainbeat_interpolate=False):
+def iapf(freq, density):
+    detail = iapf_details(freq, density)
+    return detail['peak_hz'] if detail['source'] == 'peak' else detail['cog_hz'] if detail['source'] == 'cog' else None
+
+
+def scalar(algorithm, freq, density, config):
     if freq is None:
         return None
     if algorithm == "peak_frequency":
@@ -121,14 +138,18 @@ def scalar(algorithm, freq, density, config, *, brainbeat_interpolate=False):
             return numerator / denominator if denominator > 0 else None
         except ValueError:
             return None
+    if algorithm == "brainbeat":
+        return integrate(freq, density[0], 4, 8) / integrate(freq, density[1], 8, 12)
+    if algorithm == "theta_beta" and config.frequency_mode == "standard":
+        return integrate(freq, density[0], 4, 8) / integrate(freq, density[0], 13, 30)
     peak = iapf(freq, density)
     if algorithm == "iapf" or peak is None:
         return peak
     theta = (max(4, peak - 6), peak - 2)
     if algorithm == "theta_beta":
-        return integrate(freq, density[0], *theta) / integrate(freq, density[0], peak + 2, 30)
-    if algorithm == "brainbeat":
-        power = lambda row, a, b: integrate(freq, row, a, b, brainbeat_interpolate)
+        return integrate(freq, density[0], peak - 6, peak - 4) / integrate(freq, density[0], peak + 2, 30)
+    if algorithm == "brainbeat_individualized":
+        power = lambda row, a, b: integrate(freq, row, a, b)
         relative_theta = power(density[0], *theta) / (power(density[0], 1, 30) + 1e-20)
         relative_alpha = power(density[1], peak - 2, peak + 2) / (power(density[1], 1, 30) + 1e-20)
         return relative_theta / (relative_alpha + 1e-20)

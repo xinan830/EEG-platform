@@ -6,4 +6,7 @@ public interface IRecordingSignalExportClient
 {
     Task DownloadRawSignalExportAsync(string sourceDirectory, string format, Stream destination,
         CancellationToken cancellationToken);
+
+    Task DownloadRegisteredRecordingSignalExportAsync(string recordingId, string format, Stream destination,
+        CancellationToken cancellationToken);
 }

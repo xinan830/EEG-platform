@@ -21,7 +21,10 @@ public sealed partial class RecordingReviewViewModel
     {
         if (IsSignalExporting) throw new InvalidOperationException("正在导出录音，请等待完成或取消。");
         var client = signalExportClient ?? throw new InvalidOperationException("当前页面未配置后端导出服务。");
-        var directory = analysisRecordingDirectory ?? throw new InvalidOperationException("未找到原始录音目录。");
+        var directory = analysisRecordingDirectory;
+        var registeredId = analysisRecording?.Id;
+        if (string.IsNullOrWhiteSpace(directory) && string.IsNullOrWhiteSpace(registeredId))
+            throw new InvalidOperationException("未找到原始录音目录或已注册录音身份。");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, analysisLifetime.Token);
         signalExportCancellation = cancellation;
         RaisePropertyChanged(nameof(IsSignalExporting));
@@ -30,7 +33,10 @@ public sealed partial class RecordingReviewViewModel
         try
         {
             await RecordingReviewSignalExporter.ExportAsync(targetPath, format,
-                (stream, token) => client.DownloadRawSignalExportAsync(directory, format, stream, token), cancellation.Token);
+                (stream, token) => !string.IsNullOrWhiteSpace(directory)
+                    ? client.DownloadRawSignalExportAsync(directory, format, stream, token)
+                    : client.DownloadRegisteredRecordingSignalExportAsync(registeredId!, format, stream, token),
+                cancellation.Token);
             SignalExportStatus = "整段录音已导出。";
             notifications?.PublishSuccess(SignalExportStatus);
         }

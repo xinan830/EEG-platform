@@ -74,7 +74,8 @@ internal sealed class MontageRecordingReferences(string path, ResearchProjectSto
                 ? hardware.Deserialize<Dictionary<string, string>>() ?? throw new JsonException("HardwareConfiguration is null.")
                 : new Dictionary<string, string>();
             var ids = MontageReferenceMetadata.From(metadata).ReadIds();
-            if (index.Recordings.TryGetValue(directory, out var expected) && !expected.SetEquals(ids))
+            if (index.Recordings.TryGetValue(directory, out var expected) &&
+                expected.Count > 0 && !expected.SetEquals(ids))
                 throw new InvalidOperationException("记录导联引用与已登记信息不一致。");
             index.Register(ids, directory);
         }

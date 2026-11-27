@@ -13,7 +13,7 @@ BANDS = dict(delta=(1, 4), theta=(4, 8), alpha=(8, 13), beta=(13, 30), gamma=(30
 def schedule(algorithm, mode):
     if mode == "static":
         return [(0, 30)]
-    width, first = (20, 20) if algorithm == "faa" else (5, 4)
+    width, first = (20, 20) if algorithm in {"faa", "iapf", "theta_beta", "brainbeat", "brainbeat_individualized"} else (5, 4)
     return [(max(0, end - width), end) for end in range(first, 31)]
 
 
@@ -31,22 +31,7 @@ def faa_reference(values, fs):
 
 
 def iapf_details(freq, density):
-    power = density.mean(axis=0)
-    mask = (freq >= 3) & (freq <= 30) & ~((freq >= 7) & (freq <= 13))
-    x, y = np.log10(freq[mask]), np.log10(power[mask])
-    slope = np.dot(x - x.mean(), y - y.mean()) / np.dot(x - x.mean(), x - x.mean())
-    intercept = y.mean() - slope * x.mean()
-    fitted = intercept + slope * x
-    alpha_mask = (freq >= 7) & (freq <= 13)
-    alpha = freq[alpha_mask]
-    baseline = 10 ** (intercept + slope * np.log10(alpha))
-    residual = np.maximum(power[alpha_mask] - baseline, 0)
-    index = np.argmax(residual)
-    return dict(peak_hz=float(alpha[index]),
-                cog_hz=float(np.dot(alpha, residual) / residual.sum()) if residual.sum() > 0 else None,
-                model_error=float(np.mean(np.abs(y - fitted))),
-                model_r2=float(1 - np.sum((y - fitted) ** 2) / np.sum((y - y.mean()) ** 2)),
-                source="peak" if residual[index] / max(baseline[index], 1e-20) >= .2 else "cog")
+    return ref.iapf_details(freq, density)
 
 
 def check_quality(path, evidence, clean, total, checks):
@@ -85,12 +70,13 @@ def check_extensions(path, point, algorithm, freq, density, checks):
             checks.exact(path + f".{name}_band_hz", evidence[f"{name}_band_hz"], list(edges))
             checks.numeric(path + f".{name}_power_v2", evidence[f"{name}_power_v2"],
                            ref.integrate(freq, density[0], *edges), atol=1e-22)
-    elif algorithm in {"theta_beta", "brainbeat"}:
-        peak = ref.iapf(freq, density)
-        evidence = official[algorithm + "_evidence"]
-        checks.numeric(path + ".iapf_hz", evidence["iapf_hz"], peak)
+    elif algorithm in {"theta_beta", "brainbeat", "brainbeat_individualized"}:
+        peak = ref.iapf(freq, density) if algorithm == "brainbeat_individualized" else None
+        evidence = official[("brainbeat" if algorithm.startswith("brainbeat") else algorithm) + "_evidence"]
+        checks.tree(path + ".iapf_hz", evidence["iapf_hz"], peak)
         if algorithm == "theta_beta":
-            theta, beta = [max(4, peak - 6), peak - 2], [peak + 2, 30]
+            checks.exact(path + ".frequency_mode", evidence["frequency_mode"], "standard")
+            theta, beta = [4, 8], [13, 30]
             checks.exact(path + ".theta_range_hz", evidence["theta_range_hz"], theta)
             checks.exact(path + ".beta_range_hz", evidence["beta_range_hz"], beta)
             for name, edges in (("theta", theta), ("beta", beta)):
@@ -157,8 +143,8 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
     dynamic, structured = mode == "dynamic", algorithm in {"psd", "stft", "rbp"}
     bounds = schedule(algorithm, mode)
     high, notch = 50, 50
-    output_high = 30 if algorithm in {"iapf", "brainbeat"} else 50
-    roles = ["F3", "F4"] if algorithm == "faa" else ["Fz", "Pz"] if algorithm == "brainbeat" else ["Fz"]
+    output_high = 30 if algorithm in {"iapf", "brainbeat", "brainbeat_individualized"} else 50
+    roles = ["F3", "F4"] if algorithm == "faa" else ["Fz", "Pz"] if algorithm in {"brainbeat", "brainbeat_individualized"} else ["Fz"]
     selected = [f"{role}-{kind}" for role in roles]
     checks.exact(key + ".channel_order", snapshot["channels"]["channels"], selected)
     checks.exact(key + ".role_mapping", snapshot["channels"]["analysis_montage"]["outputs"],
@@ -254,7 +240,7 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
                     checks.numeric(path + "." + name + "_absolute_power", actual, [value])
             elif gate:
                 config = SimpleNamespace(low_hz=8, high_hz=13, numerator_low_hz=4, numerator_high_hz=8,
-                                         denominator_low_hz=13, denominator_high_hz=30)
+                                         denominator_low_hz=13, denominator_high_hz=30, frequency_mode="standard")
                 scalar_value = ref.scalar(algorithm, freq, density, config)
                 gate = scalar_value is not None
                 if gate:
@@ -279,7 +265,7 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
                      sfreq_hz=fs, sample_range=dict(start_sample=round(start * fs), end_sample=round(end * fs), half_open=True)))
         if gate and algorithm != "faa":
             typed = (evidence["calculation_trace"] if algorithm == "stft" else evidence["spectral_evidence"]).get("typed_source_request", {})
-            expected = dict(roles=roles if algorithm == "brainbeat" else selected, channel_order=selected,
+            expected = dict(roles=roles if algorithm.startswith("brainbeat") else selected, channel_order=selected,
                             start_sample=round(start * fs), end_sample=round(end * fs), sfreq_hz=fs,
                             filter_low_hz=1., filter_high_hz=float(high), output_low_hz=1., output_high_hz=float(output_high),
                             notch_hz=notch, preprocessing_scope=(

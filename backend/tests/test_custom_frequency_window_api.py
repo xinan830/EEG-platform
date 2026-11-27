@@ -12,8 +12,8 @@ from on_demand_fixtures import configure_api, source_hashes
 from test_on_demand_rbp_api import wait_window
 
 
-def test_projection_reads_saved_current_window_only_and_preserves_five_band_outputs(tmp_path, monkeypatch, caplog):
-    caplog.set_level("INFO")
+def test_projection_reads_saved_current_window_only_and_preserves_five_band_outputs(tmp_path, monkeypatch, backend_caplog):
+    backend_caplog.set_level("INFO")
     from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
     from app.scientific.primitives.gateway import ScientificSpectralGateway
     from app.services.analysis.results.topomap import TopomapService
@@ -95,7 +95,7 @@ def test_projection_reads_saved_current_window_only_and_preserves_five_band_outp
         warm_subscription = warm.json()["subscription_id"]
         released = client.delete(f"/api/analysis-windows/subscriptions/{warm_subscription}")
         assert released.status_code == 200
-        messages = [record.getMessage() for record in caplog.records]
+        messages = [record.getMessage() for record in backend_caplog.records]
         admission = next(message for message in messages if "dynamic_window_admission_perf" in message
                          and "request_id=cached-public-rbp" in message)
         assert "lock_wait_ms=" in admission and "recording_metadata_ms=" in admission

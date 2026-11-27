@@ -78,21 +78,20 @@ def official_registration_report(repository_root: Path) -> list[CompletenessIssu
     # Known initialisms use the API algorithm IDs rather than acronym splits.
     aliases = {"psd": "psd", "stft": "stft", "rbp": "rbp", "faa": "faa", "iapf": "iapf"}
     handler_ids = {aliases.get(to_algorithm_id(name), to_algorithm_id(name)) for name in handler_types}
-    grouped_handler_ids = re.findall(
-        r'new\s+TnkShadowRunResultHandler\("([a-z][a-z0-9_]*)"\)', handler_source,
+    grouped_handlers = re.findall(
+        r'new\s+([A-Za-z0-9]+)RunResultHandler\("([a-z][a-z0-9_]*)"\)', handler_source,
     )
-    handler_ids.update(grouped_handler_ids)
+    handler_ids.update(algorithm_id for _, algorithm_id in grouped_handlers)
     detail_ids = set(re.findall(r'\["([a-z][a-z0-9_]*)"\]\s*=\s*new\(', ui_source))
     issues = find_registration_gaps(backend_ids, ui_ids, handler_ids, detail_ids)
     handler_sources = {
         to_algorithm_id(name): list((repository_root / "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels").rglob(f"{name}RunResultHandler.cs"))
         for name in handler_types
     }
-    grouped_handler_path = (
-        repository_root / "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/TnkShadowRunResultHandler.cs"
-    )
-    for algorithm_id in grouped_handler_ids:
-        handler_sources[algorithm_id] = [grouped_handler_path]
+    for name, algorithm_id in grouped_handlers:
+        handler_sources[algorithm_id] = list((
+            repository_root / "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels"
+        ).rglob(f"{name}RunResultHandler.cs"))
     for module in build_builtin_modules():
         declaration = module.manifest.dynamic_capabilities
         if declaration is None:

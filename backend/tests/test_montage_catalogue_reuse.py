@@ -29,12 +29,12 @@ def catalogue(tmp_path):
     return service, recording, root, manifest
 
 
-def test_cold_and_warm_catalogues_use_two_connections_for_thirty_snapshots(catalogue, caplog):
+def test_cold_and_warm_catalogues_use_two_connections_for_thirty_snapshots(catalogue, backend_caplog):
     service, recording, _, _ = catalogue
     owner = service._analysis_montage_snapshots
     owner._catalogues.clear()
     owner._resolved_views.clear()
-    caplog.set_level("INFO")
+    backend_caplog.set_level("INFO")
     for state in ("cold", "warm"):
         with performance_trace("catalogue_test", state=state) as trace:
             current = service.require_recording(recording.id)

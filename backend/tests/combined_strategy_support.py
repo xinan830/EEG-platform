@@ -32,9 +32,10 @@ def setup_strategy(tmp_path, algorithm_id, *, rejected=False):
         config["channel"] = f"{labels[0]}-REF"
     if algorithm_id in {"psd", "stft", "faa"}:
         config.update(low_hz=1, high_hz=50, notch_hz=50)
+    if algorithm_id in {"faa", "iapf", "theta_beta"}:
+        config["dynamic_window_s"] = 20
     if algorithm_id == "faa":
         config["f4_channel"] = "F4-REF"
-        config["dynamic_window_s"] = 20
     if is_brainbeat:
         config["secondary_channel"] = "Pz-REF"
     if algorithm_id == "band_ratio":

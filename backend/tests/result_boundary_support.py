@@ -57,7 +57,7 @@ def snapshot_run(tmp_path, algorithm_id, mode, rejected, provenance_builder=buil
     snapshot = {
         "input": {"sha256": hashlib.sha256(values.astype("<f8").tobytes()).hexdigest(),
                   "sfreq_hz": rate, "channel_order": channels, "unit": "V"},
-        "config": request.config, "status": run.status.value,
+        "config": request.config, "resolved_config": run.config, "status": run.status.value,
         "error": run.error.model_dump(mode="json") if run.error else None,
         "summary": summary,
         "analysis_provenance": provenance,
@@ -101,3 +101,40 @@ def compare_value(actual, expected, *, path="$", errors=None):
 
 def canonical_json(value):
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def validate_current_scalar_reference(snapshot, arrays):
+    """Check changed scalar contracts from raw samples using the separate audit reference."""
+    from types import SimpleNamespace
+    from scripts import recording_audit_reference as ref
+
+    identifier = snapshot["config"]["algorithm_id"]
+    if identifier not in {"iapf", "theta_beta", "brainbeat", "brainbeat_individualized"}:
+        return
+    fs = 200.0
+    time = np.arange(6000) / fs
+    alpha = 12e-6 * np.sin(2 * np.pi * 10 * time)
+    raw = np.column_stack((8e-6 * np.sin(2 * np.pi * 6 * time) + alpha, alpha * 1.1,
+                           alpha * 1.2, alpha * .8, alpha * 1.6))
+    if snapshot["input"]["sha256"] != hashlib.sha256(raw.astype("<f8").tobytes()).hexdigest():
+        raw *= 30
+    assert snapshot["input"]["sha256"] == hashlib.sha256(raw.astype("<f8").tobytes()).hexdigest()
+    prepared = ref.filtered(raw, fs, 1, 50, 50)
+    selected = [2] if identifier == "theta_beta" else [0, 1] if identifier.startswith("brainbeat") else [0]
+    dynamic = snapshot["config"]["mode"] == "dynamic"
+    bounds = [(end - 20, end) for end in range(20, 31)] if dynamic else [(0, 30)]
+    expected = []
+    for start, end in bounds:
+        freq, density, _, _ = ref.welch(prepared[round(start * fs):round(end * fs), selected],
+                                       fs, 1, 50 if identifier == "theta_beta" else 30)
+        expected.append(ref.scalar(identifier, freq, density, SimpleNamespace(frequency_mode="standard")))
+    wanted = np.array([np.nan if item is None else item for item in expected])
+    if not dynamic and expected == [None]:
+        assert snapshot["status"] == "gate_failed"
+        assert snapshot["error"] is not None
+        assert not arrays
+        return
+    np.testing.assert_allclose(arrays["metric_values" if dynamic else "metric_value"], wanted,
+                               rtol=1e-10, atol=1e-20, equal_nan=True)
+    if dynamic:
+        np.testing.assert_array_equal(arrays["metric_time_s"], [end for _, end in bounds])

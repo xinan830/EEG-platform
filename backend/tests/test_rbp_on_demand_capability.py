@@ -68,8 +68,8 @@ def test_rbp_continuous_source_each_window_matches_full_run_and_loads_only_one_f
     assert sum(window.arrays[name][0] for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1)
 
 
-def test_rbp_window_logs_request_and_window_correlated_stage_timings(caplog):
-    caplog.set_level("INFO")
+def test_rbp_window_logs_request_and_window_correlated_stage_timings(backend_caplog):
+    backend_caplog.set_level("INFO")
     spectrum = SimpleNamespace(
         freqs=np.arange(1.0, 51.0), psd=np.ones((1, 50)), clean_epochs=1,
         total_epochs=1, signal_quality=1.0, rejected_reasons=(), evidence={}, gate_failed=None,
@@ -90,7 +90,7 @@ def test_rbp_window_logs_request_and_window_correlated_stage_timings(caplog):
         and "band_formula_ms=" in record.getMessage()
         and "band_check_ms=" in record.getMessage()
         and "band_check_count=2" in record.getMessage()
-        for record in caplog.records
+        for record in backend_caplog.records
     )
 
 
