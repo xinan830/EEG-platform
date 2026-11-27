@@ -74,9 +74,10 @@ public sealed class TemplateElectrodeMap2D : FrameworkElement
         if (headBounds.IsEmpty || Sites is not { Count: > 0 } sites) return;
 
         var dotRadius = sites.Count > 160 ? 2.5 : sites.Count > 70 ? 3.2 : 4.2;
-        var fontSize = sites.Count > 160 ? 9.0 : 10.0;
+        var fontSize = sites.Count > 160 ? 8.5 : sites.Count > 70 ? 9.0 : 10.0;
         var typeface = new Typeface("Segoe UI");
-        var placedLabelRects = new List<Rect>();
+        var placedRects = new List<Rect>();
+        var dotRects = new List<Rect>(sites.Count);
         var orderedSites = sites
             .OrderByDescending(item => string.Equals(item.Channel, item.CanonicalChannel, StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -84,6 +85,7 @@ public sealed class TemplateElectrodeMap2D : FrameworkElement
         foreach (var site in sites)
         {
             var pt = ScalpMapRenderer.ToCanvas(site.MapX, site.MapY, headBounds);
+            dotRects.Add(new Rect(pt.X - dotRadius - 0.8, pt.Y - dotRadius - 0.8, dotRadius * 2 + 1.6, dotRadius * 2 + 1.6));
             var isSelected = IsSameChannel(site.Channel, SelectedChannel);
             var isHovered = IsSameChannel(site.Channel, hoveredChannel);
             var fill = isSelected
@@ -109,6 +111,12 @@ public sealed class TemplateElectrodeMap2D : FrameworkElement
         {
             var headCenterY = headBounds.Y + headBounds.Height / 2;
             var headRadius = headBounds.Width / 2;
+            var labelBounds = new Rect(
+                Math.Max(2, headBounds.Left - 18),
+                Math.Max(2, headBounds.Top - 12),
+                Math.Min(ActualWidth - 4, headBounds.Width + 36),
+                Math.Min(ActualHeight - 4, headBounds.Height + 24));
+
             foreach (var site in orderedSites)
             {
                 if (IsSameChannel(site.Channel, SelectedChannel) || IsSameChannel(site.Channel, hoveredChannel))
@@ -122,20 +130,55 @@ public sealed class TemplateElectrodeMap2D : FrameworkElement
                     fontSize,
                     LabelBrush,
                     dpi);
-                var placeAbove = pt.Y > headCenterY + headRadius * 0.65;
-                var labelY = placeAbove ? pt.Y - dotRadius - text.Height - 1 : pt.Y + dotRadius + 1.5;
-                var rect = new Rect(pt.X - text.Width / 2 - 2, labelY, text.Width + 4, text.Height + 1);
-                if (rect.Left < headBounds.Left - 8 || rect.Right > headBounds.Right + 8 ||
-                    rect.Top < headBounds.Top - 8 || rect.Bottom > headBounds.Bottom + 8 ||
-                    placedLabelRects.Any(existing => existing.IntersectsWith(rect)))
-                    continue;
-                placedLabelRects.Add(rect);
-                drawingContext.DrawText(text, new Point(rect.X + 2, rect.Y));
+
+                if (TryPickLabelRect(pt, site.MapX, headCenterY, headRadius, dotRadius, text, labelBounds, placedRects, dotRects) is { } chosen)
+                {
+                    placedRects.Add(chosen);
+                    drawingContext.DrawText(text, new Point(chosen.X + 1.5, chosen.Y));
+                }
             }
         }
 
         DrawFocusLabel(drawingContext, headBounds, sites, hoveredChannel, false, dotRadius, dpi, typeface, ActualWidth, ActualHeight);
         DrawFocusLabel(drawingContext, headBounds, sites, SelectedChannel, true, dotRadius, dpi, typeface, ActualWidth, ActualHeight);
+    }
+
+    private static Rect? TryPickLabelRect(
+        Point pt,
+        double mapX,
+        double headCenterY,
+        double headRadius,
+        double dotRadius,
+        FormattedText text,
+        Rect labelBounds,
+        List<Rect> placedRects,
+        List<Rect> dotRects)
+    {
+        var w = text.Width + 3;
+        var h = text.Height + 1;
+        var preferAbove = pt.Y > headCenterY + headRadius * 0.65;
+        var below = new Rect(pt.X - w / 2, pt.Y + dotRadius + 1.5, w, h);
+        var above = new Rect(pt.X - w / 2, pt.Y - dotRadius - h - 1, w, h);
+        var outward = mapX < 0
+            ? new Rect(pt.X - dotRadius - w - 2.5, pt.Y - h / 2, w, h)
+            : new Rect(pt.X + dotRadius + 2.5, pt.Y - h / 2, w, h);
+        var inward = mapX < 0
+            ? new Rect(pt.X + dotRadius + 2.5, pt.Y - h / 2, w, h)
+            : new Rect(pt.X - dotRadius - w - 2.5, pt.Y - h / 2, w, h);
+
+        Rect[] candidates = preferAbove ? [above, outward, inward, below] : [below, above, outward, inward];
+        foreach (var cand in candidates)
+        {
+            if (cand.Left < labelBounds.Left || cand.Right > labelBounds.Right ||
+                cand.Top < labelBounds.Top || cand.Bottom > labelBounds.Bottom)
+                continue;
+            if (placedRects.Any(existing => existing.IntersectsWith(cand)))
+                continue;
+            if (dotRects.Any(dot => dot.IntersectsWith(cand)))
+                continue;
+            return cand;
+        }
+        return null;
     }
 
     private static void DrawFocusLabel(

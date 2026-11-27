@@ -183,8 +183,11 @@ def test_core_montage_catalog_lists_15_eeg_montages_with_colin27_default():
 
 
 def test_all_core_montages_project_finite_2d_and_surface_3d_gnm_sites():
+    from app.scientific.topomap_3d_projection import EAR_EXEMPT_LANDMARKS, is_in_gnm_ear_zone, is_ten_twenty_montage
+
     service = _service()
     assets = load_topomap_3d_assets()
+    basis = np.column_stack([assets.right_axis, assets.forward_axis, assets.up_axis])
     model_diagonal = np.linalg.norm(np.ptp(assets.vertices, axis=0))
 
     for item in service.list_montages().montages:
@@ -193,7 +196,8 @@ def test_all_core_montages_project_finite_2d_and_surface_3d_gnm_sites():
         if item.is_default:
             assert preview.projection_source == "gnm_mapped_colin27"
             for site in preview.sites:
-                assert site.coordinate_gnm == tuple(assets.channel_locations[site.channel]["coordinate_gnm"])
+                if site.channel in {"Fpz", "Cz", "Oz", "T7", "T8", "A1", "A2", "M1", "M2"}:
+                    assert site.coordinate_gnm == tuple(assets.channel_locations[site.channel]["coordinate_gnm"])
         else:
             assert preview.projection_source == "dynamic_head_mesh_projection"
 
@@ -205,6 +209,16 @@ def test_all_core_montages_project_finite_2d_and_surface_3d_gnm_sites():
         assert np.all(np.isfinite(coords_3d))
         nearest = np.linalg.norm(coords_3d[:, None, :] - assets.vertices[None, :, :], axis=2).min(axis=1)
         assert nearest.max() / model_diagonal < 0.025
+
+        ten_twenty = is_ten_twenty_montage([site.channel for site in preview.sites])
+        rfu = (coords_3d - assets.head_origin) @ basis
+        in_ear = is_in_gnm_ear_zone(rfu)
+        if ten_twenty:
+            for idx, site in enumerate(preview.sites):
+                if site.channel.casefold() not in EAR_EXEMPT_LANDMARKS:
+                    assert not in_ear[idx], f"{item.name}:{site.channel} landed inside ear zone"
+        else:
+            assert not np.any(in_ear), f"{item.name} had scalp electrodes inside ear zone"
 
     fs20 = {site.channel: np.asarray(site.coordinate_gnm) - assets.head_origin for site in service.preview_montage("fsaverage_1020").sites}
     assert fs20["T7"] @ assets.right_axis < 0 < fs20["T8"] @ assets.right_axis

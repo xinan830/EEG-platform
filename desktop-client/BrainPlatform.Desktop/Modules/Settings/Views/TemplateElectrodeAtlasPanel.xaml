@@ -55,14 +55,15 @@
                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="电极模板" FontSize="12.5" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <ComboBox x:Name="MontageComboBox"
-                                  Width="235"
-                                  Padding="8,5"
+                                  Style="{StaticResource AppFilterComboBoxStyle}"
+                                  Width="248"
+                                  Height="32"
                                   FontSize="12.5"
                                   ToolTip="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource Self}}"
                                   SelectionChanged="OnMontageSelectionChanged">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#0F172A" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" Foreground="#0F172A" TextTrimming="CharacterEllipsis" />
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>

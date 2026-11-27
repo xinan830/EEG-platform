@@ -16,6 +16,7 @@ from app.models.topomap_3d import (
 from app.scientific.topomap_3d_projection import (
     CORE_MONTAGE_BY_NAME,
     CORE_MONTAGE_CATALOG,
+    deflect_points_around_ear_pinna,
     is_ten_twenty_montage,
     montage_head_positions,
     normalized_cap_directions,
@@ -138,17 +139,34 @@ class Topomap3DService:
         coords_2d = resolve_montage_2d_coordinates(montage_name)
 
         if spec.is_default:
+            default_channels = [
+                channel for channel in assets.channel_locations if channel.casefold() in coords_2d
+            ]
+            raw_gnm = np.asarray(
+                [assets.channel_locations[channel]["coordinate_gnm"] for channel in default_channels],
+                dtype=np.float64,
+            )
+            cleared_gnm = deflect_points_around_ear_pinna(
+                raw_gnm,
+                channel_names=default_channels,
+                is_ten_twenty=True,
+                head_origin_gnm=assets.head_origin,
+                right_axis_gnm=assets.right_axis,
+                forward_axis_gnm=assets.forward_axis,
+                up_axis_gnm=assets.up_axis,
+                vertices_gnm=assets.vertices,
+                triangles=assets.triangles,
+            )
             sites = [
                 Topomap3DMontageSite(
                     channel=channel,
-                    canonical_channel=str(location.get("canonical_name") or channel),
+                    canonical_channel=str(assets.channel_locations[channel].get("canonical_name") or channel),
                     map_x=coords_2d[channel.casefold()][0],
                     map_y=coords_2d[channel.casefold()][1],
-                    coordinate_gnm=tuple(location["coordinate_gnm"]),
+                    coordinate_gnm=(float(gnm[0]), float(gnm[1]), float(gnm[2])),
                     is_scalp_field_site=channel.casefold() not in NON_SCALP_FIELD_CHANNELS,
                 )
-                for channel, location in assets.channel_locations.items()
-                if channel.casefold() in coords_2d
+                for channel, gnm in zip(default_channels, cleared_gnm, strict=True)
             ]
             return Topomap3DMontagePreviewResponse(
                 montage_name=spec.name,
@@ -184,6 +202,7 @@ class Topomap3DService:
             up_axis_gnm=assets.up_axis,
             vertices_gnm=assets.vertices,
             triangles=assets.triangles,
+            channel_names=names,
             dirs_local=dirs_local,
         )
         ten_twenty = is_ten_twenty_montage(names)

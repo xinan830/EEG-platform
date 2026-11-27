@@ -184,6 +184,133 @@ def project_directions_to_2d_aep(dirs_local: np.ndarray, *, max_radius: float = 
     return xy_dir * (theta[:, None] / theta_max * max_radius)
 
 
+EAR_CLEARANCE_CENTER_F = -0.020
+EAR_CLEARANCE_RADIUS_F = 0.022
+EAR_CLEARANCE_CENTER_U = -0.005
+EAR_CLEARANCE_RADIUS_U = 0.027
+EAR_CLEARANCE_MIN_ABS_R = 0.064
+EAR_EXEMPT_LANDMARKS = frozenset({"a1", "a2", "m1", "m2"})
+EAR_MIN_NEIGHBOR_SEPARATION_M = 0.006
+
+
+def is_in_gnm_ear_zone(rfu: np.ndarray) -> np.ndarray:
+    """Return boolean mask for GNM (R, F, U) coordinates lying inside the bilateral outer ear pinna."""
+    df = (rfu[:, 1] - EAR_CLEARANCE_CENTER_F) / EAR_CLEARANCE_RADIUS_F
+    du = (rfu[:, 2] - EAR_CLEARANCE_CENTER_U) / EAR_CLEARANCE_RADIUS_U
+    return (np.abs(rfu[:, 0]) > EAR_CLEARANCE_MIN_ABS_R) & ((df * df + du * du) < 1.0)
+
+
+def _raycast_scalp_directions(
+    dirs_gnm: np.ndarray,
+    *,
+    scalp_origin: np.ndarray,
+    head_origin_gnm: np.ndarray,
+    up_axis_gnm: np.ndarray,
+    verts: np.ndarray,
+    tris: np.ndarray,
+) -> np.ndarray:
+    v0 = verts[tris[:, 0]]
+    e1 = verts[tris[:, 1]] - v0
+    e2 = verts[tris[:, 2]] - v0
+    s = scalp_origin - v0
+
+    vertex_up = (verts - head_origin_gnm) @ up_axis_gnm
+    vertex_dist = np.linalg.norm(verts - scalp_origin, axis=1)
+    head_mask = (vertex_up > -0.075) & (vertex_dist >= 0.055) & (vertex_dist <= 0.135)
+    head_verts = verts[head_mask] if np.any(head_mask) else verts
+    head_off = head_verts - scalp_origin
+    head_norms = np.linalg.norm(head_off, axis=1, keepdims=True)
+    head_dirs = head_off / np.where(head_norms > 1e-9, head_norms, 1.0)
+
+    projected = np.empty((len(dirs_gnm), 3), dtype=np.float64)
+    for idx, direction in enumerate(dirs_gnm):
+        h = np.cross(direction, e2)
+        det = np.einsum("ij,ij->i", e1, h)
+        valid = np.abs(det) > 1e-9
+        inv_det = np.zeros_like(det)
+        inv_det[valid] = 1.0 / det[valid]
+
+        u = inv_det * np.einsum("ij,ij->i", s, h)
+        valid &= (u >= -1e-6) & (u <= 1.0 + 1e-6)
+
+        q = np.cross(s, e1)
+        v_coord = inv_det * np.einsum("ij,j->i", q, direction)
+        valid &= (v_coord >= -1e-6) & (u + v_coord <= 1.0 + 1e-6)
+
+        t = inv_det * np.einsum("ij,ij->i", e2, q)
+        valid &= (t >= 0.045) & (t <= 0.135)
+
+        if np.any(valid):
+            projected[idx] = scalp_origin + float(np.min(t[valid])) * direction
+        else:
+            projected[idx] = head_verts[int(np.argmax(head_dirs @ direction))]
+    return projected
+
+
+def deflect_points_around_ear_pinna(
+    points_gnm: np.ndarray,
+    *,
+    channel_names: list[str] | tuple[str, ...],
+    is_ten_twenty: bool,
+    head_origin_gnm: np.ndarray,
+    right_axis_gnm: np.ndarray,
+    forward_axis_gnm: np.ndarray,
+    up_axis_gnm: np.ndarray,
+    vertices_gnm: np.ndarray,
+    triangles: np.ndarray,
+) -> np.ndarray:
+    """Route scalp electrodes that land inside the GNM outer ear onto nearby non-ear scalp sites."""
+    pts = np.asarray(points_gnm, dtype=np.float64).copy()
+    head_origin = np.asarray(head_origin_gnm, dtype=np.float64)
+    basis = np.column_stack([right_axis_gnm, forward_axis_gnm, up_axis_gnm])
+    rfu = (pts - head_origin) @ basis
+
+    in_ear = is_in_gnm_ear_zone(rfu)
+    if is_ten_twenty:
+        exempt = np.array([name.casefold() in EAR_EXEMPT_LANDMARKS for name in channel_names], dtype=bool)
+        in_ear &= ~exempt
+    if not np.any(in_ear):
+        return pts
+
+    verts = np.asarray(vertices_gnm, dtype=np.float64)
+    v_rfu = (verts - head_origin) @ basis
+    v_ear = is_in_gnm_ear_zone(v_rfu)
+    non_ear_verts = verts[~v_ear] if np.any(~v_ear) else verts
+
+    placed = list(pts[~in_ear])
+    for pt_idx in np.flatnonzero(in_ear):
+        r, f, u = rfu[pt_idx]
+        df = (f - EAR_CLEARANCE_CENTER_F) / EAR_CLEARANCE_RADIUS_F
+        du = (u - EAR_CLEARANCE_CENTER_U) / EAR_CLEARANCE_RADIUS_U
+        # Route lower/mid ear points horizontally around the front/back rather than crowding Row 7 above.
+        if u < 0.012:
+            df *= 1.4
+            if abs(df) < 0.15:
+                df = 0.25 if f >= EAR_CLEARANCE_CENTER_F else -0.25
+        ell = float(np.hypot(df, du))
+        if ell < 1e-6:
+            df, du, ell = 0.0, 1.0, 1.0
+        cleared_rfu = np.array([
+            np.sign(r) * min(abs(r), 0.074),
+            EAR_CLEARANCE_CENTER_F + (df / ell) * EAR_CLEARANCE_RADIUS_F * 1.06,
+            EAR_CLEARANCE_CENTER_U + (du / ell) * EAR_CLEARANCE_RADIUS_U * 1.06,
+        ])
+        target_gnm = head_origin + cleared_rfu @ basis.T
+        dists_to_target = np.linalg.norm(non_ear_verts - target_gnm, axis=1)
+        candidates = np.argsort(dists_to_target)[:48]
+        chosen = non_ear_verts[candidates[0]]
+        if placed:
+            placed_arr = np.asarray(placed, dtype=np.float64)
+            for cand_idx in candidates:
+                cand = non_ear_verts[cand_idx]
+                if float(np.min(np.linalg.norm(placed_arr - cand, axis=1))) >= EAR_MIN_NEIGHBOR_SEPARATION_M:
+                    chosen = cand
+                    break
+        pts[pt_idx] = chosen
+        placed.append(chosen)
+    return pts
+
+
 def project_head_points_to_gnm_mesh(
     points_head_m: np.ndarray,
     *,
@@ -213,45 +340,29 @@ def project_head_points_to_gnm_mesh(
     dirs_gnm = dirs_local @ basis.T
     dirs_gnm /= np.linalg.norm(dirs_gnm, axis=1, keepdims=True)
 
-    scalp_origin = np.asarray(head_origin_gnm, dtype=np.float64) + GNM_SCALP_CENTER_UP_OFFSET * np.asarray(
-        up_axis_gnm, dtype=np.float64,
-    )
+    head_origin = np.asarray(head_origin_gnm, dtype=np.float64)
+    up_axis = np.asarray(up_axis_gnm, dtype=np.float64)
+    scalp_origin = head_origin + GNM_SCALP_CENTER_UP_OFFSET * up_axis
     verts = np.asarray(vertices_gnm, dtype=np.float64)
     tris = np.asarray(triangles, dtype=np.int64)
-    v0 = verts[tris[:, 0]]
-    e1 = verts[tris[:, 1]] - v0
-    e2 = verts[tris[:, 2]] - v0
-    s = scalp_origin - v0
-
-    vertex_up = (verts - np.asarray(head_origin_gnm, dtype=np.float64)) @ np.asarray(up_axis_gnm, dtype=np.float64)
-    vertex_offsets = verts - scalp_origin
-    vertex_dist = np.linalg.norm(vertex_offsets, axis=1)
-    head_mask = (vertex_up > -0.075) & (vertex_dist >= 0.055) & (vertex_dist <= 0.135)
-    head_verts = verts[head_mask] if np.any(head_mask) else verts
-    head_off = head_verts - scalp_origin
-    head_dirs = head_off / np.where(np.linalg.norm(head_off, axis=1, keepdims=True) > 1e-9,
-                                    np.linalg.norm(head_off, axis=1, keepdims=True), 1.0)
-
-    projected = np.empty((len(dirs_gnm), 3), dtype=np.float64)
-    for idx, direction in enumerate(dirs_gnm):
-        h = np.cross(direction, e2)
-        det = np.einsum("ij,ij->i", e1, h)
-        valid = np.abs(det) > 1e-9
-        inv_det = np.zeros_like(det)
-        inv_det[valid] = 1.0 / det[valid]
-
-        u = inv_det * np.einsum("ij,ij->i", s, h)
-        valid &= (u >= -1e-6) & (u <= 1.0 + 1e-6)
-
-        q = np.cross(s, e1)
-        v_coord = inv_det * np.einsum("ij,j->i", q, direction)
-        valid &= (v_coord >= -1e-6) & (u + v_coord <= 1.0 + 1e-6)
-
-        t = inv_det * np.einsum("ij,ij->i", e2, q)
-        valid &= (t >= 0.045) & (t <= 0.135)
-
-        if np.any(valid):
-            projected[idx] = scalp_origin + float(np.min(t[valid])) * direction
-        else:
-            projected[idx] = head_verts[int(np.argmax(head_dirs @ direction))]
+    projected = _raycast_scalp_directions(
+        dirs_gnm,
+        scalp_origin=scalp_origin,
+        head_origin_gnm=head_origin,
+        up_axis_gnm=up_axis,
+        verts=verts,
+        tris=tris,
+    )
+    if channel_names is not None and len(channel_names) == len(projected):
+        projected = deflect_points_around_ear_pinna(
+            projected,
+            channel_names=channel_names,
+            is_ten_twenty=is_ten_twenty_montage(channel_names),
+            head_origin_gnm=head_origin,
+            right_axis_gnm=right_axis_gnm,
+            forward_axis_gnm=forward_axis_gnm,
+            up_axis_gnm=up_axis,
+            vertices_gnm=verts,
+            triangles=tris,
+        )
     return projected
