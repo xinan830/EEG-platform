@@ -9,6 +9,7 @@ using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Views.Preprocessing;
 using BrainPlatform.Desktop.Modules.Montages.Views;
+using BrainPlatform.Desktop.Shared.Controls.Analysis.Docking;
 
 namespace BrainPlatform.Desktop.Modules.Review.Views;
 
@@ -329,4 +330,31 @@ public partial class RecordingReviewView : UserControl
         (Window.GetWindow(this) as EegSessionWindow)?.Close();
     }
 
+    private void OnLayoutPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.PlacementTarget = button;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnSelectLayoutPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag }) return;
+        switch (tag)
+        {
+            case "TopBottomWaveform":
+                ReviewAnalysisHost.ApplyPreset(DockLayoutPreset.TopBottomWaveform);
+                break;
+            case "TabbedAnalysis":
+                ReviewAnalysisHost.ApplyPreset(DockLayoutPreset.TabbedAnalysis);
+                break;
+            case "AutoClassic":
+            case "Reset":
+                ReviewAnalysisHost.ResetToAutoLayout();
+                break;
+        }
+    }
 }

@@ -137,10 +137,6 @@
         <shared:AnalysisPanelShell.HeaderContent>
             <DockPanel LastChildFill="False" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left">
-                    <TextBlock Text="频段数值" FontSize="14" FontWeight="Bold"
-                               Foreground="{StaticResource TableTextPrimaryBrush}" VerticalAlignment="Center"
-                               Margin="0,0,14,0" />
-                    <Border Height="16" Width="1" Background="#E2E8F0" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <TextBlock Text="频段" FontSize="12" Foreground="{StaticResource TableMutedBrush}"
                                VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox ItemsSource="{Binding SpectralValues.Bands}" SelectedValuePath="Id"

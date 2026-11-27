@@ -191,6 +191,39 @@ public sealed partial class RecordingReviewViewModelTests
             Assert.Contains(scroller!, rightSurface.Children.OfType<UIElement>());
         });
 
+    [Fact]
+    public async Task DockFloatingAnalysisSlotCommand_docks_excess_floating_panel_into_custom_layout()
+    {
+        var configuration = Configuration();
+        var catalog = new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
+            new RawSignalViewDefinition(["F3", "F4", "Fz", "Pz"]), [], []);
+        var manifest = Manifest(configuration);
+        var recorded = new RegisteredRecording(manifest.SessionId.ToString("N"), "fixture", ".wpf", "now", 500, 100,
+            ["F3", "F4", "Fz", "Pz", "F7"], "sha");
+        var coords = new[] { "rbp", "psd", "faa", "iapf", "theta_beta" }
+            .Select(id => new ReviewAnalysisCoordinator(new PanelProvider(id)))
+            .ToArray();
+
+        await using var vm = new RecordingReviewViewModel(new FakeReader(manifest, 100), catalog,
+            recordingDirectory: "_temp/dock-floating-fixture",
+            analysisCoordinators: coords,
+            registeredAnalysisRecording: recorded);
+        await vm.InitializeAsync();
+        await vm.SeekAsync(20);
+
+        foreach (var id in new[] { "rbp", "psd", "faa", "iapf", "theta_beta" })
+            await vm.OpenAnalysisAsync(id);
+
+        var floated = Assert.Single(vm.FloatingAnalysisSlots);
+        Assert.Equal("theta_beta", floated.AlgorithmId);
+
+        // Explicit drag-back command docks the 5th panel into workspace so user can tab-merge it.
+        vm.DockFloatingAnalysisSlotCommand.Execute(floated);
+        Assert.Empty(vm.FloatingAnalysisSlots);
+        Assert.Equal(5, vm.RightDockedAnalysisSlots.Count);
+        Assert.False(floated.IsFloating);
+    }
+
     private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate) where T : DependencyObject
     {
         for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)

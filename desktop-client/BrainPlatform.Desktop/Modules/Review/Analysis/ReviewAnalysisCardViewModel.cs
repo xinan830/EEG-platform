@@ -50,9 +50,9 @@ public sealed class ReviewAnalysisCardViewModel : ObservableObject
 
     public string CardHeaderTitle => PanelKind switch
     {
-        ReviewAnalysisPanelKind.Rbp => "",
-        ReviewAnalysisPanelKind.SpectralValues => "",
-        ReviewAnalysisPanelKind.CustomFrequencyInspection => "",
+        ReviewAnalysisPanelKind.Rbp => "RBP",
+        ReviewAnalysisPanelKind.SpectralValues => "频段数值",
+        ReviewAnalysisPanelKind.CustomFrequencyInspection => "自定义频段",
         ReviewAnalysisPanelKind.Psd => "PSD",
         ReviewAnalysisPanelKind.Stft => "STFT",
         ReviewAnalysisPanelKind.Tnk => "TNK 脑指标",

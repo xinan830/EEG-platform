@@ -276,6 +276,22 @@
                             </TextBlock>
 
                         </StackPanel>
+
+                        <Button x:Name="LayoutPresetButton" DockPanel.Dock="Right" Content="排版布局 ▾"
+                                Click="OnLayoutPresetClick"
+                                Style="{StaticResource AppCompactActionButtonStyle}"
+                                Margin="8,0,0,0" VerticalAlignment="Bottom"
+                                ToolTip="拖拽任意面板标题栏可自定义拆分/标签页/浮窗，或选择预设布局">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="经典布局（左波形 · 右自适应网格）" Tag="AutoClassic" Click="OnSelectLayoutPresetClick" />
+                                    <MenuItem Header="上下分栏（上波形 · 下多栏对比）" Tag="TopBottomWaveform" Click="OnSelectLayoutPresetClick" />
+                                    <MenuItem Header="标签聚合（右侧多算法选项卡）" Tag="TabbedAnalysis" Click="OnSelectLayoutPresetClick" />
+                                    <Separator />
+                                    <MenuItem Header="恢复自动排版并清除记忆" Tag="Reset" Click="OnSelectLayoutPresetClick" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </DockPanel>
                 </Border>
             </Grid>
@@ -288,7 +304,10 @@
                                           FloatingSlots="{Binding FloatingAnalysisSlots}"
                                           PanelTemplate="{StaticResource ReviewAnalysisCardTemplate}"
                                           FocusSlotCommand="{Binding FocusAnalysisSlotCommand}"
-                                          FloatingWindowClosedCommand="{Binding FloatingWindowClosedCommand}">
+                                          FloatingWindowClosedCommand="{Binding FloatingWindowClosedCommand}"
+                                          FloatSlotCommand="{Binding FloatAnalysisSlotCommand}"
+                                          DockFloatingSlotCommand="{Binding DockFloatingAnalysisSlotCommand}"
+                                          EnableLayoutPersistence="True">
                 <shared:MultiAnalysisDockHost.Waveform>
                     <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas"
                         PreviewMouseWheel="OnWaveformMouseWheel"

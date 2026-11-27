@@ -34,12 +34,10 @@
         </shared:AnalysisPanelShell.Style>
         <shared:AnalysisPanelShell.HeaderContent>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="RBP 图表" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"
-                           VerticalAlignment="Center" />
-                <ComboBox Width="136" Margin="10,0,0,0"
+                <ComboBox Width="128" Margin="0"
                           ItemsSource="{Binding RbpAnalysis.ChartOptions}"
                           SelectedItem="{Binding RbpAnalysis.SelectedChart, UpdateSourceTrigger=PropertyChanged}"
-                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32"
+                          Style="{StaticResource AppFilterComboBoxStyle}" Height="30"
                           VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                     <StackPanel.Style>
@@ -52,13 +50,13 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <ComboBox Width="116" Height="32" Margin="0,0,8,0"
+                    <ComboBox Width="110" Height="30" Margin="0,0,6,0"
                               ItemsSource="{Binding RbpAnalysis.TopomapPowerTypeOptions}"
                               DisplayMemberPath="Label" SelectedValuePath="Id"
                               SelectedValue="{Binding RbpAnalysis.SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
                               ToolTip="选择功率类型" Style="{StaticResource AppFilterComboBoxStyle}"
                               VerticalAlignment="Center" />
-                    <ComboBox Width="116" Height="32"
+                    <ComboBox Width="110" Height="30"
                               ItemsSource="{Binding RbpAnalysis.TopomapBandOptions}"
                               DisplayMemberPath="Label" SelectedValuePath="Id"
                               SelectedValue="{Binding RbpAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"

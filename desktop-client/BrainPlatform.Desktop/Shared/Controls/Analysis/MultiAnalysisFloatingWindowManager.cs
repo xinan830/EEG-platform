@@ -10,18 +10,25 @@ internal sealed class MultiAnalysisFloatingWindowManager
     private readonly Func<Window?> ownerLookup;
     private readonly Func<DataTemplate?> templateLookup;
     private readonly Action<object> onUserClosed;
+    private readonly Action<Window, object>? onWindowCreated;
     private readonly Dictionary<object, Window> windows = [];
+    private readonly Dictionary<object, Point> pendingScreenDipPositions = [];
     private readonly HashSet<Window> closingProgrammatically = [];
 
     public MultiAnalysisFloatingWindowManager(
         Func<Window?> ownerLookup,
         Func<DataTemplate?> templateLookup,
-        Action<object> onUserClosed)
+        Action<object> onUserClosed,
+        Action<Window, object>? onWindowCreated = null)
     {
         this.ownerLookup = ownerLookup;
         this.templateLookup = templateLookup;
         this.onUserClosed = onUserClosed;
+        this.onWindowCreated = onWindowCreated;
     }
+
+    public void SetNextWindowPosition(object slot, Point dipPosition) =>
+        pendingScreenDipPositions[slot] = dipPosition;
 
     public void Sync(IEnumerable? floatingSlots)
     {
@@ -33,6 +40,7 @@ internal sealed class MultiAnalysisFloatingWindowManager
             if (windows.ContainsKey(slot)) continue;
             var presenter = new ContentControl { Content = slot, ContentTemplate = templateLookup() };
             var title = MultiAnalysisDockHost.ReadStringProperty(slot, "DisplayName") ?? "算法分析";
+            var hasPos = pendingScreenDipPositions.Remove(slot, out var pos);
             var window = new Window
             {
                 Title = title,
@@ -43,10 +51,16 @@ internal sealed class MultiAnalysisFloatingWindowManager
                 Owner = ownerLookup(),
                 Content = presenter,
                 DataContext = slot,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                WindowStartupLocation = hasPos ? WindowStartupLocation.Manual : WindowStartupLocation.CenterOwner,
             };
+            if (hasPos)
+            {
+                window.Left = Math.Max(0, pos.X - 180);
+                window.Top = Math.Max(0, pos.Y - 18);
+            }
             window.Closed += (_, _) => OnWindowClosed(slot, window);
             windows[slot] = window;
+            onWindowCreated?.Invoke(window, slot);
             window.Show();
         }
     }

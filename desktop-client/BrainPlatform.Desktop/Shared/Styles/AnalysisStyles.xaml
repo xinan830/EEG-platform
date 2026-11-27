@@ -53,29 +53,36 @@
                                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" /><RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Grid Margin="{DynamicResource AnalysisSectionSpacing}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="{TemplateBinding Title}" FontSize="16" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource AnalysisHeadingBrush}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
-                                <ContentPresenter x:Name="PART_HeaderContent" Grid.Column="1"
-                                                  Content="{TemplateBinding HeaderContent}"
-                                                  VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                    <Button x:Name="PART_MaximizeButton" Style="{DynamicResource ToolbarGearButtonStyle}"
-                                            Command="{TemplateBinding MaximizeCommand}"
-                                            ToolTip="{TemplateBinding MaximizeToolTip}" AutomationProperties.Name="放大或还原"
-                                            Visibility="Collapsed" Margin="0,0,6,0">
-                                        <TextBlock x:Name="PART_MaximizeGlyph" FontFamily="Segoe MDL2 Assets" Text="&#xE740;" FontSize="13" />
-                                    </Button>
-                                    <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
-                                            ToolTip="{TemplateBinding DockToolTip}" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
-                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
-                                    </Button>
-                                    <Button Style="{DynamicResource ModernCloseCrossButtonStyle}" Command="{TemplateBinding CloseCommand}"
-                                            ToolTip="关闭分析面板" AutomationProperties.Name="关闭分析面板" />
-                                </StackPanel>
-                            </Grid>
+                            <Border x:Name="PART_HeaderBar" Background="Transparent" BorderThickness="0" Padding="0" Margin="{DynamicResource AnalysisSectionSpacing}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="PART_DragGrip" Text="⋮⋮" FontSize="12" FontWeight="Bold" Foreground="#94A3B8"
+                                                   VerticalAlignment="Center" Margin="0,0,6,0" Visibility="Collapsed"
+                                                   ToolTip="按住标题栏空白处或拖拽图标可拆分、合并标签页或弹出为独立窗口" />
+                                        <TextBlock x:Name="PART_TitleText" Text="{TemplateBinding Title}" FontSize="16" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AnalysisHeadingBrush}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                    </StackPanel>
+                                    <ContentPresenter x:Name="PART_HeaderContent" Grid.Column="1"
+                                                      Content="{TemplateBinding HeaderContent}"
+                                                      VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="PART_MaximizeButton" Style="{DynamicResource ToolbarGearButtonStyle}"
+                                                Command="{TemplateBinding MaximizeCommand}"
+                                                ToolTip="{TemplateBinding MaximizeToolTip}" AutomationProperties.Name="放大或还原"
+                                                Visibility="Collapsed" Margin="0,0,6,0">
+                                            <TextBlock x:Name="PART_MaximizeGlyph" FontFamily="Segoe MDL2 Assets" Text="&#xE740;" FontSize="13" />
+                                        </Button>
+                                        <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
+                                                ToolTip="{TemplateBinding DockToolTip}" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
+                                        </Button>
+                                        <Button Style="{DynamicResource ModernCloseCrossButtonStyle}" Command="{TemplateBinding CloseCommand}"
+                                                ToolTip="关闭分析面板" AutomationProperties.Name="关闭分析面板" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                             <ContentPresenter x:Name="PART_Parameters" Grid.Row="1" Content="{TemplateBinding Parameters}"
                                               Margin="{DynamicResource AnalysisSectionSpacing}" />
                             <Grid x:Name="PART_StatusRow" Grid.Row="2" Margin="0,0,0,8">
@@ -86,12 +93,26 @@
                                         Command="{TemplateBinding ApplyCommand}" Style="{DynamicResource ModernDialogPrimaryButtonStyle}"
                                         Height="32" Padding="12,0" FontSize="12" />
                             </Grid>
-                            <ContentPresenter Grid.Row="3" Content="{TemplateBinding Content}"
+                            <ContentPresenter x:Name="PART_BodyContent" Grid.Row="3" Content="{TemplateBinding Content}"
                                               ContentTemplate="{TemplateBinding ContentTemplate}"
                                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsDockDragEnabled" Value="True">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter TargetName="PART_HeaderBar" Property="Background" Value="#F8FAFC" />
+                            <Setter TargetName="PART_HeaderBar" Property="BorderBrush" Value="#E2E8F0" />
+                            <Setter TargetName="PART_HeaderBar" Property="BorderThickness" Value="0,0,0,1" />
+                            <Setter TargetName="PART_HeaderBar" Property="Padding" Value="8,4,8,4" />
+                            <Setter TargetName="PART_HeaderBar" Property="Margin" Value="0,0,0,6" />
+                            <Setter TargetName="PART_HeaderBar" Property="Cursor" Value="SizeAll" />
+                            <Setter TargetName="PART_DragGrip" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="PART_TitleText" Property="FontSize" Value="13.5" />
+                            <Setter TargetName="PART_Parameters" Property="Margin" Value="10,0,10,8" />
+                            <Setter TargetName="PART_StatusRow" Property="Margin" Value="10,0,10,6" />
+                            <Setter TargetName="PART_BodyContent" Property="Margin" Value="10,0,10,8" />
+                        </Trigger>
                         <Trigger Property="IsMaximizeVisible" Value="True">
                             <Setter TargetName="PART_MaximizeButton" Property="Visibility" Value="Visible" />
                         </Trigger>

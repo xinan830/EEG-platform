@@ -36,6 +36,7 @@ public sealed class StftHeatmapTests
                     .GetField("yAxis", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
                 Assert.Equal("", xAxis.AxisTitle);
                 Assert.Equal(42, xAxis.Height);
+                Assert.False(xAxis.DrawMajorGridLines);
                 Assert.Equal("", yAxis.AxisTitle);
                 Assert.Equal(32, yAxis.Width);
 
@@ -89,10 +90,44 @@ public sealed class StftHeatmapTests
                 Assert.All(newSegments, segment => Assert.False(segment.UseLinearTextureFiltering));
                 var appendedData = Assert.IsType<NonUniformHeatmapDataSeries<double, double, double>>(Assert.Single(newSegments).DataSeries);
                 var previousData = Assert.IsType<NonUniformHeatmapDataSeries<double, double, double>>(oldSegment.DataSeries);
-                Assert.Equal(4, appendedData.Count);
-                Assert.Equal(2.5, appendedData.XMin);
+                Assert.Equal(6, appendedData.Count);
+                Assert.Equal(1.5, appendedData.XMin);
                 Assert.Equal(4.5, appendedData.XMax);
-                Assert.Equal(previousData.XMax, appendedData.XMin);
+                Assert.True((double)appendedData.XMin < (double)previousData.XMax);
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void Preview_LateWindowFillsPreviouslySkippedTimeColumns()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var control = new StftHeatmap();
+                control.Measure(new Size(500, 300));
+                control.Arrange(new Rect(0, 0, 500, 300));
+                var first = StftPreview.Parse(CreatePreview());
+                var future = StftPreview.Parse(CreatePreviewAt("[5,6]", "[[5,6],[7,8]]"));
+                control.Preview = StftPreview.Append(first, future);
+
+                var late = StftPreview.Parse(CreatePreviewAt("[4]", "[[9,10]]"));
+                control.Preview = StftPreview.Append(control.Preview!, late);
+
+                var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
+                var segments = surface.RenderableSeries.OfType<FastNonUniformHeatmapRenderableSeries>().ToArray();
+                Assert.Equal(3, segments.Length);
+                Assert.Equal(10, segments.Sum(segment => segment.DataSeries!.Count));
+                Assert.Equal(6d, typeof(StftHeatmap)
+                    .GetField("renderedThroughSeconds", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .GetValue(control));
             }
             catch (Exception exception) { failure = exception; }
         });

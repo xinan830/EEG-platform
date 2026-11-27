@@ -5,11 +5,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Shared.Controls.Analysis.Docking;
 
 namespace BrainPlatform.Desktop.Shared.Controls.Analysis;
 
-/// <summary>Auto-arranging multi-panel host: left waveform, adaptive right grid/stack, wide bottom dock, and floating windows.</summary>
-public sealed class MultiAnalysisDockHost : UserControl
+/// <summary>
+/// VS-style dock host supporting adaptive auto-grid layout, drag-and-drop split/tab/float docking,
+/// floating window dock-back, and JSON layout persistence.
+/// </summary>
+public sealed partial class MultiAnalysisDockHost : UserControl
 {
     private const double WideTwoColumnMinWidth = 820d;
     private const double NarrowCardMinHeight = 300d;
@@ -28,7 +32,14 @@ public sealed class MultiAnalysisDockHost : UserControl
         nameof(FocusSlotCommand), typeof(ICommand), typeof(MultiAnalysisDockHost));
     public static readonly DependencyProperty FloatingWindowClosedCommandProperty = DependencyProperty.Register(
         nameof(FloatingWindowClosedCommand), typeof(ICommand), typeof(MultiAnalysisDockHost));
+    public static readonly DependencyProperty FloatSlotCommandProperty = DependencyProperty.Register(
+        nameof(FloatSlotCommand), typeof(ICommand), typeof(MultiAnalysisDockHost));
+    public static readonly DependencyProperty DockFloatingSlotCommandProperty = DependencyProperty.Register(
+        nameof(DockFloatingSlotCommand), typeof(ICommand), typeof(MultiAnalysisDockHost));
+    public static readonly DependencyProperty EnableLayoutPersistenceProperty = DependencyProperty.Register(
+        nameof(EnableLayoutPersistence), typeof(bool), typeof(MultiAnalysisDockHost), new PropertyMetadata(false, OnEnablePersistenceChanged));
 
+    private readonly Grid rootContainer = new();
     private readonly Grid workspace = new();
     private readonly ColumnDefinition waveformColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private readonly ColumnDefinition splitterColumn = new() { Width = new GridLength(0) };
@@ -36,18 +47,8 @@ public sealed class MultiAnalysisDockHost : UserControl
     private readonly RowDefinition mainRow = new() { Height = new GridLength(1, GridUnitType.Star) };
     private readonly RowDefinition horizontalSplitterRow = new() { Height = new GridLength(0) };
     private readonly RowDefinition bottomRow = new() { Height = new GridLength(0) };
-    private readonly GridSplitter verticalSplitter = new()
-    {
-        Width = 6, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
-        ResizeDirection = GridResizeDirection.Columns, ResizeBehavior = GridResizeBehavior.PreviousAndNext,
-        ShowsPreview = true, ToolTip = "调整波形与右侧分析区宽度",
-    };
-    private readonly GridSplitter horizontalSplitter = new()
-    {
-        Height = 6, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
-        ResizeDirection = GridResizeDirection.Rows, ResizeBehavior = GridResizeBehavior.PreviousAndNext,
-        ShowsPreview = true, ToolTip = "调整波形与底部指标区高度",
-    };
+    private readonly GridSplitter verticalSplitter = CreateSplitter(GridResizeDirection.Columns, "调整波形与右侧分析区宽度", 6);
+    private readonly GridSplitter horizontalSplitter = CreateSplitter(GridResizeDirection.Rows, "调整波形与底部指标区高度", 6);
 
     private readonly Grid rightContainer = new() { Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)) };
     private readonly Border quickBar = new()
@@ -60,19 +61,21 @@ public sealed class MultiAnalysisDockHost : UserControl
     };
     private readonly StackPanel quickBarPills = new() { Orientation = Orientation.Horizontal };
     private readonly Grid rightSurface = new();
-    private readonly ScrollViewer narrowScroller = new()
-    {
-        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-    };
+    private readonly ScrollViewer narrowScroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     private readonly StackPanel narrowStack = new();
     private readonly Grid rightGrid = new();
     private readonly Grid bottomContainer = new();
+    private readonly Grid customSurface = new() { Visibility = Visibility.Collapsed };
 
-    private readonly Dictionary<object, Border> rightCardHosts = [];
-    private readonly Dictionary<object, Border> bottomCardHosts = [];
+    private readonly Dictionary<object, DockCardChrome> rightCardHosts = [];
+    private readonly Dictionary<object, DockCardChrome> bottomCardHosts = [];
     private readonly MultiAnalysisFloatingWindowManager floatingManager;
+    private readonly DockTreeRenderer treeRenderer = new();
+    private readonly DockDragCoordinator dragCoordinator;
 
+    private DockCardChrome? waveformChrome;
+    private DockNode? customLayoutTree;
+    private bool isCustomLayout;
     private GridLength savedWaveformWidth = new(1, GridUnitType.Star);
     private GridLength savedRightWidth = new(1, GridUnitType.Star);
     private GridLength savedMainHeight = new(1, GridUnitType.Star);
@@ -82,6 +85,73 @@ public sealed class MultiAnalysisDockHost : UserControl
     private (int Count, bool Wide, object? Maximized)? lastRightLayoutSignature;
 
     public MultiAnalysisDockHost()
+    {
+        InitializeAutoWorkspaceGrid();
+        rootContainer.Children.Add(workspace);
+        rootContainer.Children.Add(customSurface);
+        Content = rootContainer;
+
+        dragCoordinator = new DockDragCoordinator(
+            this,
+            excludeId => treeRenderer.CollectTargetRegions(excludeId),
+            HandleDropDock,
+            HandleDropFloat);
+
+        floatingManager = new MultiAnalysisFloatingWindowManager(
+            () => Window.GetWindow(this),
+            () => PanelTemplate,
+            slot => { if (FloatingWindowClosedCommand?.CanExecute(slot) == true) FloatingWindowClosedCommand.Execute(slot); },
+            (window, slot) => dragCoordinator.AttachFloatingWindow(window, ResolvePaneId(slot), ReadStringProperty(slot, "DisplayName") ?? "算法分析"));
+
+        Unloaded += (_, _) =>
+        {
+            dragCoordinator.Dispose();
+            floatingManager.CloseAll();
+        };
+        Loaded += (_, _) => SyncFloatingWindows();
+        UpdateWorkspaceVisibility();
+    }
+
+    public FrameworkElement? Waveform { get => (FrameworkElement?)GetValue(WaveformProperty); set => SetValue(WaveformProperty, value); }
+    public IEnumerable? RightSlots { get => (IEnumerable?)GetValue(RightSlotsProperty); set => SetValue(RightSlotsProperty, value); }
+    public IEnumerable? BottomSlots { get => (IEnumerable?)GetValue(BottomSlotsProperty); set => SetValue(BottomSlotsProperty, value); }
+    public IEnumerable? FloatingSlots { get => (IEnumerable?)GetValue(FloatingSlotsProperty); set => SetValue(FloatingSlotsProperty, value); }
+    public DataTemplate? PanelTemplate { get => (DataTemplate?)GetValue(PanelTemplateProperty); set => SetValue(PanelTemplateProperty, value); }
+    public ICommand? FocusSlotCommand { get => (ICommand?)GetValue(FocusSlotCommandProperty); set => SetValue(FocusSlotCommandProperty, value); }
+    public ICommand? FloatingWindowClosedCommand { get => (ICommand?)GetValue(FloatingWindowClosedCommandProperty); set => SetValue(FloatingWindowClosedCommandProperty, value); }
+    public ICommand? FloatSlotCommand { get => (ICommand?)GetValue(FloatSlotCommandProperty); set => SetValue(FloatSlotCommandProperty, value); }
+    public ICommand? DockFloatingSlotCommand { get => (ICommand?)GetValue(DockFloatingSlotCommandProperty); set => SetValue(DockFloatingSlotCommandProperty, value); }
+    public bool EnableLayoutPersistence { get => (bool)GetValue(EnableLayoutPersistenceProperty); set => SetValue(EnableLayoutPersistenceProperty, value); }
+    public bool IsCustomLayout => isCustomLayout;
+
+    public void ActivateFloatingPanel(object slot) => floatingManager.Activate(slot);
+
+    public void ApplyPreset(DockLayoutPreset preset)
+    {
+        if (preset == DockLayoutPreset.AutoClassic)
+        {
+            ResetToAutoLayout();
+            return;
+        }
+        var analysisIds = Materialize(RightSlots).Concat(Materialize(BottomSlots)).Select(ResolvePaneId).ToList();
+        customLayoutTree = DockTreeOperations.BuildPreset(preset, analysisIds);
+        isCustomLayout = true;
+        RenderActiveMode();
+        SaveLayoutIfEnabled();
+    }
+
+    public void ResetToAutoLayout()
+    {
+        isCustomLayout = false;
+        customLayoutTree = null;
+        if (EnableLayoutPersistence) DockLayoutPersistence.Clear();
+        RenderActiveMode();
+    }
+
+    internal void DockPaneAt(string paneId, string? targetPaneId, DockDropZone zone) =>
+        HandleDropDock(paneId, targetPaneId, zone);
+
+    private void InitializeAutoWorkspaceGrid()
     {
         workspace.ColumnDefinitions.Add(waveformColumn);
         workspace.ColumnDefinitions.Add(splitterColumn);
@@ -100,7 +170,7 @@ public sealed class MultiAnalysisDockHost : UserControl
         rightContainer.Children.Add(quickBar);
         rightContainer.Children.Add(rightSurface);
         narrowScroller.Content = narrowStack;
-        rightContainer.SizeChanged += (_, _) => UpdateRightLayoutIfNeeded();
+        rightContainer.SizeChanged += (_, _) => { if (!isCustomLayout) UpdateRightLayoutIfNeeded(); };
 
         Grid.SetColumn(verticalSplitter, 1);
         Grid.SetRow(verticalSplitter, 0);
@@ -113,59 +183,42 @@ public sealed class MultiAnalysisDockHost : UserControl
         workspace.Children.Add(horizontalSplitter);
         workspace.Children.Add(rightContainer);
         workspace.Children.Add(bottomContainer);
-
-        floatingManager = new MultiAnalysisFloatingWindowManager(
-            () => Window.GetWindow(this),
-            () => PanelTemplate,
-            slot =>
-            {
-                if (FloatingWindowClosedCommand?.CanExecute(slot) == true)
-                    FloatingWindowClosedCommand.Execute(slot);
-            });
-        Content = workspace;
-        Unloaded += (_, _) => floatingManager.CloseAll();
-        Loaded += (_, _) => SyncFloatingWindows();
-        UpdateWorkspaceVisibility();
     }
-
-    public FrameworkElement? Waveform { get => (FrameworkElement?)GetValue(WaveformProperty); set => SetValue(WaveformProperty, value); }
-    public IEnumerable? RightSlots { get => (IEnumerable?)GetValue(RightSlotsProperty); set => SetValue(RightSlotsProperty, value); }
-    public IEnumerable? BottomSlots { get => (IEnumerable?)GetValue(BottomSlotsProperty); set => SetValue(BottomSlotsProperty, value); }
-    public IEnumerable? FloatingSlots { get => (IEnumerable?)GetValue(FloatingSlotsProperty); set => SetValue(FloatingSlotsProperty, value); }
-    public DataTemplate? PanelTemplate { get => (DataTemplate?)GetValue(PanelTemplateProperty); set => SetValue(PanelTemplateProperty, value); }
-    public ICommand? FocusSlotCommand { get => (ICommand?)GetValue(FocusSlotCommandProperty); set => SetValue(FocusSlotCommandProperty, value); }
-    public ICommand? FloatingWindowClosedCommand { get => (ICommand?)GetValue(FloatingWindowClosedCommandProperty); set => SetValue(FloatingWindowClosedCommandProperty, value); }
-
-    public void ActivateFloatingPanel(object slot) => floatingManager.Activate(slot);
 
     private static void OnWaveformChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var host = (MultiAnalysisDockHost)d;
-        if (e.OldValue is FrameworkElement oldElement) host.workspace.Children.Remove(oldElement);
-        if (e.NewValue is FrameworkElement newElement)
+        if (e.OldValue is FrameworkElement oldEl)
         {
-            Grid.SetColumn(newElement, 0);
-            Grid.SetRow(newElement, 0);
-            if (!host.workspace.Children.Contains(newElement)) host.workspace.Children.Insert(0, newElement);
+            host.DetachFromParent(oldEl);
+            host.waveformChrome?.DetachContent(oldEl);
+            host.waveformChrome = null;
+        }
+        if (e.NewValue is FrameworkElement newEl)
+        {
+            host.waveformChrome = host.CreatePaneChrome(DockTreeOperations.WaveformPaneId, "脑电波形", directContent: newEl);
+            host.RenderActiveMode();
         }
     }
 
     private static void OnRightSlotsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((MultiAnalysisDockHost)d).RebindCollection(e.OldValue, e.NewValue, isRight: true, isFloating: false);
-
     private static void OnBottomSlotsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((MultiAnalysisDockHost)d).RebindCollection(e.OldValue, e.NewValue, isRight: false, isFloating: false);
-
     private static void OnFloatingSlotsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((MultiAnalysisDockHost)d).RebindCollection(e.OldValue, e.NewValue, isRight: false, isFloating: true);
+
+    private static void OnEnablePersistenceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var host = (MultiAnalysisDockHost)d;
+        if (e.NewValue is true) host.TryRestoreSavedLayout();
+    }
 
     private static void OnPanelTemplateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var host = (MultiAnalysisDockHost)d;
         foreach (var card in host.rightCardHosts.Values.Concat(host.bottomCardHosts.Values))
-        {
-            if (card.Child is ContentControl presenter) presenter.ContentTemplate = host.PanelTemplate;
-        }
+            card.UpdateTemplate(host.PanelTemplate);
         host.floatingManager.UpdateTemplate(host.PanelTemplate);
     }
 
@@ -184,56 +237,31 @@ public sealed class MultiAnalysisDockHost : UserControl
             else newNotify.CollectionChanged += OnBottomCollectionChanged;
         }
         if (isFloating) SyncFloatingWindows();
-        else if (isRight) SyncRightSlots();
-        else SyncBottomSlots();
+        else if (isRight) SyncDockedCollection(RightSlots, rightCardHosts);
+        else SyncDockedCollection(BottomSlots, bottomCardHosts);
     }
 
-    private void OnRightCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncRightSlots();
-    private void OnBottomCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncBottomSlots();
+    private void OnRightCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncDockedCollection(RightSlots, rightCardHosts);
+    private void OnBottomCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncDockedCollection(BottomSlots, bottomCardHosts);
     private void OnFloatingCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncFloatingWindows();
 
-    private void SyncRightSlots()
+    private void SyncDockedCollection(IEnumerable? source, Dictionary<object, DockCardChrome> map)
     {
-        var slots = Materialize(RightSlots);
+        var slots = Materialize(source);
         foreach (var slot in slots)
         {
-            if (!rightCardHosts.ContainsKey(slot))
-            {
-                if (slot is INotifyPropertyChanged notify) notify.PropertyChanged += OnSlotPropertyChanged;
-                rightCardHosts[slot] = CreateCardContainer(slot);
-            }
+            if (map.ContainsKey(slot)) continue;
+            if (slot is INotifyPropertyChanged notify) notify.PropertyChanged += OnSlotPropertyChanged;
+            map[slot] = CreatePaneChrome(ResolvePaneId(slot), ReadStringProperty(slot, "DisplayName") ?? "算法", slotData: slot);
         }
-        foreach (var stale in rightCardHosts.Keys.Except(slots).ToArray())
+        foreach (var stale in map.Keys.Except(slots).ToArray())
         {
             if (stale is INotifyPropertyChanged notify) notify.PropertyChanged -= OnSlotPropertyChanged;
-            DetachFromParent(rightCardHosts[stale]);
-            rightCardHosts.Remove(stale);
+            DetachFromParent(map[stale]);
+            map.Remove(stale);
         }
         lastRightLayoutSignature = null;
-        UpdateWorkspaceVisibility();
-        UpdateRightLayoutIfNeeded();
-    }
-
-    private void SyncBottomSlots()
-    {
-        var slots = Materialize(BottomSlots);
-        bottomContainer.Children.Clear();
-        foreach (var slot in slots)
-        {
-            if (!bottomCardHosts.TryGetValue(slot, out var container))
-            {
-                container = CreateCardContainer(slot);
-                bottomCardHosts[slot] = container;
-            }
-            DetachFromParent(container);
-            container.BorderThickness = new Thickness(0);
-            container.CornerRadius = new CornerRadius(0);
-            container.Margin = new Thickness(0);
-            bottomContainer.Children.Add(container);
-        }
-        foreach (var stale in bottomCardHosts.Keys.Except(slots).ToArray())
-            bottomCardHosts.Remove(stale);
-        UpdateWorkspaceVisibility();
+        RenderActiveMode();
     }
 
     private void SyncFloatingWindows() => floatingManager.Sync(FloatingSlots);
@@ -241,15 +269,63 @@ public sealed class MultiAnalysisDockHost : UserControl
     private void OnSlotPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is null) return;
-        if (e.PropertyName is "IsMaximized")
+        if (!isCustomLayout && e.PropertyName is "IsMaximized")
         {
             lastRightLayoutSignature = null;
             UpdateRightLayoutIfNeeded();
         }
-        else if (e.PropertyName is "IsFocused" && rightCardHosts.TryGetValue(sender, out var card))
+        else if (e.PropertyName is "IsFocused")
         {
-            ApplyCardChrome(card, sender, Materialize(RightSlots).Count > 1);
-            RebuildQuickBar(Materialize(RightSlots));
+            if (!isCustomLayout && rightCardHosts.TryGetValue(sender, out var card))
+            {
+                card.SetChrome(true, Materialize(RightSlots).Count > 1, ReadBoolProperty(sender, "IsFocused"));
+                RebuildQuickBar(Materialize(RightSlots));
+            }
+        }
+    }
+
+    private void RenderActiveMode()
+    {
+        var anyAnalysisPanels = rightCardHosts.Count > 0 || bottomCardHosts.Count > 0;
+        if (isCustomLayout && anyAnalysisPanels)
+        {
+            workspace.Visibility = Visibility.Collapsed;
+            customSurface.Visibility = Visibility.Visible;
+            RenderCustomTree();
+            return;
+        }
+
+        customSurface.Children.Clear();
+        treeRenderer.CleanupVisuals();
+        customSurface.Visibility = Visibility.Collapsed;
+        workspace.Visibility = Visibility.Visible;
+
+        if (waveformChrome is not null)
+        {
+            if (!ReferenceEquals(waveformChrome.Parent, workspace))
+            {
+                DetachFromParent(waveformChrome);
+                Grid.SetColumn(waveformChrome, 0);
+                Grid.SetRow(waveformChrome, 0);
+                workspace.Children.Insert(0, waveformChrome);
+            }
+            waveformChrome.SetChrome(showDragBar: anyAnalysisPanels, showCardBorder: false, isFocused: false);
+        }
+
+        RenderAutoBottomSlots();
+        UpdateWorkspaceVisibility();
+        UpdateRightLayoutIfNeeded();
+    }
+
+    private void RenderAutoBottomSlots()
+    {
+        bottomContainer.Children.Clear();
+        foreach (var slot in Materialize(BottomSlots))
+        {
+            if (!bottomCardHosts.TryGetValue(slot, out var container)) continue;
+            DetachFromParent(container);
+            container.SetChrome(showDragBar: true, showCardBorder: false, isFocused: ReadBoolProperty(slot, "IsFocused"));
+            bottomContainer.Children.Add(container);
         }
     }
 
@@ -257,17 +333,8 @@ public sealed class MultiAnalysisDockHost : UserControl
     {
         var rightVisible = rightCardHosts.Count > 0;
         var bottomVisible = bottomCardHosts.Count > 0;
-
-        if (rightWasVisible && !rightVisible)
-        {
-            savedWaveformWidth = waveformColumn.Width;
-            savedRightWidth = rightColumn.Width;
-        }
-        if (bottomWasVisible && !bottomVisible)
-        {
-            savedMainHeight = mainRow.Height;
-            savedBottomHeight = bottomRow.Height;
-        }
+        if (rightWasVisible && !rightVisible) { savedWaveformWidth = waveformColumn.Width; savedRightWidth = rightColumn.Width; }
+        if (bottomWasVisible && !bottomVisible) { savedMainHeight = mainRow.Height; savedBottomHeight = bottomRow.Height; }
         rightWasVisible = rightVisible;
         bottomWasVisible = bottomVisible;
 
@@ -284,24 +351,14 @@ public sealed class MultiAnalysisDockHost : UserControl
         bottomContainer.Visibility = bottomVisible ? Visibility.Visible : Visibility.Collapsed;
 
         var bottomSpan = rightVisible ? 1 : 3;
-        Grid.SetRow(horizontalSplitter, 1);
-        Grid.SetColumn(horizontalSplitter, 0);
-        Grid.SetColumnSpan(horizontalSplitter, bottomSpan);
-        Grid.SetRow(bottomContainer, 2);
-        Grid.SetColumn(bottomContainer, 0);
-        Grid.SetColumnSpan(bottomContainer, bottomSpan);
+        Grid.SetRow(horizontalSplitter, 1); Grid.SetColumn(horizontalSplitter, 0); Grid.SetColumnSpan(horizontalSplitter, bottomSpan);
+        Grid.SetRow(bottomContainer, 2); Grid.SetColumn(bottomContainer, 0); Grid.SetColumnSpan(bottomContainer, bottomSpan);
     }
 
     private void UpdateRightLayoutIfNeeded()
     {
         var slots = Materialize(RightSlots);
-        if (slots.Count == 0)
-        {
-            quickBar.Visibility = Visibility.Collapsed;
-            rightSurface.Children.Clear();
-            lastRightLayoutSignature = null;
-            return;
-        }
+        if (slots.Count == 0) { quickBar.Visibility = Visibility.Collapsed; rightSurface.Children.Clear(); lastRightLayoutSignature = null; return; }
 
         var maximized = slots.FirstOrDefault(slot => ReadBoolProperty(slot, "IsMaximized"));
         var visibleSlots = maximized is not null ? [maximized] : slots;
@@ -312,166 +369,32 @@ public sealed class MultiAnalysisDockHost : UserControl
         lastRightLayoutSignature = signature;
 
         RebuildQuickBar(slots);
-        rightSurface.Children.Clear();
-        rightGrid.Children.Clear();
-        rightGrid.RowDefinitions.Clear();
-        rightGrid.ColumnDefinitions.Clear();
-        narrowStack.Children.Clear();
-
-        var showMultiChrome = slots.Count > 1;
-        if (visibleSlots.Count >= 3 && !isWide)
-        {
-            foreach (var slot in visibleSlots)
-            {
-                var card = rightCardHosts[slot];
-                DetachFromParent(card);
-                ApplyCardChrome(card, slot, showMultiChrome);
-                card.MinHeight = NarrowCardMinHeight;
-                card.Height = Math.Max(NarrowCardMinHeight, 340);
-                narrowStack.Children.Add(card);
-            }
-            rightSurface.Children.Add(narrowScroller);
-            return;
-        }
-
-        ArrangeRightGrid(visibleSlots, showMultiChrome);
-        rightSurface.Children.Add(rightGrid);
+        AutoAnalysisGridLayout.ArrangeRightSurface(
+            rightSurface, rightGrid, narrowScroller, narrowStack, slots, visibleSlots, isWide, NarrowCardMinHeight,
+            slot => rightCardHosts[slot], slot => ReadBoolProperty(slot, "IsFocused"));
     }
 
-    private void ArrangeRightGrid(IReadOnlyList<object> visibleSlots, bool showMultiChrome)
-    {
-        var count = visibleSlots.Count;
-        if (count == 1)
-        {
-            rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            rightGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            PlaceCardInGrid(visibleSlots[0], 0, 0, 1, showMultiChrome);
-            return;
-        }
-        if (count == 2)
-        {
-            rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            rightGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            PlaceCardInGrid(visibleSlots[0], 0, 0, 1, showMultiChrome);
-            PlaceCardInGrid(visibleSlots[1], 1, 0, 1, showMultiChrome);
-            return;
-        }
-
-        // Wide 3 or 4 cards: 2x2 grid (card 3 spans full bottom row when count == 3)
-        rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        rightGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        rightGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        PlaceCardInGrid(visibleSlots[0], 0, 0, 1, showMultiChrome);
-        PlaceCardInGrid(visibleSlots[1], 0, 1, 1, showMultiChrome);
-        if (count == 3)
-        {
-            PlaceCardInGrid(visibleSlots[2], 1, 0, 2, showMultiChrome);
-        }
-        else
-        {
-            PlaceCardInGrid(visibleSlots[2], 1, 0, 1, showMultiChrome);
-            PlaceCardInGrid(visibleSlots[3], 1, 1, 1, showMultiChrome);
-        }
-    }
-
-    private void PlaceCardInGrid(object slot, int row, int column, int columnSpan, bool showMultiChrome)
-    {
-        var card = rightCardHosts[slot];
-        DetachFromParent(card);
-        card.ClearValue(MinHeightProperty);
-        card.ClearValue(HeightProperty);
-        ApplyCardChrome(card, slot, showMultiChrome);
-        Grid.SetRow(card, row);
-        Grid.SetColumn(card, column);
-        Grid.SetColumnSpan(card, columnSpan);
-        rightGrid.Children.Add(card);
-    }
-
-    private void RebuildQuickBar(IReadOnlyList<object> slots)
-    {
-        if (slots.Count <= 1)
-        {
-            quickBar.Visibility = Visibility.Collapsed;
-            quickBarPills.Children.Clear();
-            return;
-        }
-        quickBar.Visibility = Visibility.Visible;
-        quickBarPills.Children.Clear();
-        quickBarPills.Children.Add(new TextBlock
-        {
-            Text = $"并行分析 ({slots.Count})：",
-            FontSize = 11.5,
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 6, 0),
-        });
-        foreach (var slot in slots)
-        {
-            var isFocused = ReadBoolProperty(slot, "IsFocused");
-            var label = ReadStringProperty(slot, "DisplayName") ?? "算法";
-            var button = new Button
-            {
-                Content = label,
-                FontSize = 11.5,
-                Padding = new Thickness(10, 3, 10, 3),
-                Margin = new Thickness(0, 0, 6, 0),
-                Cursor = Cursors.Hand,
-                Background = new SolidColorBrush(isFocused ? Color.FromRgb(219, 234, 254) : Color.FromRgb(248, 250, 252)),
-                Foreground = new SolidColorBrush(isFocused ? Color.FromRgb(37, 99, 235) : Color.FromRgb(51, 65, 85)),
-                BorderBrush = new SolidColorBrush(isFocused ? Color.FromRgb(147, 197, 253) : Color.FromRgb(226, 232, 240)),
-                BorderThickness = new Thickness(1),
-                Tag = slot,
-            };
-            button.Click += (_, _) =>
+    private void RebuildQuickBar(IReadOnlyList<object> slots) =>
+        AutoAnalysisGridLayout.RebuildQuickBar(
+            quickBar, quickBarPills, slots,
+            slot => ReadBoolProperty(slot, "IsFocused"),
+            slot => ReadStringProperty(slot, "DisplayName"),
+            slot =>
             {
                 if (FocusSlotCommand?.CanExecute(slot) == true) FocusSlotCommand.Execute(slot);
                 if (rightCardHosts.TryGetValue(slot, out var host)) host.BringIntoView();
-            };
-            quickBarPills.Children.Add(button);
-        }
-    }
+            });
 
-    private Border CreateCardContainer(object slot) => new()
+    private void DetachFromParent(FrameworkElement element) { if (element.Parent is Panel panel) panel.Children.Remove(element); }
+    internal static IReadOnlyList<object> Materialize(IEnumerable? items) { var list = new List<object>(); if (items is null) return list; foreach (var item in items) if (item is not null) list.Add(item); return list; }
+    private static bool ReadBoolProperty(object target, string propertyName) => target.GetType().GetProperty(propertyName)?.GetValue(target) as bool? == true;
+    internal static string? ReadStringProperty(object target, string propertyName) => target.GetType().GetProperty(propertyName)?.GetValue(target) as string;
+    private static string ResolvePaneId(object slot) => ReadStringProperty(slot, "AlgorithmId") ?? ReadStringProperty(slot, "DisplayName") ?? slot.GetHashCode().ToString();
+    private static GridSplitter CreateSplitter(GridResizeDirection direction, string toolTip, double size) => new()
     {
-        Background = Brushes.White,
-        ClipToBounds = true,
-        Child = new ContentControl { Content = slot, ContentTemplate = PanelTemplate },
+        Width = direction == GridResizeDirection.Columns ? size : double.NaN,
+        Height = direction == GridResizeDirection.Rows ? size : double.NaN,
+        HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
+        ResizeDirection = direction, ResizeBehavior = GridResizeBehavior.PreviousAndNext, ShowsPreview = true, ToolTip = toolTip,
     };
-
-    private static void ApplyCardChrome(Border card, object slot, bool showMultiChrome)
-    {
-        if (!showMultiChrome)
-        {
-            card.BorderThickness = new Thickness(0);
-            card.CornerRadius = new CornerRadius(0);
-            card.Margin = new Thickness(0);
-            return;
-        }
-        var focused = ReadBoolProperty(slot, "IsFocused");
-        card.BorderBrush = new SolidColorBrush(focused ? Color.FromRgb(96, 165, 250) : Color.FromRgb(226, 232, 240));
-        card.BorderThickness = new Thickness(1);
-        card.CornerRadius = new CornerRadius(8);
-        card.Margin = new Thickness(4);
-    }
-
-    private static void DetachFromParent(FrameworkElement element)
-    {
-        if (element.Parent is Panel panel) panel.Children.Remove(element);
-    }
-
-    internal static IReadOnlyList<object> Materialize(IEnumerable? items)
-    {
-        var list = new List<object>();
-        if (items is null) return list;
-        foreach (var item in items) if (item is not null) list.Add(item);
-        return list;
-    }
-
-    private static bool ReadBoolProperty(object target, string propertyName) =>
-        target.GetType().GetProperty(propertyName)?.GetValue(target) as bool? == true;
-
-    internal static string? ReadStringProperty(object target, string propertyName) =>
-        target.GetType().GetProperty(propertyName)?.GetValue(target) as string;
 }

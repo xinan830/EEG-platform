@@ -65,9 +65,9 @@ public sealed class StftReviewChartTests
             model.Apply(preview with { WindowStartSeconds = 6, WindowEndSeconds = 11 });
             Assert.Equal("6–11 s", rangeLabel.Text);
             Assert.All(old, series => Assert.Contains(series, surface.RenderableSeries));
-            Assert.Equal(6, surface.RenderableSeries.Sum(series => series.DataSeries!.Count));
+            Assert.Equal(8, surface.RenderableSeries.Sum(series => series.DataSeries!.Count));
             model.Apply(preview with { WindowStartSeconds = 6, WindowEndSeconds = 11 });
-            Assert.Equal(6, surface.RenderableSeries.Sum(series => series.DataSeries!.Count));
+            Assert.Equal(8, surface.RenderableSeries.Sum(series => series.DataSeries!.Count));
             model.Apply(preview with { WindowStartSeconds = 0, WindowEndSeconds = 5 });
             Assert.All(old, series => Assert.Null(series.DataSeries));
             Assert.All(surface.RenderableSeries, series => Assert.DoesNotContain(series, old));

@@ -1,7 +1,12 @@
+using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
+using BrainPlatform.Desktop.Shared.Controls.Analysis;
+using BrainPlatform.Desktop.Shared.Controls.Analysis.Docking;
 using BrainPlatform.Desktop.Shared.Waveform;
+using BrainPlatform.Desktop.Tests.Shared;
 using SciChart.Charting.Visuals;
 using SciChart.Data.Model;
 
@@ -154,4 +159,87 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal(48, vm.ViewportStartSeconds);
         Assert.Equal(0.5, (vm.PositionSeconds - vm.ViewportStartSeconds) / vm.VisibleDurationSeconds, 6);
     }
+
+    [Fact]
+    public void Canvas_keeps_waveform_scrolling_and_cursor_centered_after_dock_reparenting() =>
+        ReviewTimelineNavigatorTests.OnSta(() =>
+        {
+            var configuration = Configuration();
+            var profile = Profile("采集导联", configuration);
+            var catalog = new RecordingMontageCatalogResult(profile, AcquisitionMontageStatus.Available,
+                new RawSignalViewDefinition(["F3"]), [new CompatibleRecordingMontage(profile)], []);
+            var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog);
+            vm.HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+            vm.TimebaseSecondsPerScreen = 10;
+            vm.InitializeAsync().GetAwaiter().GetResult();
+
+            var canvas = new RecordingReviewSciChartCanvas { DataContext = vm };
+            var right = new ObservableCollection<object>();
+            var bottom = new ObservableCollection<object>();
+            var floating = new ObservableCollection<object>();
+            var host = new MultiAnalysisDockHost
+            {
+                Waveform = canvas,
+                RightSlots = right,
+                BottomSlots = bottom,
+                FloatingSlots = floating,
+                PanelTemplate = new DataTemplate(),
+            };
+            var window = new Window
+            {
+                Content = host,
+                Width = 1280,
+                Height = 720,
+                ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -10000,
+                Top = -10000,
+            };
+
+            try
+            {
+                window.Show();
+                PumpDispatcher();
+                vm.SeekAsync(30).GetAwaiter().GetResult();
+                PumpDispatcher();
+
+                var type = typeof(RecordingReviewSciChartCanvas);
+                var surface = (SciChartSurface)type.GetField("surface", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(canvas)!;
+                var cursor = (ReviewPlaybackCursor)type.GetField("playbackCursor", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(canvas)!;
+
+                // Open an algorithm panel and switch into custom dock tree (reparents waveformChrome).
+                right.Add(new { AlgorithmId = "rbp", DisplayName = "RBP" });
+                right.Add(new { AlgorithmId = "psd", DisplayName = "PSD" });
+                PumpDispatcher();
+                host.DockPaneAt("psd", DockTreeOperations.WaveformPaneId, DockDropZone.Bottom);
+                PumpDispatcher();
+
+                vm.SeekAsync(55).GetAwaiter().GetResult();
+                PumpDispatcher();
+                var rangeAfterCustomDock = (DoubleRange)surface.XAxes[0].VisibleRange;
+                Assert.Equal(50, rangeAfterCustomDock.Min, 6);
+                Assert.Equal(60, rangeAfterCustomDock.Max, 6);
+                Assert.Equal(0.5d, (double)typeof(ReviewPlaybackCursor).GetField("fraction", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cursor)!, 6);
+
+                // Reset back to auto-grid layout (reparents back into workspace) and advance again.
+                host.ResetToAutoLayout();
+                PumpDispatcher();
+                vm.SeekAsync(70).GetAwaiter().GetResult();
+                PumpDispatcher();
+                var rangeAfterReset = (DoubleRange)surface.XAxes[0].VisibleRange;
+                Assert.Equal(65, rangeAfterReset.Min, 6);
+                Assert.Equal(75, rangeAfterReset.Max, 6);
+                Assert.Equal(0.5d, (double)typeof(ReviewPlaybackCursor).GetField("fraction", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cursor)!, 6);
+            }
+            finally
+            {
+                window.Close();
+                canvas.DataContext = null;
+                vm.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                Dispatcher.CurrentDispatcher.InvokeShutdown();
+            }
+        });
+
+    private static void PumpDispatcher() =>
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 }

@@ -7,6 +7,7 @@ Incrementally appended STFT columns are rendered as separate heatmap textures. T
 ## What Changes
 
 - Overlap contiguous appended heatmap tiles by one existing backend column so texture edges are covered by already-rendered data.
+- Render newly arrived older columns instead of dropping them based on the latest rendered time.
 - Keep genuine unvisited time gaps and unavailable matrix cells visibly empty.
 
 ## Capabilities

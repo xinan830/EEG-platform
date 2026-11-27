@@ -23,6 +23,10 @@ public sealed partial class RecordingReviewViewModel
         field ??= new RelayCommand<ReviewAnalysisCardViewModel>(slot => { if (slot is not null) FocusAnalysisSlot(slot.AlgorithmId); });
     public System.Windows.Input.ICommand FloatingWindowClosedCommand =>
         field ??= new RelayCommand<ReviewAnalysisCardViewModel>(slot => { if (slot is not null) HandleFloatingWindowClosedByUser(slot); });
+    public System.Windows.Input.ICommand FloatAnalysisSlotCommand =>
+        field ??= new RelayCommand<ReviewAnalysisCardViewModel>(slot => { if (slot is not null && !slot.IsFloating) ToggleFloatingSlot(slot.AlgorithmId); });
+    public System.Windows.Input.ICommand DockFloatingAnalysisSlotCommand =>
+        field ??= new RelayCommand<ReviewAnalysisCardViewModel>(slot => { if (slot is not null) DockFloatingSlotDirect(slot); });
     public bool IsRightAnalysisDockOpen => RightDockedAnalysisSlots.Count > 0;
     public bool IsBottomAnalysisDockOpen => BottomDockedAnalysisSlots.Count > 0;
     public int RightDockedPanelCount => RightDockedAnalysisSlots.Count;
@@ -108,6 +112,20 @@ public sealed partial class RecordingReviewViewModel
             return;
         }
         slot.IsFloating = false;
+        RebuildDockCollections();
+        SetActiveSlot(slot);
+        RaiseLayoutPropertiesChanged();
+    }
+
+    internal void DockFloatingSlotDirect(ReviewAnalysisCardViewModel slot)
+    {
+        if (isDisposing || slot.IsClosed || !slot.IsFloating) return;
+        slot.IsFloating = false;
+        if (!slot.IsBottomPreferred)
+        {
+            foreach (var right in OpenAnalysisSlots.Where(item => !item.IsBottomPreferred))
+                right.IsMaximized = false;
+        }
         RebuildDockCollections();
         SetActiveSlot(slot);
         RaiseLayoutPropertiesChanged();

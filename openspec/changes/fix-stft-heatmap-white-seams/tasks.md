@@ -1,3 +1,3 @@
 - [x] 1. Update the STFT heatmap append path to overlap one prior column only at a contiguous tile boundary.
-- [x] 2. Add regression coverage for contiguous overlap and preserve the existing gap behavior.
-- [ ] 3. Run focused desktop STFT tests, build, and validate the OpenSpec change.
+- [x] 2. Add regression coverage for contiguous overlap, out-of-order windows, and preserve the existing gap behavior.
+- [x] 3. Run focused desktop STFT tests, build, and validate the OpenSpec change.

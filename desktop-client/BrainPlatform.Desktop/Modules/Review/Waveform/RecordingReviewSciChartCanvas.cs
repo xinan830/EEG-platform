@@ -137,12 +137,19 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         owningWindow = Window.GetWindow(this);
         if (owningWindow is not null)
         {
+            owningWindow.LocationChanged -= OnWindowDisplayContextChanged;
             owningWindow.LocationChanged += OnWindowDisplayContextChanged;
-            UpdateScreenScale();
+            screenScale = ScreenCalibrationMetrics.ResolveScale(owningWindow);
         }
 
+        ScreenCalibrationMetrics.CalibrationChanged -= OnCalibrationChanged;
         ScreenCalibrationMetrics.CalibrationChanged += OnCalibrationChanged;
-        (DataContext as RecordingReviewViewModel)?.UpdateViewportWidth(chartHost.ActualWidth);
+
+        var viewModel = DataContext as RecordingReviewViewModel;
+        Subscribe(viewModel);
+        viewModel?.UpdateScreenScale(screenScale);
+        viewModel?.UpdateViewportWidth(chartHost.ActualWidth);
+        ApplyFrame(viewModel?.CurrentFrame, viewModel);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
@@ -179,6 +186,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void Subscribe(RecordingReviewViewModel? viewModel)
     {
+        Unsubscribe(viewModel);
         if (viewModel is not null)
         {
             viewModel.PropertyChanged += OnViewModelPropertyChanged;

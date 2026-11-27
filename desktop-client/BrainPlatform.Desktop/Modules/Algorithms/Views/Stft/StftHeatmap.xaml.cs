@@ -18,6 +18,7 @@ public partial class StftHeatmap : UserControl
     private readonly NumericAxis yAxis;
     private readonly HeatmapColorPalette palette;
     private readonly List<FastNonUniformHeatmapRenderableSeries> heatmapSegments = [];
+    private readonly HashSet<double> renderedTimes = [];
     private readonly CursorModifier cursor;
     private double renderedThroughSeconds = double.NegativeInfinity;
     private double historyStartSeconds = double.NaN;
@@ -102,7 +103,7 @@ public partial class StftHeatmap : UserControl
         FontSize = 12,
         TickTextBrush = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         DrawMajorBands = false,
-        DrawMajorGridLines = true,
+        DrawMajorGridLines = false,
         DrawMinorGridLines = false,
     };
 
@@ -126,7 +127,7 @@ public partial class StftHeatmap : UserControl
             ClearSegments();
         renderedFrequencies = preview.FrequenciesHz.ToArray();
         var newColumns = Enumerable.Range(0, preview.TimesSeconds.Length)
-            .Where(index => preview.TimesSeconds[index] > renderedThroughSeconds + 1e-9 &&
+            .Where(index => !renderedTimes.Contains(TimeKey(preview.TimesSeconds[index])) &&
                 (VisibleStartSeconds is not { } start || preview.TimesSeconds[index] >= start))
             .ToArray();
         if (newColumns.Length > 0)
@@ -160,7 +161,14 @@ public partial class StftHeatmap : UserControl
         foreach (var index in columnIndexes)
         {
             if (groups.Count == 0 || !AreAdjacent(preview.TimesSeconds[groups[^1][^1]], preview.TimesSeconds[index], timeStep))
-                groups.Add([]);
+            {
+                var group = new List<int>();
+                var previousIndex = index - 1;
+                if (previousIndex >= 0 && renderedTimes.Contains(TimeKey(preview.TimesSeconds[previousIndex])) &&
+                    AreAdjacent(preview.TimesSeconds[previousIndex], preview.TimesSeconds[index], timeStep))
+                    group.Add(previousIndex);
+                groups.Add(group);
+            }
             groups[^1].Add(index);
         }
 
@@ -199,11 +207,16 @@ public partial class StftHeatmap : UserControl
             };
             Surface.RenderableSeries.Add(segment);
             heatmapSegments.Add(segment);
-            if (!double.IsFinite(historyStartSeconds))
-                historyStartSeconds = xBoundaries[0];
+            historyStartSeconds = double.IsFinite(historyStartSeconds)
+                ? Math.Min(historyStartSeconds, xBoundaries[0])
+                : xBoundaries[0];
         }
-        renderedThroughSeconds = preview.TimesSeconds[columnIndexes[^1]];
+        foreach (var index in columnIndexes)
+            renderedTimes.Add(TimeKey(preview.TimesSeconds[index]));
+        renderedThroughSeconds = Math.Max(renderedThroughSeconds, preview.TimesSeconds[columnIndexes[^1]]);
     }
+
+    private static double TimeKey(double time) => Math.Round(time, 9);
 
     private static bool AreAdjacent(double left, double right, double timeStep) =>
         right - left <= timeStep * 1.000001;
@@ -216,6 +229,7 @@ public partial class StftHeatmap : UserControl
             segment.DataSeries = null;
         }
         heatmapSegments.Clear();
+        renderedTimes.Clear();
         renderedThroughSeconds = double.NegativeInfinity;
         historyStartSeconds = double.NaN;
         renderedFrequencies = null;
