@@ -15,10 +15,10 @@ from app.api.runs import router as runs_router
 from app.api.results import router as results_router
 from app.models.current_algorithm_result import CurrentAlgorithmResultSummary
 from app.models.run_read import AnalysisRunRead
-from app.services.current_algorithm_result import InvalidCurrentResultError, invalid_current_result_handler
-from app.services.run_queue import PersistentRunQueue
-from app.services.results import ResultService
-from app.services.validations import ValidationService
+from app.services.analysis.results.current_algorithm_result import InvalidCurrentResultError, invalid_current_result_handler
+from app.services.analysis.runs.run_queue import PersistentRunQueue
+from app.services.analysis.results.results import ResultService
+from app.services.workspace.validations import ValidationService
 from result_boundary_support import ALGORITHM_IDS
 from test_official_algorithm_runs import _request, _service
 
@@ -128,7 +128,7 @@ def api_for(queue):
 
 def completed_run(tmp_path, algorithm_id, dynamic):
     base, recording_id = _service(tmp_path, sfreq_hz=200)
-    queue = PersistentRunQueue(base.recordings, base.repository.database_path, tmp_path / "artifacts")
+    queue = PersistentRunQueue(base.recordings, base.repository.database_path, tmp_path / "artifacts", algorithm_registry=base.algorithm_runtime_registry)
     request = _request(recording_id, algorithm_id, dynamic=dynamic)
     if algorithm_id in {"brainbeat", "brainbeat_individualized"}:
         request.config["secondary_channel"] = "Pz"

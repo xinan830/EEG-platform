@@ -3,11 +3,14 @@ from pathlib import Path
 import numpy as np
 from fastapi.testclient import TestClient
 
+from app.persistence import connect_database
 from app.main import app
 from app.models.spectral_validation import SpectralReferenceValidationRequest
-from app.services.independent_spectral_reference import IndependentSpectralReferenceService
-from app.services.recordings import RecordingService
-from app.services.validations import ValidationService
+from app.services.analysis.runs.independent_spectral_reference import IndependentSpectralReferenceService
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
+from app.services.workspace.validations import ValidationService
 from tests.access_fixtures import array_access_session
 
 import importlib.metadata as _metadata
@@ -46,7 +49,7 @@ def _client(tmp_path: Path, source: np.ndarray | None = None) -> tuple[TestClien
         tmp_path / "recordings", tmp_path / "catalog.sqlite3", source=values, sfreq=sfreq, names=names,
     )
     recording = recordings.create_recording("synthetic.edf", ".edf", b"synthetic-reference-source")
-    with recordings._connect() as connection:
+    with connect_database(recordings.database_path) as connection:
         connection.execute(
             """UPDATE recordings SET sfreq = ?, duration_s = ?, channels_json = ?,
                raw_channel_labels_json = ?, canonical_channel_labels_json = ?,
@@ -57,9 +60,14 @@ def _client(tmp_path: Path, source: np.ndarray | None = None) -> tuple[TestClien
     recording = recordings.require_recording(recording.id)
     validations = ValidationService(recordings.database_path)
     app.state.recording_service = recordings
+    app.state.offline_scientific_preprocessing_service = OfflineScientificPreprocessingService.for_recordings(recordings)
+    app.state.spectral_analysis_service = SpectralAnalysisService(
+        recordings, app.state.offline_scientific_preprocessing_service,
+    )
     app.state.validation_service = validations
     app.state.independent_spectral_reference_service = IndependentSpectralReferenceService(
         recordings, validations, source_reader=lambda _recording: (values, sfreq, names),
+        spectral_analysis=app.state.spectral_analysis_service,
     )
     app.state.audit_service = _Audit()
     return TestClient(app), recording, validations

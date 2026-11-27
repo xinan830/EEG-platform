@@ -10,10 +10,10 @@ import pyedflib
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.services.audit import AuditService
-from app.services.projects import ProjectService
-from app.services.recordings import RecordingService
+from app.persistence import connect_database
+from app.services.workspace.projects import ProjectService
+from app.services.recordings.recordings import RecordingService
+from recording_api_fixtures import recording_api_app
 
 
 def _edf_bytes(path: Path, labels: tuple[str, str] = ("Fz", "Pz"), *, sample_frequency: int = 10,
@@ -47,11 +47,8 @@ def _channel_snapshot(labels: list[str]) -> str:
 def _client(tmp_path: Path) -> tuple[TestClient, RecordingService, ProjectService]:
     database = tmp_path / "platform.sqlite3"
     recordings = RecordingService(tmp_path / "recordings", database)
-    projects = ProjectService(database)
-    app.state.recording_service = recordings
-    app.state.project_service = projects
-    app.state.audit_service = AuditService(database)
-    return TestClient(app), recordings, projects
+    app = recording_api_app(recordings)
+    return TestClient(app), recordings, app.state.project_service
 
 
 def test_standalone_import_streams_hash_and_preserves_source_channel_order(tmp_path: Path):
@@ -270,7 +267,8 @@ def test_project_import_round_trips_montage_snapshots_into_algorithm_signal_wind
 
 def test_imported_montage_runs_official_algorithm_on_projected_eeg_signal(tmp_path: Path):
     from app.models.run import RunCreateRequest
-    from app.services.runs import RunService
+    from app.bootstrap import build_builtin_registry
+    from app.services.analysis.runs.runs import RunService
 
     client, recordings, _ = _client(tmp_path)
     project_id = client.put("/api/projects/desktop/imported-rbp", json={"name": "Study"}).json()["project_id"]
@@ -313,7 +311,7 @@ def test_imported_montage_runs_official_algorithm_on_projected_eeg_signal(tmp_pa
     recording = recordings.require_recording(imported.json()["recording_id"])
     montage_descriptor = recording.montage_catalogue[0]
 
-    run = RunService(recordings, recordings.database_path, tmp_path / "artifacts").create(
+    run = RunService(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry()).create(
         RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
             "algorithm_id": "rbp", "channel": "Fz-REF", "mode": "static",
             "time": {"start_s": 0, "end_s": 30},
@@ -330,7 +328,8 @@ def test_imported_montage_runs_official_algorithm_on_projected_eeg_signal(tmp_pa
 
 def test_imported_raw_mode_rejects_disabled_channel_and_allows_enabled_eeg(tmp_path: Path):
     from app.models.run import RunCreateRequest
-    from app.services.runs import RunService
+    from app.bootstrap import build_builtin_registry
+    from app.services.analysis.runs.runs import RunService
 
     client, recordings, _ = _client(tmp_path)
     project_id = client.put("/api/projects/desktop/imported-raw-guard", json={"name": "Study"}).json()["project_id"]
@@ -376,7 +375,7 @@ def test_imported_raw_mode_rejects_disabled_channel_and_allows_enabled_eeg(tmp_p
     assert recording.montage_catalogue[0]["available"] is False
     assert recording.montage_catalogue[0]["unavailable_reason"] == "required_input_channel_disabled"
 
-    runs = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
+    runs = RunService(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     with pytest.raises(ValueError, match="RECORDING_CHANNEL_UNAVAILABLE"):
         runs.create(RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
             "algorithm_id": "rbp", "channel": "Pz", "mode": "static", "time": {"start_s": 0, "end_s": 30},
@@ -430,7 +429,7 @@ def test_project_import_accepts_unlabeled_disabled_hardware_channel(tmp_path: Pa
 
 
 def test_import_binding_is_omitted_for_missing_or_ambiguous_labels(tmp_path: Path):
-    from app.services.recording_import import _bind_channel_configuration
+    from app.services.recordings.recording_import import _bind_channel_configuration
 
     labels, types = ["Fz", "Pz"], ["eeg", "eeg"]
     missing, missing_map = _bind_channel_configuration(_channel_snapshot(["Fz", "Cz"]), labels, types)
@@ -447,7 +446,7 @@ def test_import_binding_is_omitted_for_missing_or_ambiguous_labels(tmp_path: Pat
 
 
 def test_import_binding_skips_non_eeg_columns_and_rejects_duplicate_native_identity():
-    from app.services.recording_import import RecordingImportError, _bind_channel_configuration
+    from app.services.recordings.recording_import import RecordingImportError, _bind_channel_configuration
 
     snapshot = _channel_snapshot(["Fz"])
     bound, mapping = _bind_channel_configuration(snapshot, ["Fz", "Status"], ["eeg", "stim"])
@@ -525,7 +524,7 @@ def test_project_delete_preserves_recording_used_by_analysis(tmp_path: Path):
         data={"new_subject_local_code": "S-01"}, files={"file": ("used.edf", source)}).json()
     recording = recordings.require_recording(imported["recording_id"])
     stored_path = recordings.storage_dir / recording.stored_name
-    with recordings._connect() as connection:
+    with connect_database(recordings.database_path) as connection:
         connection.execute(
             "INSERT INTO event_markers (id, recording_id, time_s, label, duration_s, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             ("event-1", recording.id, 1.0, "event", None, "2026-11-24T00:00:00Z"),
@@ -548,7 +547,7 @@ def test_concurrent_imports_for_one_project_publish_independent_sessions(tmp_pat
     second_source = _edf_bytes(tmp_path / "second.edf")
 
     def import_file(name: str, source: bytes) -> dict:
-        with TestClient(app) as concurrent_client:
+        with TestClient(client.app) as concurrent_client:
             response = concurrent_client.post(
                 f"/api/projects/{project_id}/recordings/import",
                 data={"subject_id": subject_id},
@@ -591,7 +590,7 @@ def test_raw_sample_range_returns_bounded_file_relative_volts_in_source_order(tm
 
 def test_stage_cancellation_removes_temporary_file(tmp_path: Path):
     _, recordings, _ = _client(tmp_path)
-    from app.services.recording_import import EdfBdfImportService
+    from app.services.recordings.recording_import import EdfBdfImportService
     importer = EdfBdfImportService(recordings)
     cancel = asyncio.Event()
 
@@ -614,7 +613,7 @@ def test_stage_cancellation_removes_temporary_file(tmp_path: Path):
 
 def test_stage_disk_write_failure_removes_partial_file(tmp_path: Path, monkeypatch):
     _, recordings, _ = _client(tmp_path)
-    from app.services.recording_import import EdfBdfImportService
+    from app.services.recordings.recording_import import EdfBdfImportService
     importer = EdfBdfImportService(recordings)
     original_open = Path.open
 
@@ -648,7 +647,7 @@ def test_stage_disk_write_failure_removes_partial_file(tmp_path: Path, monkeypat
 
 def test_disconnect_cancels_background_publication_before_database_commit():
     from app.api.recording_uploads import publish_upload
-    from app.services.recording_import import RecordingImportError
+    from app.services.recordings.recording_import import RecordingImportError
 
     class Request:
         async def is_disconnected(self): return True

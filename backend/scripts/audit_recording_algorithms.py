@@ -14,9 +14,9 @@ import numpy as np
 from pydantic import ValidationError
 
 from app.algorithms.builtin_modules import build_builtin_modules
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.recording_samples import WpfSampleReader
-from app.services.recordings import RecordingService
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.recordings.recording_samples import WpfSampleReader
+from app.services.recordings.recordings import RecordingService
 from app.scientific.quality import SpectralQualityGateError
 from scripts import recording_audit_reference as ref
 
@@ -276,7 +276,7 @@ def audit(directory):
                 print(json.dumps(probe, ensure_ascii=True), flush=True)
             finally:
                 context.close()
-        service._analysis_preprocess_cache.clear_recording(recording.id)
+        service.invalidate_recording(recording.id)
     return report
 
 

@@ -2,10 +2,12 @@ from pathlib import Path
 
 import numpy as np
 
-from app.services.official_algorithm_catalog import ensure_official_definitions
+from app.persistence import connect_database
+from app.services.analysis.official_algorithm_catalog import ensure_official_definitions
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.recordings import RecordingService
-from app.services.runs import RunService
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
 from tests.access_fixtures import array_access_session
 
 
@@ -20,12 +22,12 @@ class HighAmplitudeRecordingService(RecordingService):
 def test_dynamic_peak_frequency_preserves_backend_failure_per_window(tmp_path: Path):
     recordings = HighAmplitudeRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
     recording = recordings.create_recording("quality.edf", ".edf", b"source")
-    with recordings._connect() as connection:
+    with connect_database(recordings.database_path) as connection:
         connection.execute(
             "UPDATE recordings SET sfreq = 200, duration_s = 30, channels_json = '[\"Fz\"]' WHERE id = ?",
             (recording.id,),
         )
-    service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
+    service = RunService(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     ensure_official_definitions(service.definition_service)
     completed = service.create(RunCreateRequest(
         recording_id=recording.id,

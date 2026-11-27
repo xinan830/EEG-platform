@@ -7,7 +7,7 @@ import pytest
 
 from app.core import performance_trace as diagnostics
 from app.persistence import connect_database
-from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
 
 
 def test_timing_scopes_count_connections_and_reset_after_failures(tmp_path, caplog):
@@ -33,7 +33,7 @@ def test_admission_distinguishes_lock_wait_from_work(monkeypatch, caplog):
     caplog.set_level(logging.INFO)
     clock = [0.0]
     monkeypatch.setattr(diagnostics, "perf_counter", lambda: clock[0])
-    monkeypatch.setattr("app.services.on_demand_dynamic.time.perf_counter", lambda: clock[0])
+    monkeypatch.setattr("app.services.analysis.windows.on_demand_dynamic.time.perf_counter", lambda: clock[0])
 
     class Lock:
         def __enter__(self):

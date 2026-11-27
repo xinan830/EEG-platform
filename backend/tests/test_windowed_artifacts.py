@@ -5,7 +5,7 @@ import numpy as np
 from app.models.run import AnalysisRun, RunStatus
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
-from app.services.artifacts import ArtifactStore, WindowIndexUnavailable
+from app.services.analysis.runs.artifacts import ArtifactStore, WindowIndexUnavailable
 
 
 def _run() -> AnalysisRun:
@@ -87,7 +87,7 @@ def test_window_reader_rejects_out_of_range_and_corrupt_chunk(tmp_path: Path):
 
     chunk = next((tmp_path / "artifacts" / "windowed-run").glob(f"{artifact.artifact_id}.windows/00000001.npz"))
     chunk.write_bytes(b"corrupt")
-    from app.services.artifacts import ArtifactIntegrityError
+    from app.services.analysis.runs.artifacts import ArtifactIntegrityError
     try:
         store.read_window(artifact, 1)
     except ArtifactIntegrityError:
@@ -105,7 +105,7 @@ def test_window_reader_enforces_chunk_resource_budget(tmp_path: Path):
         window_ranges=[{"start_sample": 0, "end_sample": 1}, {"start_sample": 1, "end_sample": 2}],
     )
     store.MAX_WINDOW_CHUNK_BYTES = 1
-    from app.services.artifacts import WindowIndexUnavailable
+    from app.services.analysis.runs.artifacts import WindowIndexUnavailable
     try:
         store.read_window(artifact, 0)
     except WindowIndexUnavailable:

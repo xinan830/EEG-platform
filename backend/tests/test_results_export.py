@@ -6,11 +6,11 @@ import zipfile
 import numpy as np
 import pytest
 
-from app.services.artifacts import ArtifactIntegrityError
+from app.services.analysis.runs.artifacts import ArtifactIntegrityError
 from app.models.run import RunCreateRequest, RunStatus, ValidationCreateRequest
-from app.services.results import ResultService
-from app.services.results import ResultExportUnavailable
-from app.services.validations import ValidationService
+from app.services.analysis.results.results import ResultService
+from app.services.analysis.results.results import ResultExportUnavailable
+from app.services.workspace.validations import ValidationService
 from test_run_queue import _queue, _request
 
 

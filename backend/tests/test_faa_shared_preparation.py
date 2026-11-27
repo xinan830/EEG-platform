@@ -7,7 +7,7 @@ from threading import Event
 import numpy as np
 import pytest
 
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 from tests.test_faa_continuous import reference_filter
 from tests.test_spectrum_service import _service, _provide_data
 
@@ -35,7 +35,7 @@ def read(context, start=0, **changes):
 
 
 def count_preparation(monkeypatch):
-    import app.services.mapped_preprocessing as module
+    import app.services.preprocessing.mapped_preprocessing as module
     original = module.preprocess_blocks
     calls = []
 
@@ -48,11 +48,13 @@ def count_preparation(monkeypatch):
 
 
 def test_independent_window_contexts_filter_once_and_match_continuous_reference(tmp_path, monkeypatch):
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, values = source(tmp_path, monkeypatch)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
     expected = reference_filter(values[:, :2], recording.sfreq, None)
     calls = count_preparation(monkeypatch)
     for start in [0, 1, 20]:
-        context = _RecordingAlgorithmContext(service, recording)
+        context = _RecordingAlgorithmContext(service, recording, offline_preprocessing=offline_prep)
         try:
             left, right, sfreq, evidence = read(context, start)
             actual = np.column_stack([left, right])
@@ -98,13 +100,15 @@ def test_different_scientific_inputs_never_reuse_a_prepared_faa_pair(tmp_path, m
 
 
 def test_active_faa_window_keeps_its_mapped_samples_alive_after_lru_eviction(tmp_path, monkeypatch):
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, _ = source(tmp_path, monkeypatch)
-    context = _RecordingAlgorithmContext(service, recording)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
+    context = _RecordingAlgorithmContext(service, recording, offline_preprocessing=offline_prep)
     try:
         left, right, _, _ = read(context)
         expected = np.column_stack([left, right]).copy()
         for high in [40, 30]:
-            other = _RecordingAlgorithmContext(service, recording)
+            other = _RecordingAlgorithmContext(service, recording, offline_preprocessing=offline_prep)
             try:
                 read(other, high_hz=high)
             finally:
@@ -112,14 +116,16 @@ def test_active_faa_window_keeps_its_mapped_samples_alive_after_lru_eviction(tmp
         np.testing.assert_array_equal(np.column_stack([left, right]), expected)
         assert context._prepared_faa_source is not None
         assert all(value is not context._prepared_faa_source
-                   for value in service._analysis_preprocess_cache._entries.values())
+                   for value in offline_prep.prepared_cache._entries.values())
     finally:
         context.close()
 
 
 def test_concurrent_faa_contexts_share_one_cold_preparation(tmp_path, monkeypatch):
-    import app.services.mapped_preprocessing as module
+    import app.services.preprocessing.mapped_preprocessing as module
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, _ = source(tmp_path, monkeypatch)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
     entered, release = Event(), Event()
     calls = count_preparation(monkeypatch)
     original = module.preprocess_blocks
@@ -132,7 +138,7 @@ def test_concurrent_faa_contexts_share_one_cold_preparation(tmp_path, monkeypatc
     monkeypatch.setattr(module, "preprocess_blocks", controlled)
 
     def request(start):
-        context = _RecordingAlgorithmContext(service, recording)
+        context = _RecordingAlgorithmContext(service, recording, offline_preprocessing=offline_prep)
         try:
             return np.column_stack(read(context, start)[:2]).copy()
         finally:

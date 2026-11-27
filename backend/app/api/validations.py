@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request, status
 
 from app.core.api_contract import error_response
 from app.models.run import ValidationCreateRequest
-from app.services.validations import ValidationService
+from app.services.workspace.validations import ValidationService
 
 
 router = APIRouter(prefix="/api/validations", tags=["validations"])

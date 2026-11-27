@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.services.live_recording_access import (
+from app.services.live_analysis.live_recording_access import (
     LiveRecordingAccessError,
     LiveRecordingAccessService,
 )

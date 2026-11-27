@@ -6,9 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
-from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
 
 
 @pytest.fixture

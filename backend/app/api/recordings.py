@@ -11,13 +11,15 @@ from app.models.wpf_recording import WpfRecordingRegistrationRequest
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
 from app.models.spectral_validation import SpectralReferenceValidationRequest
-from app.services.independent_spectral_reference import SpectralReferenceUnavailable
+from app.services.analysis.runs.independent_spectral_reference import SpectralReferenceUnavailable
 from app.core.api_contract import error_response
-from app.services.recordings import RecordingService
-from app.services.recording_import import EdfBdfImportService, RecordingImportError
-from app.services.recording_access import RecordingAccessError
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.recording_import import EdfBdfImportService, RecordingImportError
+from app.services.recordings.recording_access import RecordingAccessError
 from app.api.recording_uploads import publish_upload, stage_upload
-from app.services.montage import build_montage, describe_montages, montage_formulas
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
+from app.services.viewer.montage import build_montage, describe_montages, montage_formulas
+from app.services.viewer.recording_waveform import RecordingWaveformService
 
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
@@ -47,6 +49,14 @@ def _serialize(recording: RecordingSummary) -> dict:
 
 def _service(request: Request) -> RecordingService:
     return request.app.state.recording_service
+
+
+def _waveform(request: Request) -> RecordingWaveformService:
+    return request.app.state.recording_waveform_service
+
+
+def _spectral(request: Request) -> SpectralAnalysisService:
+    return request.app.state.spectral_analysis_service
 
 
 def _spectral_reference_service(request: Request):
@@ -161,7 +171,7 @@ def get_preview(
 ) -> dict:
     try:
         recording = _service(request).require_recording(recording_id)
-        return _service(request).waveform.load_preview(recording, start_s=start_s, window_s=window_s)
+        return _waveform(request).load_preview(recording, start_s=start_s, window_s=window_s)
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
@@ -188,7 +198,7 @@ def get_window(
     try:
         recording = _service(request).require_recording(recording_id)
         requested_channels = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = _service(request).waveform.load_window(
+        payload = _waveform(request).load_window(
             recording,
             start_s=start_s,
             window_s=window_s,
@@ -227,7 +237,7 @@ def get_spectrum(
     try:
         recording = _service(request).require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = _service(request).load_spectrum(recording, start_s=start_s, window_s=window_s, channels=requested)
+        payload = _spectral(request).load_spectrum(recording, start_s=start_s, window_s=window_s, channels=requested)
         _record_audit(request, "analysis.spectrum", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels), "algorithm_version": payload["algorithm_version"]})
         return payload
     except KeyError:
@@ -241,7 +251,7 @@ def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(
     try:
         recording = _service(request).require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = _service(request).load_spectrogram(recording, start_s, window_s, requested)
+        payload = _spectral(request).load_spectrogram(recording, start_s, window_s, requested)
         _record_audit(request, "analysis.spectrogram", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels)})
         return payload
     except KeyError:
@@ -255,7 +265,7 @@ def get_configured_spectrum(recording_id: str, request: Request, config: Analysi
     """Return configurable timing/channel analysis backed by frozen v3 math."""
     try:
         recording = _service(request).require_recording(recording_id)
-        payload = _service(request).load_configured_spectrum(recording, config)
+        payload = _spectral(request).load_configured_spectrum(recording, config)
         _record_audit(request, "analysis.spectrum.configured", recording_id, {
             "requested_config": config.model_dump(mode="json"),
             "analysis_config_hash": payload["analysis_config_hash"],
@@ -272,7 +282,7 @@ def get_configured_spectrogram(recording_id: str, request: Request, config: Anal
     """Return configurable timing/channel spectrogram data."""
     try:
         recording = _service(request).require_recording(recording_id)
-        payload = _service(request).load_configured_spectrogram(recording, config)
+        payload = _spectral(request).load_configured_spectrogram(recording, config)
         _record_audit(request, "analysis.spectrogram.configured", recording_id, {"requested_config": config.model_dump(mode="json"), "analysis_config_hash": payload["analysis_config_hash"]})
         return payload
     except KeyError:
@@ -328,7 +338,7 @@ def algorithm_check(
         service = _service(request)
         recording = service.require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = service.waveform.load_window(
+        payload = _waveform(request).load_window(
             recording, start_s=time_s, window_s=0.1, low_cut_hz=low_cut_hz,
             high_cut_hz=high_cut_hz, notch_hz=notch_hz, baseline_stabilization=baseline_stabilization, reference=reference,
             channels=requested, montage=montage,

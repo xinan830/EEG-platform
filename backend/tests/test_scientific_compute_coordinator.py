@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 import time
 
-from app.services.run_execution_context import RunCancelledError, RunExecutionContext
-from app.services.scientific_compute_coordinator import (
+from app.services.analysis.runs.run_execution_context import RunCancelledError, RunExecutionContext
+from app.services.analysis.scientific_compute_coordinator import (
     ScientificComputeCoordinator,
     ScientificComputeCoordinatorClosed,
 )

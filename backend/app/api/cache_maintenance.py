@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.api_contract import error_response
 from app.models.cache_maintenance import CacheClearRequest, CacheClearResponse
-from app.services.cache_maintenance import CacheMaintenanceError
+from app.services.analysis.windows.cache_maintenance import CacheMaintenanceError
 
 
 router = APIRouter(prefix="/api/maintenance/cache", tags=["maintenance"])

@@ -9,16 +9,16 @@ import pytest
 
 from app.scientific.contracts.preprocessing import ScientificFilterSpec, live_spectral_filter_spec
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY
-from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
-from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm, LiveRbpConfig
-from app.services.live_recording_access import LiveRecordingAccessSession, LiveSourceIdentity
-from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
-from app.services.live_spectral_algorithms import LiveSpectrumAlgorithm
-from app.services.live_topomap_algorithm import LiveTopomapAlgorithm
-from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
-from app.services.recording_access import RecordingSourceIdentity
-from app.services.sample_access_contract import SampleBlock
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm, LiveRbpConfig
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessSession, LiveSourceIdentity
+from app.services.live_analysis.live_scientific_preprocessing import LiveScientificPreprocessingService
+from app.services.live_analysis.live_spectral_algorithms import LiveSpectrumAlgorithm
+from app.services.live_analysis.live_topomap_algorithm import LiveTopomapAlgorithm
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.recordings.recording_access import RecordingSourceIdentity
+from app.services.recordings.sample_access_contract import SampleBlock
 
 
 class _CountingGateway:

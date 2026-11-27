@@ -1,12 +1,12 @@
 """Persisted current official Definition metadata is immutable and idempotent."""
 
-from app.services.official_algorithm_catalog import (
+from app.services.analysis.official_algorithm_catalog import (
     OFFICIAL_ALGORITHM_MANIFESTS,
     ensure_official_definitions,
     official_definition,
     official_definition_draft,
 )
-from app.services.definitions import DefinitionService
+from app.services.workspace.definitions import DefinitionService
 
 
 def test_official_definition_metadata_retains_distinct_faa_brainbeat_and_iapf_semantics():

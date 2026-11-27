@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from app.services import recording_access as recording_access_module
-from app.services.recording_access import (
+from app.services.recordings import recording_access as recording_access_module
+from app.services.recordings.recording_access import (
     RecordingAccessError,
     RecordingAccessSession,
     RecordingSourceIdentity,

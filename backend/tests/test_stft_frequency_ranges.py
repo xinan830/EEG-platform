@@ -7,10 +7,11 @@ from scipy import signal
 from app.algorithms.stft.config import StftConfig
 from app.algorithms.stft.runner import StftAlgorithm
 from app.scientific.quality import SpectralQualityGateError
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.run_queue import PersistentRunQueue
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.recording_samples import ArraySampleReader
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.run_queue import PersistentRunQueue
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recordings.recording_samples import ArraySampleReader
 from app.models.run import RunStatus
 from tests.test_official_algorithm_runs import _request, _service
 
@@ -42,7 +43,7 @@ def _range_service(tmp_path, sfreq_hz=200):
 @pytest.mark.parametrize("low, high", [(8, 13), (35, 40), (38, 45), (8.1, 12.9)])
 def test_official_narrow_stft_completes_and_preserves_requested_axis(tmp_path: Path, dynamic, low, high):
     service, recording_id = _range_service(tmp_path)
-    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "artifacts")
+    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     request = _request(recording_id, "stft", dynamic=dynamic)
     request.config.update(low_hz=low, high_hz=high, notch_hz=50)
     request.config["time"] = {"start_s": 5, "end_s": 15}
@@ -86,7 +87,7 @@ def test_crop_and_band_integrals_match_independent_full_grid(tmp_path, low, high
     recording = service.recordings.require_recording(recording_id)
     raw = service.range_signal
     sfreq = recording.sfreq
-    payload = service.recordings.load_spectrogram(recording, 5, 10, ["Fz"],
+    payload = service.spectral_analysis.load_spectrogram(recording, 5, 10, ["Fz"],
         low_hz=low, high_hz=high, notch_hz=notch)
     frequencies, matrix = _independent_matrix(raw, sfreq, low, high, notch)
     mask = (frequencies >= low) & (frequencies <= high)
@@ -106,7 +107,7 @@ def test_crop_and_band_integrals_match_independent_full_grid(tmp_path, low, high
 def test_unsupported_auxiliary_band_is_null_without_failing_valid_request(tmp_path):
     service, recording_id = _service(tmp_path, sfreq_hz=40)
     recording = service.recordings.require_recording(recording_id)
-    payload = service.recordings.load_spectrogram(
+    payload = service.spectral_analysis.load_spectrogram(
         recording, 5, 10, ["Fz"], low_hz=8, high_hz=13, notch_hz=None,
     )
     assert payload["frequencies_hz"][0] == 8

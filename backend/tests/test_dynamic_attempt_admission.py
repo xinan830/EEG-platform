@@ -64,7 +64,7 @@ def test_full_backlog_does_not_fill_global_interactive_queue(windows):
 
 
 def test_default_resource_policy_allows_concurrent_multi_algorithm_windows(tmp_path):
-    from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+    from app.services.analysis.windows.dynamic_window_resources import DynamicWindowResourcePolicy
 
     policy = DynamicWindowResourcePolicy()
     database = tmp_path / "multi.sqlite3"

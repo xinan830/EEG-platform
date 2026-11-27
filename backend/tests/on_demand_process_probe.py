@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.bootstrap import build_builtin_registry
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recordings import RecordingService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recordings import RecordingService
 from on_demand_fixtures import psd_config
 
 

@@ -9,7 +9,7 @@ import pytest
 from app.scientific.artifact_segments import apply_artifact_rejection_mask
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec
 from app.scientific.quality import SpectralQualityGateError
-from app.services.artifact_inspection import inspect_recording_artifact_segments
+from app.services.preprocessing.artifact_inspection import inspect_recording_artifact_segments
 from test_offline_bad_channels import _write_multi_channel_edf
 from test_recording_import import _client
 
@@ -32,7 +32,7 @@ def test_inspection_default_report_matches_exact_continuous_mask(tmp_path):
     client, recordings, recording = _recording(tmp_path)
     scan = client.get(f'/api/recordings/{recording.id}/preprocessing/artifact-segments',
                       params={'duration_s': 12}).json()
-    prepared = recordings.offline_scientific_preprocessing.prepare_continuous(
+    prepared = client.app.state.offline_scientific_preprocessing_service.prepare_continuous(
         recording, low_hz=1, high_hz=50, notch_hz=50,
         artifact_rejection_spec=ArtifactRejectionSpec(policy='reject'),
     )
@@ -53,10 +53,11 @@ def test_scan_annotate_reject_reuse_one_detection_and_range_projection(tmp_path,
 
     monkeypatch.setattr(detector, 'detect_artifact_segments', counting)
     spec = ArtifactRejectionSpec(policy='annotate')
-    prep = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    prep = OfflineScientificPreprocessingService.for_recordings(recordings)
     annotated = prep.prepare_continuous(recording, low_hz=1, high_hz=50, notch_hz=50, artifact_rejection_spec=spec)
     rejected = prep.prepare_continuous(recording, low_hz=1, high_hz=50, notch_hz=50, artifact_rejection_spec=replace(spec, policy='reject'))
-    scan = inspect_recording_artifact_segments(recordings, recording, start_s=10.5, duration_s=1, artifact_spec=spec)
+    scan = inspect_recording_artifact_segments(recordings, recording, start_s=10.5, duration_s=1, artifact_spec=spec, offline_preprocessing=prep)
     assert len(calls) == 1
     assert rejected.artifact_report is annotated.artifact_report
     assert scan['detection_scope']['end_sample'] == 6000
@@ -65,14 +66,15 @@ def test_scan_annotate_reject_reuse_one_detection_and_range_projection(tmp_path,
         assert 5250 <= seg['start_sample'] < seg['end_sample'] <= 5750
         for channel in seg['channels'] or annotated.channel_names:
             assert np.isnan(rejected.data[seg['start_sample']:seg['end_sample'], annotated.channel_names.index(channel)]).all()
-    filtered = inspect_recording_artifact_segments(recordings, recording, duration_s=12, artifact_spec=spec, high_hz=45)
+    filtered = inspect_recording_artifact_segments(recordings, recording, duration_s=12, artifact_spec=spec, high_hz=45, offline_preprocessing=prep)
     assert len(calls) == 2
     assert filtered['detection_scope']['prepared_source_identity'] != scan['detection_scope']['prepared_source_identity']
 
 
 def test_bounded_gate_projects_authoritative_report_without_redetection(tmp_path, monkeypatch):
     _, recordings, recording = _recording(tmp_path)
-    prep = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    prep = OfflineScientificPreprocessingService.for_recordings(recordings)
     art = ArtifactRejectionSpec(policy='annotate')
     annotated = prep.prepare_continuous(recording, low_hz=1, high_hz=50, notch_hz=50, artifact_rejection_spec=art)
     def unexpected(*args, **kwargs):
@@ -114,7 +116,8 @@ def test_bounded_qc_rejects_missing_and_wrong_recording_context(tmp_path):
         kwargs = dict(start_sample=1000, end_sample=3000, channels=['F3'], low_hz=1, high_hz=50,
                       notch_hz=50, context_s=2, algorithm_version='test',
                       artifact_rejection_spec=ArtifactRejectionSpec(policy='annotate'))
-        prep = recordings.offline_scientific_preprocessing
+        from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+        prep = OfflineScientificPreprocessingService.for_recordings(recordings)
         with pytest.raises(ValueError, match='ARTIFACT_QC_RECORDING_REQUIRED'):
             prep.prepare_bounded_window(session, **kwargs)
         with pytest.raises(ValueError, match='ARTIFACT_REPORT_SOURCE_MISMATCH'):
@@ -152,7 +155,8 @@ def test_reject_preparation_notifies_once_and_preserves_full_detection_populatio
     notified = []
     control = SimpleNamespace(check_cancelled=lambda: None, select_requested_channels=True,
                               source_preparation_completed=lambda: notified.append(1))
-    prepared = recordings.offline_scientific_preprocessing.prepare_continuous(
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    prepared = OfflineScientificPreprocessingService.for_recordings(recordings).prepare_continuous(
         recording, low_hz=1, high_hz=50, notch_hz=50, channels=['F3'],
         requested_channels_only=True, execution_context=control,
         artifact_rejection_spec=ArtifactRejectionSpec(policy='reject'),
@@ -193,8 +197,10 @@ def test_concurrent_annotate_and_reject_share_single_flight_report(tmp_path, mon
         return original(*args, **kwargs)
 
     monkeypatch.setattr(detector, 'detect_artifact_segments', detect)
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    prep = OfflineScientificPreprocessingService.for_recordings(recordings)
     def prepare(policy):
-        return recordings.offline_scientific_preprocessing.prepare_continuous(
+        return prep.prepare_continuous(
             recording, low_hz=1, high_hz=50, notch_hz=50,
             artifact_rejection_spec=ArtifactRejectionSpec(policy=policy),
         )
@@ -212,12 +218,13 @@ def test_concurrent_annotate_and_reject_share_single_flight_report(tmp_path, mon
 def test_global_qc_respects_resource_budget_instead_of_shrinking_detection_channels(tmp_path):
     from types import SimpleNamespace
     from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
-    from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+    from app.services.analysis.windows.dynamic_window_resources import DynamicWindowResourcePolicy
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     _, recordings, recording = _recording(tmp_path)
     control = SimpleNamespace(check_cancelled=lambda: None, select_requested_channels=True,
         preparation_resource_policy=DynamicWindowResourcePolicy(max_preparation_bytes=1))
     with pytest.raises(DynamicWindowResourceExceededError):
-        recordings.offline_scientific_preprocessing.prepare_continuous(
+        OfflineScientificPreprocessingService.for_recordings(recordings).prepare_continuous(
             recording, low_hz=1, high_hz=50, notch_hz=50, channels=['F3'],
             requested_channels_only=True, execution_context=control,
             artifact_rejection_spec=ArtifactRejectionSpec(policy='reject'),

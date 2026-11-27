@@ -3,8 +3,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.projects import ProjectService
-from app.services.recordings import RecordingService
+from app.services.workspace.projects import ProjectService
+from app.services.recordings.recordings import RecordingService
 from app.models.research_project import ProjectCreateRequest
 from app.persistence import get_schema_version, migrate_database
 

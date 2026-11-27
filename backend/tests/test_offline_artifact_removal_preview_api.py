@@ -211,7 +211,7 @@ def test_step3_end_to_end_ica_api_continuous_pipeline_composition_and_bounded_wi
     assert stft_ica_reject.status_code == 422
     assert "ARTIFACT_REMOVAL_REQUIRES_CONTINUOUS_SCOPE" in stft_ica_reject.text
 
-    offline = recordings.offline_scientific_preprocessing
+    offline = client.app.state.offline_scientific_preprocessing_service
     recording = recordings.require_recording(rec_id)
 
     # 5) Continuous pipeline: baseline vs EOG regression vs Step 1 + Step 2 + Step 3 ICA composition.

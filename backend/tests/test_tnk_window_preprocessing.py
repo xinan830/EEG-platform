@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from app.services.tnk_window_preprocessing import prepare_tnk_window
-from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.preprocessing.tnk_window_preprocessing import prepare_tnk_window
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 
 class _Session:

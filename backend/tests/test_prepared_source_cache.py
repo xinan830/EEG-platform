@@ -5,12 +5,12 @@ from threading import Event
 import numpy as np
 import pytest
 
-from app.services.analysis_preprocess_cache import (
+from app.services.preprocessing.analysis_preprocess_cache import (
     AnalysisPreprocessCache,
     PreprocessedRecording,
 )
-from app.services.prepared_source_contract import PreparedSourceContract
-from app.services.ica_review_cache import IcaReviewCache
+from app.services.preprocessing.prepared_source_contract import PreparedSourceContract
+from app.services.preprocessing.ica_review_cache import IcaReviewCache
 
 
 def source_contract(identity="source-1"):

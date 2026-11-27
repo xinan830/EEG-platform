@@ -20,8 +20,8 @@ from app.scientific.contracts.preprocessing import (
     ScientificFilterSpec,
 )
 from app.scientific.primitives import detrend_and_filter_for_inspection
-from app.services.artifact_inspection import inspect_recording_ica_components
-from app.services.recordings import RecordingService
+from app.services.preprocessing.artifact_inspection import inspect_recording_ica_components
+from app.services.recordings.recordings import RecordingService
 
 
 _STANDARD_19 = (
@@ -281,7 +281,9 @@ def test_review_and_continuous_execution_share_cache_on_car_and_fallback_on_ref(
     # Continuous execution with confirmed fingerprint reuses the exact cached ICA model
     confirmed_excl = tuple(car_report["recommended_exclude_components"]) or (0,)
     car_rec = service.select_analysis_montage(rec, "montage-car")
-    prepared_car = service.offline_scientific_preprocessing.prepare_continuous(
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
+    prepared_car = offline_prep.prepare_continuous(
         car_rec,
         low_hz=1.0, high_hz=50.0, notch_hz=50.0,
         preprocessing_spec=OfflinePreprocessingSpec(
@@ -396,19 +398,21 @@ def test_persisted_reviewed_ica_survives_memory_eviction_and_rejects_expired_mod
     raw_v = _synthesize_multiclass_artifact_eeg(sfreq=sfreq, duration_s=18.0, seed=88)
     client, service, rec = _import_with_car_and_ref_montages(tmp_path, raw_v, sfreq)
 
+    offline_prep = client.app.state.offline_scientific_preprocessing_service
     rem_spec = ArtifactRemovalSpec(method="ica_infomax", allow_frontal_eog_proxy=True, ica_n_components=10, random_state=42)
     report = inspect_recording_ica_components(
         service, rec, montage_id="montage-car", low_hz=1.0, high_hz=50.0, notch_hz=50.0, removal_spec=rem_spec,
+        offline_preprocessing=offline_prep,
     )
     fit_fp = report["ica_fit_fingerprint"]
     assert isinstance(fit_fp, str)
-    original_model = service.ica_review_cache.get(fit_fp, recording_id=rec.id)
+    original_model = offline_prep.ica_review_cache.get(fit_fp, recording_id=rec.id)
     assert original_model is not None
 
     # Simulate memory LRU eviction / backend process restart (memory cleared, disk intact)
-    service.ica_review_cache.clear()
-    service.offline_scientific_preprocessing.prepared_cache.clear_recording(rec.id)
-    restored_model = service.ica_review_cache.get(fit_fp, recording_id=rec.id)
+    offline_prep.ica_review_cache.clear()
+    offline_prep.prepared_cache.clear_recording(rec.id)
+    restored_model = offline_prep.ica_review_cache.get(fit_fp, recording_id=rec.id)
     assert restored_model is not None
     assert restored_model.fit_notch_hz == 50.0
     assert np.array_equal(original_model.ica.unmixing_matrix_, restored_model.ica.unmixing_matrix_)
@@ -422,7 +426,7 @@ def test_persisted_reviewed_ica_survives_memory_eviction_and_rejects_expired_mod
     np.testing.assert_allclose(original_output.data_v, restored_output.data_v, rtol=1e-12, atol=1e-15)
 
     # Execute after memory clear: MUST recover exact persisted model with ica_model_reused=True
-    service.ica_review_cache.clear()
+    offline_prep.ica_review_cache.clear()
     car_rec = service.select_analysis_montage(rec, "montage-car")
     confirmed = OfflinePreprocessingSpec(
         filter_spec=ScientificFilterSpec(1.0, 50.0, 50.0),
@@ -435,15 +439,15 @@ def test_persisted_reviewed_ica_survives_memory_eviction_and_rejects_expired_mod
             random_state=42,
         ),
     )
-    prepared = service.offline_scientific_preprocessing.prepare_continuous(
+    prepared = offline_prep.prepare_continuous(
         car_rec, low_hz=1.0, high_hz=50.0, notch_hz=50.0, preprocessing_spec=confirmed,
     )
     assert prepared.artifact_removal_evidence["ica_model_reused"] is True
     assert prepared.artifact_removal_evidence["ica_fit_fingerprint"] == fit_fp
 
     # Simulate true model expiration (both memory and persisted disk models invalidated/deleted)
-    service.offline_scientific_preprocessing.invalidate_recording(rec.id)
+    offline_prep.invalidate_recording(rec.id)
     with pytest.raises(ValueError, match="ICA_REVIEW_MODEL_EXPIRED"):
-        service.offline_scientific_preprocessing.prepare_continuous(
+        offline_prep.prepare_continuous(
             car_rec, low_hz=1.0, high_hz=50.0, notch_hz=50.0, preprocessing_spec=confirmed,
         )

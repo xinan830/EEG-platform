@@ -12,8 +12,8 @@ from app.models.topomap_3d import (
     Topomap3DMontageCatalogResponse,
     Topomap3DMontagePreviewResponse,
 )
-from app.services.topomap_3d_assets import MappingAssetsInvalid
-from app.services.topomap_3d_cortex import load_cortex_atlas_payload
+from app.services.analysis.results.topomap_3d_assets import MappingAssetsInvalid
+from app.services.analysis.results.topomap_3d_cortex import load_cortex_atlas_payload
 
 
 router = APIRouter(prefix="/api/topomap/3d", tags=["electrode-locations-3d"])

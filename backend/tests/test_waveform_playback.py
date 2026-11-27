@@ -2,7 +2,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from app.models.recording import RecordingSummary
-from app.services.waveform_playback import (
+from app.services.viewer.waveform_playback import (
     DisplaySignalFilter,
     WaveformPlaybackSession,
     select_display_channels,
@@ -454,7 +454,7 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
 
         def open_access_session(self, recording, *, scientific_channels=True):
             assert not scientific_channels
-            from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
+            from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
             return RecordingAccessSession(
                 RecordingSourceIdentity(recording.id, "test", "test"), self.raw,
                 200.0, self.raw.n_times, self.raw.ch_names, (), lambda: None,

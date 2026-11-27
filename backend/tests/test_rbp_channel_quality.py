@@ -11,9 +11,9 @@ from app.algorithms.rbp.runner import RbpAlgorithm
 from app.scientific.primitives.annotated_spectral import estimate_annotated_channel_psd
 from app.scientific.primitives.spectral import estimate_welch_psd
 from app.scientific.quality import SpectralQualityGateError
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
-from app.services.spectral_analysis import SpectralAnalysisService
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.preprocessing.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
 from tests.test_rbp_execution_parity import window
 
 
@@ -35,13 +35,12 @@ def signal_fixture(kind):
 def context(values, monkeypatch):
     record = SimpleNamespace(id="quality-test", channels=["Fp1-REF", "Fp2-REF"], sfreq=200., duration_s=5.)
     recordings = SimpleNamespace(analysis_signal_provenance=lambda _: {"analysis_reference": "as_recorded"})
-    from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service = SpectralAnalysisService(recordings, OfflineScientificPreprocessingService.for_recording_access(lambda *a, **k: None, lambda _: {}))
     # Supply a prepared source to exercise actual service slicing, Welch and transport.
     monkeypatch.setattr(service.offline_preprocessing, "prepare_continuous", lambda *a, **k:
                         PreprocessedRecording(values, 200., tuple(record.channels)))
-    recordings.load_spectrum = service.load_spectrum
-    return _RecordingAlgorithmContext(recordings, record), record, service
+    return _RecordingAlgorithmContext(recordings, record, spectral_analysis=service), record, service
 
 
 @pytest.mark.parametrize("kind", ["amplitude", "clipping", "low_amplitude", "zero", "gap"])

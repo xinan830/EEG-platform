@@ -5,8 +5,8 @@ import pytest
 
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.run_execution_context import RunCancelledError, RunExecutionContext
-from app.services.run_worker import RunWorker
+from app.services.analysis.runs.run_execution_context import RunCancelledError, RunExecutionContext
+from app.services.analysis.runs.run_worker import RunWorker
 from tests.test_run_queue import _queue, _request
 
 
@@ -68,14 +68,14 @@ def test_cancellation_after_first_window_preserves_progress_and_no_artifact(tmp_
         "low_hz": 1, "high_hz": 30,
     })
     run = queue.enqueue(request)
-    original = queue.recordings.load_spectrum
+    original = queue.spectral_analysis.load_spectrum
     calls = []
     def cancel_after_read(*args, **kwargs):
         result = original(*args, **kwargs)
         calls.append(1)
         queue.cancel(run.run_id)
         return result
-    monkeypatch.setattr(queue.recordings, "load_spectrum", cancel_after_read)
+    monkeypatch.setattr(queue.spectral_analysis, "load_spectrum", cancel_after_read)
     final = queue.process_next()
     assert final.status is RunStatus.CANCELLED
     assert final.progress_completed == 1
@@ -140,8 +140,8 @@ def test_merged_explicit_keys_survive_terminal_status_and_restart(tmp_path):
     first = queue.enqueue(_request(recording_id, "first"))
     assert queue.enqueue(_request(recording_id, "alias")).run_id == first.run_id
     queue.cancel(first.run_id)
-    from app.services.run_queue import PersistentRunQueue
-    restored = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts")
+    from app.services.analysis.runs.run_queue import PersistentRunQueue
+    restored = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts", algorithm_registry=queue.algorithm_runtime_registry)
     for key in ("first", "alias"):
         assert restored.enqueue(_request(recording_id, key)).run_id == first.run_id
         changed = _request(recording_id, key)
@@ -174,7 +174,7 @@ def test_cancelled_queued_job_cannot_be_claimed(tmp_path):
 
 
 def test_worker_restores_native_limits_after_delayed_exit(monkeypatch):
-    import app.services.run_worker as module
+    import app.services.analysis.runs.run_worker as module
     entered, release, restored = threading.Event(), threading.Event(), threading.Event()
     class Limits:
         def restore_original_limits(self):

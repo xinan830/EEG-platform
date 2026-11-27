@@ -31,15 +31,15 @@ from on_demand_fixtures import configure_api, psd_config
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.bootstrap import build_builtin_registry
 from app.models.run import RunCreateRequest
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recordings import RecordingService
-from app.services.results import ResultService
-from app.services.run_queue import PersistentRunQueue
-from app.services.validations import ValidationService
-from app.services.mapped_preprocessing import MappedArrays
-import app.services.mapped_preprocessing as preprocessing
-from app.services.dynamic_window_artifacts import DynamicWindowArtifactStore
-from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.results.results import ResultService
+from app.services.analysis.runs.run_queue import PersistentRunQueue
+from app.services.workspace.validations import ValidationService
+from app.services.preprocessing.mapped_arrays import MappedArrays
+import app.services.preprocessing.mapped_preprocessing as preprocessing
+from app.services.analysis.windows.dynamic_window_artifacts import DynamicWindowArtifactStore
+from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
 
 
 def hashes(root):
@@ -69,7 +69,8 @@ def compare_real(root, scratch):
     # one gate per worker would make fairness and resource measurements false.
     coordinator = ScientificComputeCoordinator()
     runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "artifacts",
-                              compute_coordinator=coordinator)
+                              compute_coordinator=coordinator,
+                              algorithm_registry=build_builtin_registry())
     windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path,
                                    scratch / "artifacts", compute_coordinator=coordinator)
     results = ResultService(runs, ValidationService(recordings.database_path))
@@ -269,7 +270,7 @@ def _benchmark(scratch, duration_s, gap, registration_ms):
     before = hashes(root)
     monitor = Resources(service.recordings)
     timing = PreparationTiming()
-    logger = logging.getLogger("app.services.on_demand_worker")
+    logger = logging.getLogger("app.services.analysis.windows.on_demand_worker")
     old_level = logger.level
     logger.setLevel(logging.INFO)
     logger.addHandler(timing)

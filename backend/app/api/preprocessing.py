@@ -14,11 +14,15 @@ from app.models.preprocessing_preview import (
 from app.models.artifact_references import ArtifactReferenceCatalogue, PreprocessingAnalysisChannels, ChannelIdentityUpdate
 from app.models.analysis_config import OfflinePreprocessingRequest
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
-from app.services.artifact_inspection import inspect_recording_artifact_segments, inspect_recording_ica_components
-from app.services.bad_channel_reader import inspect_recording_bad_channels
-from app.services.preprocessing_preview import build_preprocessing_preview_window
-from app.services.preview_envelope import PreviewEnvelopeLimitError
-from app.services.recordings import RecordingService
+from app.services.preprocessing.artifact_inspection import (
+    inspect_recording_artifact_segments,
+    inspect_recording_bad_channels,
+    inspect_recording_ica_components,
+)
+from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
+from app.services.preprocessing.preview_envelope import PreviewEnvelopeLimitError
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.recordings.recordings import RecordingService
 
 
 router = APIRouter(prefix="/api/recordings", tags=["preprocessing"])
@@ -26,6 +30,10 @@ router = APIRouter(prefix="/api/recordings", tags=["preprocessing"])
 
 def _service(request: Request) -> RecordingService:
     return request.app.state.recording_service
+
+
+def _offline_preprocessing(request: Request) -> OfflineScientificPreprocessingService:
+    return request.app.state.offline_scientific_preprocessing_service
 
 
 def _record_audit(request: Request, action: str, recording_id: str, parameters: dict[str, object]) -> None:
@@ -38,7 +46,7 @@ def _record_audit(request: Request, action: str, recording_id: str, parameters: 
 @router.get("/{recording_id}/preprocessing/reference-channels", response_model=ArtifactReferenceCatalogue)
 def reference_channels(recording_id: str, request: Request):
     try:
-        from app.services.artifact_references import discover_artifact_references
+        from app.services.recordings.recording_channel_roles import discover_artifact_references
         service = _service(request)
         return discover_artifact_references(service, service.require_recording(recording_id))
     except KeyError:
@@ -50,7 +58,7 @@ def reference_channels(recording_id: str, request: Request):
 @router.put("/{recording_id}/preprocessing/channel-identities", response_model=ArtifactReferenceCatalogue)
 def update_channel_identities(recording_id: str, request: Request, body: ChannelIdentityUpdate):
     try:
-        from app.services.recording_channel_roles import save_recording_identities
+        from app.services.recordings.recording_channel_roles import save_recording_identities
         service = _service(request)
         payload = save_recording_identities(service, service.require_recording(recording_id), body)
         _record_audit(request, "preprocessing.channel_identities", recording_id, {"channels": [row.model_dump() for row in body.channels]})
@@ -65,7 +73,7 @@ def update_channel_identities(recording_id: str, request: Request, body: Channel
 def analysis_channels(recording_id: str, request: Request, body: OfflinePreprocessingRequest,
                       montage_id: Optional[str] = Query(None)):
     try:
-        from app.services.artifact_references import resolve_preprocessing_analysis_channels
+        from app.services.preprocessing.artifact_references import resolve_preprocessing_analysis_channels
         service = _service(request)
         return resolve_preprocessing_analysis_channels(service, service.require_recording(recording_id), body, montage_id)
     except KeyError:
@@ -138,6 +146,7 @@ def inspect_artifact_segments(
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz or None, notch_q=notch_q,
             artifact_reference_channels=tuple(item.strip() for value in (eog_channels, ecg_channels)
                 if value for item in value.split(",") if item.strip()),
+            offline_preprocessing=_offline_preprocessing(request),
         )
         _record_audit(request, "preprocessing.inspect_artifact_segments", recording_id, {
             "start_s": payload["start_s"],
@@ -210,6 +219,7 @@ def inspect_ica_components_endpoint(
             low_hz=low_hz,
             high_hz=high_hz,
             notch_hz=notch_hz,
+            offline_preprocessing=_offline_preprocessing(request),
         )
         _record_audit(request, "preprocessing.inspect_ica_components", recording_id, {
             "start_s": payload["start_s"],
@@ -253,6 +263,7 @@ def preview_preprocessed_window(
             artifact_rejection_spec=art_spec,
             artifact_removal_spec=rem_spec,
             max_points=body.max_points,
+            offline_preprocessing=_offline_preprocessing(request),
         )
         return payload
     except PreviewEnvelopeLimitError as exc:

@@ -15,13 +15,13 @@ from app.api.results import router as results_router
 from app.api.runs import router as runs_router
 from app.bootstrap import build_builtin_registry
 from app.core.api_contract import RequestContextMiddleware, validation_exception_handler
-from app.services.audit import AuditService
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recordings import RecordingService
-from app.services.results import ResultService
-from app.services.run_queue import PersistentRunQueue
-from app.services.validations import ValidationService
-from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.workspace.audit import AuditService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.results.results import ResultService
+from app.services.analysis.runs.run_queue import PersistentRunQueue
+from app.services.workspace.validations import ValidationService
+from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
 
 
 def write_recording(root: Path, *, first_counter: int = 700, gap: bool = False,
@@ -97,6 +97,7 @@ def configure_api(tmp_path: Path, *, gap: bool = False, rejected: bool = False,
     runs = PersistentRunQueue(
         recordings, recordings.database_path, tmp_path / "artifacts",
         compute_coordinator=compute_coordinator,
+        algorithm_registry=build_builtin_registry(),
     )
     windows = DynamicWindowService(
         recordings, build_builtin_registry(), recordings.database_path, tmp_path / "artifacts",

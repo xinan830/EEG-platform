@@ -13,7 +13,7 @@ from app.models.custom_frequency_inspection import (
     CustomFrequencyRangeResponse,
     CustomFrequencyWindowPair,
 )
-from app.services.result_scalar_inputs import ResultProjectionUnavailable
+from app.services.analysis.results.result_scalar_inputs import ResultProjectionUnavailable
 
 logger = logging.getLogger("brain_platform.custom_frequency")
 router = APIRouter(prefix="/api/analysis-windows/custom-frequency", tags=["custom-frequency"])

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
 from app.core.api_contract import error_response
-from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
-from app.services.results import ResultExportUnavailable
+from app.services.analysis.runs.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
+from app.services.analysis.results.results import ResultExportUnavailable
 
 
 router = APIRouter(prefix="/api/runs", tags=["results"])

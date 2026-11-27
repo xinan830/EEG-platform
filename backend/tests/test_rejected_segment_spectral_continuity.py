@@ -9,8 +9,9 @@ import numpy as np
 from app.algorithm_runtime.on_demand import DynamicWindowIdentity, DynamicWindowRequest
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ManualArtifactSegment
 from app.scientific.primitives.annotated_spectral import estimate_annotated_channel_psd
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.runs import RunService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
 from test_offline_bad_channels import _write_multi_channel_edf
 
 
@@ -78,7 +79,10 @@ def test_rbp_and_psd_dynamic_and_static_continue_past_rejected_bad_segment(tmp_p
             ManualArtifactSegment(start_sample=int(14.00 * sfreq), end_sample=int(14.32 * sfreq), reason="emg"),
         ),
     )
-    static_spectrum = recordings.load_spectrum(
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    from app.services.analysis.spectral_analysis import SpectralAnalysisService
+    spectral = SpectralAnalysisService(recordings, OfflineScientificPreprocessingService.for_recordings(recordings))
+    static_spectrum = spectral.load_spectrum(
         recording,
         start_s=0.0,
         window_s=20.0,
@@ -90,7 +94,7 @@ def test_rbp_and_psd_dynamic_and_static_continue_past_rejected_bad_segment(tmp_p
     assert static_spectrum["quality"]["by_channel"]["Fp1"]["status"] == "warning"
     assert "non_finite" in static_spectrum["quality"]["by_channel"]["Fp1"]["reasons"]
 
-    runs = RunService(recordings, db, tmp_path / "artifacts")
+    runs = RunService(recordings, db, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     dynamic = DynamicWindowService(
         recordings, runs.algorithm_runtime_registry, database_path=db, artifacts_dir=tmp_path / "artifacts",
     )

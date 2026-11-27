@@ -12,9 +12,9 @@ from app.api.cache_maintenance import router
 from app.api.live_filters import router as live_filters_router
 from app.api.live_recordings import router as live_recordings_router
 from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenanceMiddleware
-from app.services.cache_maintenance import CacheMaintenanceService
-from app.services.live_filter import LiveFilterService
-from app.services.live_recording_access import LiveRecordingAccessService
+from app.services.analysis.windows.cache_maintenance import CacheMaintenanceService
+from app.services.viewer.live_filter import LiveFilterService
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessService
 from on_demand_fixtures import configure_api, psd_config, source_hashes
 from test_on_demand_psd_api import wait_window
 

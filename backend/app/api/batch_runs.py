@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, status
 
 from app.core.api_contract import error_response
 from app.models.batch_run import BatchRunCreateRequest
-from app.services.batch_runs import BatchProjectMembershipError
+from app.services.analysis.runs.batch_runs import BatchProjectMembershipError
 
 
 router = APIRouter(prefix="/api/batch-runs", tags=["batch-runs"])

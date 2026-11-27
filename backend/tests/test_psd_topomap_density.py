@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.topomap import TopomapService
-from app.services.result_scalar_inputs import PsdResultScalarAdapter, ResultProjectionUnavailable
+from app.services.analysis.results.topomap import TopomapService
+from app.services.analysis.results.result_scalar_inputs import PsdResultScalarAdapter, ResultProjectionUnavailable
 
 BANDS = [("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0),
          ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0)]

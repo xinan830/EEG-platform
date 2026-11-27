@@ -5,16 +5,22 @@ import pytest
 
 from app.models.analysis_config import AnalysisConfigRequest
 from app.scientific.primitives.spectral import estimate_spectrogram, estimate_spectrogram_with_quality
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.recordings import RecordingService
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.recording_samples import ArraySampleReader
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recordings.recording_samples import ArraySampleReader
 
 
 def _service(tmp_path: Path) -> tuple[RecordingService, object]:
     service = RecordingService(tmp_path / "recordings", tmp_path / "catalog.sqlite3")
     recording = service.create_recording("sample.bdf", ".bdf", b"raw")
     return service, recording
+
+
+def _spectral(service: RecordingService) -> SpectralAnalysisService:
+    return SpectralAnalysisService(service, OfflineScientificPreprocessingService.for_recordings(service))
 
 
 def _provide_data(monkeypatch, service, data, sfreq, names):
@@ -29,6 +35,7 @@ def _provide_data(monkeypatch, service, data, sfreq, names):
 
 def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
@@ -38,7 +45,7 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
     ])
     _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz", "Oz"])
 
-    payload = service.load_spectrum(recording, channels=["Oz", "Fz"])
+    payload = spectral.load_spectrum(recording, channels=["Oz", "Fz"])
 
     assert payload["channels"] == ["Oz", "Fz"]
     assert payload["units"] == {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"}
@@ -50,12 +57,13 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
 
 def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(10 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
-    payload = service.load_spectrum(recording, 0.0, 10.0, ["F3"])
+    payload = spectral.load_spectrum(recording, 0.0, 10.0, ["F3"])
 
     assert payload["welch_contract"]["welch_segment_s"] == 4.0
     assert payload["welch_contract"]["welch_segment_overlap"] == 0.5
@@ -64,13 +72,14 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
 
 def test_welch_segment_psds_are_opt_in_and_keep_output_units(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["O1"])
 
-    ordinary = service.load_spectrum(recording, 0.0, 20.0, ["O1"])
-    diagnostic = service.load_spectrum(
+    ordinary = spectral.load_spectrum(recording, 0.0, 20.0, ["O1"])
+    diagnostic = spectral.load_spectrum(
         recording, 0.0, 20.0, ["O1"], include_welch_segments=True,
     )
     estimate = _RecordingAlgorithmContext._spectral_estimate(diagnostic)
@@ -88,12 +97,13 @@ def test_welch_segment_psds_are_opt_in_and_keep_output_units(tmp_path, monkeypat
 
 def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
-    payload = service.load_spectrum(recording, 0.0, 149.982, ["F3"])
+    payload = spectral.load_spectrum(recording, 0.0, 149.982, ["F3"])
 
     assert payload["window_start_s"] == 0.0
     assert payload["window_duration_s"] == pytest.approx(149.98)
@@ -101,24 +111,26 @@ def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, m
 
 def test_spectrum_rejects_a_range_past_the_recording_end_instead_of_truncating(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
     with pytest.raises(ValueError, match="超出文件范围"):
-        service.load_spectrum(recording, 1.0, 149.982, ["F3"])
+        spectral.load_spectrum(recording, 1.0, 149.982, ["F3"])
 
 
 def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 40 * times) + 6e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
-    wide = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=0.5, high_hz=50.0)
-    default = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0, notch_hz=None)
+    wide = spectral.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=0.5, high_hz=50.0)
+    default = spectral.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0, notch_hz=None)
 
     assert wide["frequencies_hz"][0] == 0.5
     assert wide["frequencies_hz"][-1] == 50.0
@@ -132,17 +144,18 @@ def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output
 
 def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cache(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
-    first = service.load_spectrum(
+    first = spectral.load_spectrum(
         recording, 0.0, 20.0, ["Fz"], notch_hz=60.0,
         filter_low_hz=0.5, filter_high_hz=40.0,
         output_low_hz=1.0, output_high_hz=50.0,
     )
-    second = service.load_spectrum(
+    second = spectral.load_spectrum(
         recording, 0.0, 20.0, ["Fz"], notch_hz=60.0,
         filter_low_hz=0.5, filter_high_hz=40.0,
         output_low_hz=5.0, output_high_hz=10.0,
@@ -161,39 +174,42 @@ def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cach
 
 def test_spectrum_notch_changes_signal_and_preprocessing_identity(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 500.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (20e-6 * np.sin(2 * np.pi * 50 * times) + 5e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
     common = dict(filter_low_hz=1.0, filter_high_hz=80.0, output_low_hz=45.0, output_high_hz=55.0)
-    notched = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=50.0, **common)
-    unnotched = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=None, **common)
+    notched = spectral.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=50.0, **common)
+    unnotched = spectral.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=None, **common)
 
     notch_bin = int(np.argmin(np.abs(np.asarray(notched["frequencies_hz"]) - 50.0)))
     assert notched["psd"]["Fz"][notch_bin] < unnotched["psd"]["Fz"][notch_bin] * 0.1
     assert notched["filter_contract"]["notch_hz"] == 50.0
     assert unnotched["filter_contract"]["notch_hz"] is None
-    assert len(service._analysis_preprocess_cache._entries) == 2
+    assert len(spectral.offline_preprocessing.prepared_cache._entries) == 2
 
 
 def test_spectrogram_uses_explicit_notch_without_whole_record_cache(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(12 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
-    payload = service.load_spectrogram(recording, 0.0, 12.0, ["Fz"], low_hz=1.0, high_hz=50.0, notch_hz=50.0)
+    payload = spectral.load_spectrogram(recording, 0.0, 12.0, ["Fz"], low_hz=1.0, high_hz=50.0, notch_hz=50.0)
 
     assert payload["notch_hz"] == 50.0
     assert payload["frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
     assert payload["frequencies_hz"][-1] == 50.0
-    assert not service._analysis_preprocess_cache._entries
+    assert not spectral.offline_preprocessing.prepared_cache._entries
 
 
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
@@ -203,7 +219,7 @@ def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch
     _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
     calls = {"count": 0}
 
-    import app.services.mapped_preprocessing as mapped_preprocessing
+    import app.services.preprocessing.mapped_preprocessing as mapped_preprocessing
     original = mapped_preprocessing.preprocess_blocks
 
     def counted(*args, **kwargs):
@@ -211,8 +227,8 @@ def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch
         return original(*args, **kwargs)
 
     monkeypatch.setattr(mapped_preprocessing, "preprocess_blocks", counted)
-    service.load_spectrum(recording, channels=["Fz"], window_s=10)
-    service.load_spectrum(recording, channels=["Pz"], window_s=10)
+    spectral.load_spectrum(recording, channels=["Fz"], window_s=10)
+    spectral.load_spectrum(recording, channels=["Pz"], window_s=10)
 
     assert calls["count"] == 1
 
@@ -221,6 +237,7 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
@@ -230,14 +247,14 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
     recording = replace(recording, sfreq=sfreq, duration_s=30.0, channels=("Fz", "Pz"))
     _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
 
-    static = service.load_spectrum(recording, 0.0, 10.0, ["Fz", "Pz"])
+    static = spectral.load_spectrum(recording, 0.0, 10.0, ["Fz", "Pz"])
     class OnDemandControl:
         is_on_demand = True
 
         def check_cancelled(self):
             pass
 
-    on_demand = service.load_spectrum(
+    on_demand = spectral.load_spectrum(
         recording, 0.0, 10.0, ["Pz"], execution_context=OnDemandControl(),
     )
 
@@ -245,7 +262,7 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
     assert on_demand["band_power"]["Pz"] == static["band_power"]["Pz"]
     prepared = [
         entry for (recording_id, _identity), entry
-        in service._analysis_preprocess_cache._entries.items()
+        in spectral.offline_preprocessing.prepared_cache._entries.items()
         if recording_id == recording.id
     ]
     assert len(prepared) == 1
@@ -257,6 +274,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
@@ -267,7 +285,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
     _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
     calls = {"count": 0}
 
-    import app.services.mapped_preprocessing as mapped_preprocessing
+    import app.services.preprocessing.mapped_preprocessing as mapped_preprocessing
     original = mapped_preprocessing.preprocess_blocks
 
     def counted(*args, **kwargs):
@@ -275,7 +293,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
         return original(*args, **kwargs)
 
     monkeypatch.setattr(mapped_preprocessing, "preprocess_blocks", counted)
-    service.load_spectrum(recording, 0.0, 10.0, ["Fz"], low_hz=1.0, high_hz=30.0)
+    spectral.load_spectrum(recording, 0.0, 10.0, ["Fz"], low_hz=1.0, high_hz=30.0)
 
     class OnDemandControl:
         is_on_demand = True
@@ -283,7 +301,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
         def check_cancelled(self):
             pass
 
-    service.load_spectrum(
+    spectral.load_spectrum(
         recording, 0.0, 10.0, ["Pz"], notch_hz=50.0,
         filter_low_hz=1.0, filter_high_hz=30.0,
         output_low_hz=1.0, output_high_hz=30.0,
@@ -291,13 +309,14 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
     )
 
     assert calls["count"] == 1
-    assert len(service._analysis_preprocess_cache._entries) == 1
+    assert len(spectral.offline_preprocessing.prepared_cache._entries) == 1
 
 
 def test_on_demand_spectrogram_matches_static_without_whole_preprocessed_source(tmp_path, monkeypatch):
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(12 * int(sfreq)) / sfreq
     data = np.column_stack([
@@ -313,27 +332,28 @@ def test_on_demand_spectrogram_matches_static_without_whole_preprocessed_source(
         def check_cancelled(self):
             pass
 
-    static = service.load_spectrogram(recording, 0.0, 12.0, ["Pz"], notch_hz=None)
-    service._analysis_preprocess_cache.clear_recording(recording.id)
-    on_demand = service.load_spectrogram(
+    static = spectral.load_spectrogram(recording, 0.0, 12.0, ["Pz"], notch_hz=None)
+    spectral.offline_preprocessing.prepared_cache.clear_recording(recording.id)
+    on_demand = spectral.load_spectrogram(
         recording, 0.0, 12.0, ["Pz"], notch_hz=None,
         execution_context=OnDemandControl(),
     )
 
     np.testing.assert_array_equal(on_demand["power_linear"]["Pz"], static["power_linear"]["Pz"])
     np.testing.assert_array_equal(on_demand["power_db"]["Pz"], static["power_db"]["Pz"])
-    assert not service._analysis_preprocess_cache._entries
+    assert not spectral.offline_preprocessing.prepared_cache._entries
     assert on_demand["preprocessing"]["channel_order"] == ["Pz"]
 
 
 def test_configured_v4_defaults_record_current_baseline(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(40 * int(sfreq)) / sfreq
     data = np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * times), 8e-6 * np.sin(2 * np.pi * 6 * times)])
     _provide_data(monkeypatch, service, data, sfreq, ["F3", "Fz"])
-    frozen = service.load_spectrum(recording, 0, 30, ["F3", "Fz"])
-    configured = service.load_configured_spectrum(recording, AnalysisConfigRequest(
+    frozen = spectral.load_spectrum(recording, 0, 30, ["F3", "Fz"])
+    configured = spectral.load_configured_spectrum(recording, AnalysisConfigRequest(
         mode="static", channels=["F3", "Fz"], time={"start_s": 0, "end_s": 30}
     ))
     assert configured["algorithm_version"] == "offline-spectral-v4-configurable"
@@ -358,29 +378,32 @@ def test_configured_v4_defaults_record_current_baseline(tmp_path, monkeypatch):
 
 def test_configured_static_range_rejects_file_overflow(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     times = np.arange(1000) / 100.0
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, values, 200.0, ["F3"])
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 5, "end_s": 15})
     import pytest
     with pytest.raises(ValueError, match="超出文件范围"):
-        service.load_configured_spectrum(recording, config)
+        spectral.load_configured_spectrum(recording, config)
 
 
 def test_configured_static_range_accepts_one_sample_rounding_error(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     times = np.arange(7634) / 1000.0
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, values, 1000.0, ["F3"])
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 1.022, "end_s": 7.635})
-    payload = service.load_configured_spectrum(recording, config)
+    payload = spectral.load_configured_spectrum(recording, config)
     assert payload["actual_end_s"] == 7.634
 
 
 def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     config = AnalysisConfigRequest(mode="spectrogram", channels=["F3"], time={"start_s": 1.022, "end_s": 7.635})
-    monkeypatch.setattr(service, "load_spectrogram", lambda *_args, **_kwargs: {
+    monkeypatch.setattr(spectral, "load_spectrogram", lambda *_args, **_kwargs: {
         "recording_id": recording.id, "window_start_s": 1.022, "window_duration_s": 6.612,
         "sfreq_hz": 500.0, "channels": ["F3"], "times_s": [1.022], "frequencies_hz": [1.0],
         "power": {"F3": [[1.0]]}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v4-bounded-notch",
@@ -390,7 +413,7 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
         "band_power_timeseries": {"F3": {"delta": [1.0], "theta": [1.0], "alpha": [1.0], "beta": [1.0]}},
         "segment_s": 4.0, "step_s": 1.0,
     })
-    payload = service.load_configured_spectrogram(recording, config)
+    payload = spectral.load_configured_spectrogram(recording, config)
     assert payload["algorithm_version"] == "spectrogram-v4-bounded-notch-configurable"
     assert payload["actual_end_s"] == 7.634
     assert payload["matrix_shape"] == [1, 1]
@@ -402,6 +425,7 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
 
 def test_configured_spectrogram_returns_backend_custom_band_trend(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
+    spectral = _spectral(service)
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
@@ -411,7 +435,7 @@ def test_configured_spectrogram_returns_backend_custom_band_trend(tmp_path, monk
         custom_frequency_range={"low_hz": 8, "high_hz": 13},
     )
 
-    payload = service.load_configured_spectrogram(recording, config)
+    payload = spectral.load_configured_spectrogram(recording, config)
 
     np.testing.assert_allclose(
         payload["custom_band_power_timeseries"]["F3"],

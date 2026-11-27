@@ -4,8 +4,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.api_contract import error_response
-from app.services.live_filter import LiveFilterService
-from app.services.waveform_filter import CHECKPOINT_VERSION
+from app.services.viewer.live_filter import LiveFilterService
+from app.services.viewer.waveform_filter import CHECKPOINT_VERSION
 
 
 router = APIRouter(prefix="/api/live-filters", tags=["live-filters"])

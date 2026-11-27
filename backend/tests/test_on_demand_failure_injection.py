@@ -23,7 +23,7 @@ def test_partial_publish_is_unreadable_and_files_are_cleaned(tmp_path, monkeypat
                 raise OSError("injected interruption after payload rename")
             original_replace(source, target)
 
-        import app.services.dynamic_window_artifacts as module
+        import app.services.analysis.windows.dynamic_window_artifacts as module
         original_replace = module.os.replace
         monkeypatch.setattr(module.os, "replace", fail_metadata_publish)
         response = windows.ensure(request(recording))

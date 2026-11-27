@@ -116,7 +116,8 @@ def test_offline_preprocessing_continuous_and_bounded_window_reject_artifacts_wi
     assert body["clean_ratio"] < 0.95
 
     # 2. Continuous preprocessing: none vs annotate vs reject stay isolated in cache.
-    preproc = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    preproc = OfflineScientificPreprocessingService.for_recordings(recordings)
     art_annotate = ArtifactRejectionSpec(policy="annotate", peak_to_peak_uv=300.0, muscle_zscore_threshold=3.5)
     art_reject = ArtifactRejectionSpec(policy="reject", peak_to_peak_uv=300.0, muscle_zscore_threshold=3.5)
 
@@ -208,7 +209,8 @@ def test_manual_artifact_unknown_channel_raises_and_narrow_band_ptp_preserves_bu
     source = _write_multi_channel_edf(tmp_path / "narrow_burst.edf", channels, burst * 1e6, sfreq=int(sfreq))
     rec_id = client.post("/api/recordings/import", files={"file": ("narrow_burst.edf", source)}).json()["id"]
     recording = recordings.require_recording(rec_id)
-    preproc = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    preproc = OfflineScientificPreprocessingService.for_recordings(recordings)
 
     art_ptp = ArtifactRejectionSpec(policy="reject", peak_to_peak_uv=300.0, muscle_zscore_threshold=None)
     cont_narrow = preproc.prepare_continuous(

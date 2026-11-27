@@ -56,14 +56,12 @@ def test_unexpected_preview_failure_is_not_misreported_as_invalid_request(monkey
         def require_recording(self, _recording_id):
             return SimpleNamespace(id="recording-1")
 
-        @property
-        def waveform(self):
-            return self
-
+    class WaveformService:
         def load_preview(self, *_args, **_kwargs):
             raise RuntimeError("storage unavailable")
 
     monkeypatch.setattr(app.state, "recording_service", RecordingService())
+    monkeypatch.setattr(app.state, "recording_waveform_service", WaveformService())
 
     response = TestClient(app, raise_server_exceptions=False).get("/api/recordings/recording-1/preview")
 

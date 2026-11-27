@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.models.run import RunCreateRequest
-from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+from app.services.analysis.windows.dynamic_window_resources import DynamicWindowResourcePolicy
 from on_demand_fixtures import configure_api, psd_config
 from test_on_demand_psd_api import wait_window
 

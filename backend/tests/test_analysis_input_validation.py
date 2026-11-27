@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.analysis_input_validation import AnalysisInputValidationError, validate_recording_analysis_input
+from app.services.analysis.analysis_input_validation import AnalysisInputValidationError, validate_recording_analysis_input
 
 
 def test_rejects_non_positive_sampling_rate_before_analysis():

@@ -29,7 +29,7 @@ from app.scientific.primitives.spectral import (
     estimate_spectrogram,
     estimate_welch_psd,
 )
-from app.services.validations import ValidationService
+from app.services.workspace.validations import ValidationService
 
 
 NUMPY_VERSION = "2.5.4"

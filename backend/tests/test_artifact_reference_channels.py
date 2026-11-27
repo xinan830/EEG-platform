@@ -8,10 +8,11 @@ import pytest
 
 from app.scientific.contracts.artifact_removal import ArtifactRemovalSpec
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ScientificFilterSpec
-from app.services.artifact_inspection import inspect_recording_ica_components
-from app.services.artifact_references import discover_artifact_references, prepare_artifact_references
-from app.services.mapped_preprocessing import MappedArrays
-from app.services.recordings import RecordingService
+from app.services.preprocessing.artifact_inspection import inspect_recording_ica_components
+from app.services.recordings.recording_channel_roles import discover_artifact_references
+from app.services.preprocessing.artifact_references import prepare_artifact_references
+from app.services.preprocessing.mapped_arrays import MappedArrays
+from app.services.recordings.recordings import RecordingService
 
 
 def make_recording(tmp_path, *, reference_gap=False):
@@ -118,27 +119,30 @@ def test_dedicated_reference_ica_review_and_execution_reuse_without_eeg_pollutio
     assert all(row["ecg_score"] is not None for row in review["components"])
     selected = max(review["components"], key=lambda row: abs(row["eog_score"]))["component_index"]
     applied = replace(spec, ica_fit_fingerprint=review["ica_fit_fingerprint"], ica_exclude_components=(selected,))
-    output = service.offline_scientific_preprocessing.prepare_continuous(recording,
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
+    output = offline_prep.prepare_continuous(recording,
         artifact_removal_spec=applied, artifact_rejection_spec=qc, **filters)
     assert output.channel_names == recording.channels
     assert output.artifact_removal_evidence["ica_model_reused"]
     assert output.artifact_removal_evidence["ecg_channels_used"] == ["AUX_Heart"]
     assert output.artifact_removal_evidence["excluded_components"] == [selected]
-    baseline = service.offline_scientific_preprocessing.prepare_continuous(recording, **filters)
+    baseline = offline_prep.prepare_continuous(recording, **filters)
     assert np.isfinite(output.data).all()
     assert not np.array_equal(output.data, baseline.data)
-    automatic_ecg = service.offline_scientific_preprocessing.prepare_continuous(recording,
+    automatic_ecg = offline_prep.prepare_continuous(recording,
         artifact_removal_spec=replace(applied, ecg_channels=()), artifact_rejection_spec=qc, **filters)
     assert automatic_ecg is output
     with pytest.raises(ValueError, match="ICA_FIT_FINGERPRINT_MISMATCH"):
-        service.offline_scientific_preprocessing.prepare_continuous(recording,
+        offline_prep.prepare_continuous(recording,
             artifact_removal_spec=replace(applied, eog_channels=("F3",)), artifact_rejection_spec=qc, **filters)
 
 
 def test_selecting_existing_eeg_proxy_preserves_fitting_and_output(tmp_path):
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, _ = make_recording(tmp_path)
     spec = ArtifactRemovalSpec(method="ica_infomax", eog_channels=("F3",), ica_n_components=3, ica_exclude_components=())
-    output = service.offline_scientific_preprocessing.prepare_continuous(recording,
+    output = OfflineScientificPreprocessingService.for_recordings(service).prepare_continuous(recording,
         low_hz=1, high_hz=50, notch_hz=50, artifact_removal_spec=spec)
     assert output.channel_names == ("F3", "F4", "C3", "C4")
     assert output.artifact_removal_evidence["eog_channels_used"] == ["F3"]
@@ -146,8 +150,8 @@ def test_selecting_existing_eeg_proxy_preserves_fitting_and_output(tmp_path):
 
 def test_reference_partition_precedes_car_and_bad_channel_exclusion_and_hits_cache(tmp_path):
     from app.scientific.contracts.preprocessing import BadChannelSpec
-    from app.services.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
-    from app.services.artifact_references import exclude_reference_outputs
+    from app.services.recordings.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
+    from app.services.recordings.recording_reference_sources import exclude_reference_outputs
     service, recording, values = make_recording(tmp_path)
     recording = replace(recording, channel_identities=(("F3", "eog"),))
     names = recording.channels
@@ -167,14 +171,15 @@ def test_reference_partition_precedes_car_and_bad_channel_exclusion_and_hits_cac
         np.testing.assert_allclose(actual[:, 0], (values[:500, 1]-values[:500, 2])/2, atol=1e-18)
     assert exclude_reference_outputs(recording.channels, names, ("F3",), provenance, bad) == session.channel_names
     from app.models.analysis_config import OfflinePreprocessingRequest
-    from app.services.artifact_references import resolve_preprocessing_analysis_channels
+    from app.services.preprocessing.artifact_references import resolve_preprocessing_analysis_channels
     layout = resolve_preprocessing_analysis_channels(service, recording, OfflinePreprocessingRequest.model_validate({
         "artifact_removal": {"method": "eog_regression", "eog_channels": ["F3"]},
         "bad_channels": {"policy": "exclude", "channels": ["C4"]}}))
     assert tuple(layout["channels"]) == session.channel_names
     # The prediction must use the same adjusted formulas as real reading.
     service.analysis_signal_provenance = lambda _: provenance
-    pre = service.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    pre = OfflineScientificPreprocessingService.for_recordings(service)
     first = pre.prepare_continuous(recording, low_hz=1, high_hz=50, notch_hz=50,
         artifact_removal_spec=spec, bad_channel_spec=bad)
     second = pre.prepare_continuous(recording, low_hz=1, high_hz=50, notch_hz=50,
@@ -240,12 +245,12 @@ def test_imported_reference_api_review_preview_and_spectrum(tmp_path, extension)
     assert removal_evidence["ecg_channels_used"] == ["ECG1"]
     # Exercise the real desktop full/on-demand algorithm entry points with the resolved EEG layout.
     from app.bootstrap import build_builtin_registry
-    from app.services.runs import RunService
-    from app.services.on_demand_dynamic import DynamicWindowService
-    from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+    from app.services.analysis.runs.runs import RunService
+    from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+    from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
     from test_on_demand_rbp_api import wait_window
     recordings = client.app.state.recording_service
-    runs = RunService(recordings, recordings.database_path, tmp_path / "run-artifacts")
+    runs = RunService(recordings, recordings.database_path, tmp_path / "run-artifacts", algorithm_registry=build_builtin_registry())
     client.app.state.run_service = runs
     windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path,
         tmp_path / "window-artifacts", compute_coordinator=ScientificComputeCoordinator())
@@ -294,7 +299,8 @@ def test_reference_gap_preserved_without_poisoning_finite_runs_and_maps_released
 def test_multiple_eog_ssp_uses_public_api_and_only_emits_eeg(tmp_path):
     service, recording, _ = make_recording(tmp_path)
     recording = replace(recording, channel_identities=(("AUX_Heart", "eog"),))
-    output = service.offline_scientific_preprocessing.prepare_continuous(recording,
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    output = OfflineScientificPreprocessingService.for_recordings(service).prepare_continuous(recording,
         low_hz=1, high_hz=50, notch_hz=50,
         artifact_removal_spec=ArtifactRemovalSpec(method="ssp_eog", eog_channels=("AUX_Eye", "AUX_Heart")))
     assert output.channel_names == recording.channels
@@ -306,7 +312,7 @@ def test_multiple_eog_ssp_uses_public_api_and_only_emits_eeg(tmp_path):
 def test_edf_physical_units_and_native_rates_are_verified(tmp_path, mixed_rate):
     import mne
     import pyedflib
-    from app.services.artifact_references import voltage_source_indexes
+    from app.services.recordings.recording_reference_sources import voltage_source_indexes
     path = tmp_path/"physical-units.edf"
     rates = [250, 125 if mixed_rate else 250, 250]
     with pyedflib.EdfWriter(str(path), 3, pyedflib.FILETYPE_EDFPLUS) as writer:
@@ -355,7 +361,8 @@ def test_export_aliases_resolve_to_canonical_montage_inputs_before_car(tmp_path)
         import_channel_configuration_snapshot_json=json.dumps(snapshot),
         import_channel_column_mapping_json=json.dumps([dict(source_column=i,native_channel_index=10+i) for i in range(4)]),
         import_montage_configuration_snapshot_json=json.dumps(montage))
-    pre = service.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    pre = OfflineScientificPreprocessingService.for_recordings(service)
     options = dict(low_hz=1, high_hz=50, notch_hz=50,
         artifact_removal_spec=ArtifactRemovalSpec(method="eog_regression", eog_channels=("CH0000",)),
         bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4", "F3", "CH0000")))

@@ -8,9 +8,9 @@ from typing import Literal
 from pydantic import BaseModel, Field, JsonValue
 
 from app.core.api_contract import error_response
-from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
-from app.services.live_analysis_contracts import LiveAnalysisEnvelope
-from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisEnvelope
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
 
 
 router = APIRouter(prefix="/api/live-recordings", tags=["live-recordings"])

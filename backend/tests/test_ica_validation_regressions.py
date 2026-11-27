@@ -280,7 +280,7 @@ def test_broadband_ica_fit_applies_synced_notch_for_strong_50hz_line_noise(tmp_p
     # FastAPI treats empty notch_hz query or omitted? Verify explicit None via service path if needed.
     if unnotched_resp.status_code == 422:
         from app.scientific.contracts.preprocessing import ArtifactRemovalSpec
-        from app.services.artifact_inspection import inspect_recording_ica_components
+        from app.services.preprocessing.artifact_inspection import inspect_recording_ica_components
         # Obtain RecordingService via client app state
         svc = client.app.state.recording_service
         unnotched = inspect_recording_ica_components(

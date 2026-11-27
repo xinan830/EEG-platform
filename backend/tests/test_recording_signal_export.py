@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 import pyedflib
 
-from app.services.recording_signal_export import RecordingSignalExporter, SignalExportError
-from app.services.wpf_recording import inspect_wpf_recording
+from app.services.viewer.recording_signal_export import RecordingSignalExporter, SignalExportError
+from app.services.recordings.wpf_recording import inspect_wpf_recording
 
 
 def source_fixture(root: Path, *, gap=False, nonfinite=False, count=301, rate=1000):
@@ -133,7 +133,7 @@ def test_large_dc_offsets_use_exact_outward_encoded_bounds(tmp_path, format):
 
 
 def test_whole_recording_reads_stay_bounded(tmp_path, monkeypatch):
-    from app.services.recording_samples import WpfSampleReader
+    from app.services.recordings.recording_samples import WpfSampleReader
     recording, _ = source_fixture(tmp_path / "source", count=131080)
     original = WpfSampleReader.read
     spans = []

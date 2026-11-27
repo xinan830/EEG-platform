@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.performance_trace import performance_trace
 from app.persistence.repositories.dynamic_execution_state import DynamicExecutionStateReader
-from app.services.recordings import RecordingService
-import app.services.recordings as recording_module
+from app.services.recordings.recordings import RecordingService
+import app.services.recordings.recordings as recording_module
 import app.persistence.repositories.dynamic_attempt as attempt_module
 from test_acquisition_analysis_signals import fixture_recording, compatible_average_profile
 from test_on_demand_admission import admission

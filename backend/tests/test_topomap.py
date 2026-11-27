@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.topomap import TopomapService
-from app.services.result_scalar_inputs import RbpResultScalarAdapter, ResultProjectionUnavailable
+from app.services.analysis.results.topomap import TopomapService
+from app.services.analysis.results.result_scalar_inputs import RbpResultScalarAdapter, ResultProjectionUnavailable
 
 
 def _service(values, channels, formulas=None, status="available", arrays=None, array_units=None):
@@ -370,7 +370,7 @@ def test_run_topomap_builds_only_the_requested_scalar_field():
     ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0),
 ])
 def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_order(band_id, low_hz, high_hz):
-    from app.services.result_scalar_inputs import PsdResultScalarAdapter
+    from app.services.analysis.results.result_scalar_inputs import PsdResultScalarAdapter
 
     frequencies = np.arange(1.0, 51.0)
     result = PsdResultScalarAdapter().build_input(
@@ -404,7 +404,7 @@ def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_
 
 
 def test_psd_adapter_marks_a_band_unavailable_when_the_frequency_axis_does_not_cover_it():
-    from app.services.result_scalar_inputs import PsdResultScalarAdapter
+    from app.services.analysis.results.result_scalar_inputs import PsdResultScalarAdapter
 
     result = PsdResultScalarAdapter().build_input(
         recording_id="recording-1",
@@ -427,7 +427,7 @@ def test_psd_adapter_marks_a_band_unavailable_when_the_frequency_axis_does_not_c
 
 
 def test_psd_adapter_preserves_exact_frequency_bin_fields_for_api_consumers():
-    from app.services.result_scalar_inputs import PsdResultScalarAdapter
+    from app.services.analysis.results.result_scalar_inputs import PsdResultScalarAdapter
 
     result = PsdResultScalarAdapter().build_input(
         recording_id="recording-1",

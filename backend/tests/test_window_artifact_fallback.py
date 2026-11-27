@@ -13,7 +13,7 @@ from app.api.results import router
 from app.models.run import AnalysisRun, RunStatus
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
-from app.services.artifacts import ArtifactIntegrityError, ArtifactStore, WindowIndexUnavailable
+from app.services.analysis.runs.artifacts import ArtifactIntegrityError, ArtifactStore, WindowIndexUnavailable
 
 
 @pytest.fixture

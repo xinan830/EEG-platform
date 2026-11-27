@@ -4,7 +4,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.preprocessing_preview import _build_ic_topomap_field, build_preprocessing_preview_window
+from app.services.preprocessing.ica_component_visuals import _build_ic_topomap_field
+from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
 
 
 def preview(values, *, max_points=100, start_s=0, sfreq=1000):
@@ -18,6 +19,7 @@ def preview(values, *, max_points=100, start_s=0, sfreq=1000):
     return build_preprocessing_preview_window(
         recordings, SimpleNamespace(id="rec"), start_s=start_s, window_s=60,
         max_points=max_points,
+        offline_preprocessing=recordings.offline_scientific_preprocessing,
     )
 
 

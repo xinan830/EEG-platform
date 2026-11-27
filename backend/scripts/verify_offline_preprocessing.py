@@ -22,12 +22,13 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from fastapi.testclient import TestClient
 
-from app.services.official_algorithm_catalog import ensure_official_definitions
+from app.services.analysis.official_algorithm_catalog import ensure_official_definitions
 from app.main import app
-from app.services.audit import AuditService
-from app.services.projects import ProjectService
-from app.services.recordings import RecordingService
-from app.services.runs import RunService
+from app.services.workspace.audit import AuditService
+from app.services.workspace.projects import ProjectService
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
 
 
 def verify_recording(
@@ -49,7 +50,7 @@ def verify_recording(
         recordings = RecordingService(tmp_path / "recordings", db)
         projects = ProjectService(db)
         audit = AuditService(db)
-        runs = RunService(recordings, db, tmp_path / "artifacts")
+        runs = RunService(recordings, db, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
         ensure_official_definitions(runs.definition_service)
 
         app.state.recording_service = recordings

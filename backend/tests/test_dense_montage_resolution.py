@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.services import acquisition_analysis_signals as signals
+from app.services.recordings import acquisition_analysis_signals as signals
 
 
 def dense_manifest(count=128):

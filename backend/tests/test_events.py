@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.events import EventMarkerService
+from app.services.workspace.events import EventMarkerService
 
 
 def test_event_markers_are_sorted_and_scoped_to_recording(tmp_path: Path):

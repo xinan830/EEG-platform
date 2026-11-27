@@ -1,0 +1,450 @@
+"""Traceable synchronous execution facade for existing backend analyses."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import numpy as np
+
+from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
+from app.core.provenance import (
+    with_offline_preprocessing,
+    execution_environment,
+    implementation_version,
+    sha256_json,
+)
+from app.algorithm_runtime.offline_execution import (
+    official_definition_sha256,
+    scientific_cache_key,
+    scientific_configuration_sha256,
+    scientific_context_snapshot,
+)
+from app.algorithm_runtime.errors import InvalidAlgorithmResultError, RetiredAlgorithmVersionError
+from app.algorithm_runtime.contracts import OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION
+from app.algorithm_runtime.registry import AlgorithmRegistry
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
+from app.scientific.quality import SpectralQualityGateError
+from app.services.analysis.official_algorithm_catalog import ensure_official_definitions, official_definition_identity
+from app.models.analysis_config import AnalysisConfigRequest
+from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
+from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
+from app.services.analysis.runs.artifacts import ArtifactStore
+from app.services.workspace.definitions import DefinitionService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.runs.run_analysis_executor import RunAnalysisExecutor
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
+
+
+class RunConflictError(RuntimeError):
+    pass
+
+
+class RunService:
+    def __init__(
+        self,
+        recordings: RecordingService,
+        database_path: Path = DATABASE_PATH,
+        artifacts_dir: Path = ARTIFACTS_DIR,
+        *,
+        algorithm_registry: AlgorithmRegistry,
+        spectral_analysis: SpectralAnalysisService | None = None,
+    ):
+        self.recordings = recordings
+        self.repository = RunRepository(database_path)
+        self.artifacts = ArtifactStore(self.repository, artifacts_dir)
+        self.definition_service = DefinitionService(database_path)
+        ensure_official_definitions(self.definition_service)
+        self.algorithm_runtime_registry = algorithm_registry
+        self.executor = RunAnalysisExecutor(
+            recordings,
+            self.algorithm_runtime_registry,
+            spectral_analysis=spectral_analysis,
+        )
+        self.spectral_analysis = self.executor.spectral_analysis
+        self.offline_scientific_preprocessing = self.spectral_analysis.offline_preprocessing
+
+    def create(self, request: RunCreateRequest) -> AnalysisRun:
+        if request.execution_mode != "full":
+            raise ValueError("按需分析必须通过动态窗口接口执行，不能创建全量 Run")
+        recording = self.recordings.require_recording(request.recording_id)
+        if not recording.source_sha256:
+            raise ValueError("recording source identity is unavailable")
+        recording = self._recording_for_request(request, recording)
+        resolved = self._resolve_request(request, recording)
+        # ``display_state`` belongs to the renderer/session, not the scientific Run.
+        config_sha256 = sha256_json(resolved["config"])
+        scientific_config_sha256 = scientific_configuration_sha256(
+            resolved["config"], resolved["scientific_context"],
+        )
+        build = implementation_version()
+        cache_key = scientific_cache_key(
+            source_sha256=recording.source_sha256,
+            definition_sha256=resolved["definition_sha256"],
+            config_sha256=scientific_config_sha256,
+            implementation_build=build,
+            actual_range=resolved["actual_range"],
+        )
+        now = utc_now()
+        run = AnalysisRun(
+            run_id=uuid4().hex,
+            recording_id=recording.id,
+            analysis_type=request.analysis_type,
+            status=RunStatus.QUEUED,
+            definition_id=resolved["definition_id"],
+            definition_version=resolved["definition_version"],
+            scientific_version=resolved["scientific_version"],
+            implementation_version=build,
+            config=resolved["config"],
+            config_sha256=config_sha256,
+            cache_key=cache_key,
+            requested_range=resolved["requested_range"],
+            actual_range=None,
+            channel_mapping=resolved["channel_mapping"],
+            reference=resolved["reference"],
+            filters=resolved["filters"],
+            window=resolved["window"],
+            quality_rules=resolved["quality_rules"],
+            environment=execution_environment(),
+            is_preview=request.preview,
+            execution_mode="full",
+            created_at=now,
+            updated_at=now,
+        )
+        self.repository.create(run)
+        self.repository.update_status(run.run_id, RunStatus.RUNNING)
+
+        cached = self.repository.find_completed_cache(cache_key)
+        if cached is not None and cached.run_id != run.run_id:
+            artifact_source_run_id = self.resolve_artifact_source_run_id(cached.run_id)
+            return self.repository.update_status(
+                run.run_id,
+                RunStatus.COMPLETED,
+                actual_range=cached.actual_range,
+                result_summary=cached.result_summary,
+                reused_from_run_id=artifact_source_run_id,
+            )
+
+        try:
+            result, arrays, unit = self.executor.execute(request.analysis_type, recording, resolved)
+            structured = result.get("structured") if isinstance(result, dict) else None
+            window_ranges = structured.get("windows") if isinstance(structured, dict) else None
+            artifact = self.artifacts.write_npz(
+                run.run_id, request.analysis_type, arrays, unit,
+                window_ranges=window_ranges if isinstance(window_ranges, list) else None,
+            )
+            summary = {**result, "artifacts": [artifact.model_dump(mode="json")]}
+            return self.repository.update_status(
+                run.run_id,
+                RunStatus.COMPLETED,
+                actual_range=resolved["actual_range"],
+                result_summary=summary,
+            )
+        except ValueError as exc:
+            is_gate = isinstance(exc, SpectralQualityGateError)
+            status = RunStatus.GATE_FAILED if is_gate else RunStatus.FAILED
+            quality = exc.quality if isinstance(exc, SpectralQualityGateError) else None
+            return self.repository.update_status(
+                run.run_id,
+                status,
+                actual_range=resolved["actual_range"],
+                result_summary={
+                    "psd": None,
+                    "band_power": None,
+                    "relative_band_power": None,
+                    "quality": quality,
+                } if is_gate else None,
+                error=StructuredRunError(
+                    code=exc.code if isinstance(exc, InvalidAlgorithmResultError) else "QUALITY_GATE_FAILED" if is_gate else "ANALYSIS_INPUT_INVALID",
+                    message=str(exc),
+                    stage="analysis",
+                    details={"quality": quality} if quality is not None else {},
+                ),
+            )
+        except Exception as exc:
+            return self.repository.update_status(
+                run.run_id,
+                RunStatus.FAILED,
+                actual_range=resolved["actual_range"],
+                error=StructuredRunError(
+                    code="ANALYSIS_EXECUTION_FAILED",
+                    message=str(exc) or f"分析执行抛出 {type(exc).__name__}",
+                    stage="analysis",
+                    details={"exception_type": type(exc).__name__, "exception_message": str(exc)},
+                ),
+            )
+
+    def get(self, run_id: str) -> AnalysisRun:
+        run = self.repository.get(run_id)
+        if run is None:
+            raise KeyError("run not found")
+        return run
+
+    def list(self, recording_id: str | None = None, limit: int = 100) -> list[AnalysisRun]:
+        return self.repository.list(recording_id, limit)
+
+    def cancel(self, run_id: str) -> AnalysisRun:
+        run = self.get(run_id)
+        if run.status is not RunStatus.QUEUED:
+            raise RunConflictError(f"run in {run.status.value} state cannot be cancelled")
+        return self.repository.update_status(run_id, RunStatus.CANCELLED)
+
+    def list_artifacts(self, run_id: str):
+        return self.repository.list_artifacts(self.resolve_artifact_source_run_id(run_id))
+
+    def _recording_for_request(self, request: RunCreateRequest, recording: Any) -> Any:
+        """Bind the immutable recording to the selected analysis montage snapshot."""
+        if request.analysis_type != "official_algorithm":
+            return recording
+        config = OfficialAlgorithmRunConfig.model_validate(request.config)
+        if not config.analysis_montage_id:
+            return recording
+        return self.recordings.select_analysis_montage(recording, config.analysis_montage_id)
+
+    def resolve_artifact_source_run_id(self, run_id: str) -> str:
+        """Follow cache reuse provenance to the Run that owns the artifact."""
+        visited: set[str] = set()
+        current_id = run_id
+        while True:
+            if current_id in visited:
+                raise ValueError("Run cache reuse chain contains a cycle")
+            visited.add(current_id)
+            current = self.get(current_id)
+            if not current.reused_from_run_id:
+                return current.run_id
+            current_id = current.reused_from_run_id
+
+    def _resolve_official_montage_snapshot(
+        self,
+        recording: Any,
+        montage_snapshot: dict[str, Any],
+        channels: list[str] | tuple[str, ...],
+    ) -> dict[str, Any]:
+        catalogue = {str(item.get("id")): item for item in getattr(recording, "montage_catalogue", ())}
+        profile = catalogue.get(str(montage_snapshot["id"]))
+        if profile is None:
+            raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
+        if profile.get("available") is False:
+            raise ValueError(
+                f"ANALYSIS_MONTAGE_UNAVAILABLE: 所选导联不可用（{profile.get('unavailable_reason') or 'required_input_channel_disabled'}）"
+            )
+        if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
+            raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
+        available_outputs = {str(item.get("id")): item for item in profile.get("outputs", []) if item.get("available", False)}
+        requested_outputs = montage_snapshot.get("outputs") or []
+        mapped_ids = [str(item.get("output", "")) for item in requested_outputs]
+        mapped_roles = [str(item.get("role", "")) for item in requested_outputs]
+        if (len(mapped_ids) != len(set(mapped_ids))
+                or any(not role for role in mapped_roles)
+                or set(mapped_ids) != {str(channel) for channel in channels}):
+            raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+        for output in requested_outputs:
+            output_id = str(output.get("output", ""))
+            if output_id not in available_outputs:
+                raise ValueError("ANALYSIS_MONTAGE_OUTPUT_UNAVAILABLE: 所选导联输出不在历史目录中")
+            if str(output.get("role", "")) != str(available_outputs[output_id].get("role", "")):
+                raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+        if any(channel.casefold() not in {name.casefold() for name in available_outputs} for channel in channels):
+            raise ValueError("ANALYSIS_MONTAGE_ROLE_UNRESOLVED: 算法输入未解析到所选历史导联输出")
+        return {
+            **montage_snapshot,
+            "snapshot_source": profile.get("snapshot_source", "acquisition"),
+            "source_profile_id": profile.get("source_profile_id", profile["id"]),
+            "source_mapping": profile.get("source_mapping", {}),
+            "formulas": profile.get("formulas", []),
+        }
+
+    def _resolve_official_algorithm_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+        official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
+        montage_snapshot = official_config.montage_snapshot()
+        module = self.algorithm_runtime_registry.get_current(official_config.algorithm_id)
+        if official_config.preprocessing is not None:
+            official_config.preprocessing.validate_capabilities(module.manifest.signal_requirements)
+        if (official_config.scientific_version is not None
+                and official_config.scientific_version != module.manifest.scientific_version):
+            raise RetiredAlgorithmVersionError(
+                f"official algorithm version {official_config.scientific_version!r} is retired",
+                detail={"algorithm_id": official_config.algorithm_id,
+                        "requested_version": official_config.scientific_version,
+                        "current_version": module.manifest.scientific_version},
+            )
+        duration = float(recording.duration_s or 0.0)
+        if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
+            raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
+        from app.services.recordings.recording_channel_roles import (
+            scientific_channel_names,
+            validate_imported_raw_analysis_channels,
+        )
+        available_channels = {str(item).casefold() for item in scientific_channel_names(self.recordings, recording)}
+        assert self.executor.algorithm_runtime is not None
+        typed_runtime_config = self.executor.algorithm_runtime.validate_config(
+            module=module, config=official_config.runtime_config(),
+        )
+        channels = module.requested_channels(typed_runtime_config)
+        unknown = [item for item in channels if item.casefold() not in available_channels]
+        if unknown:
+            raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
+        validate_imported_raw_analysis_channels(recording, channels)
+        enriched_montage = (
+            self._resolve_official_montage_snapshot(recording, montage_snapshot, channels)
+            if montage_snapshot is not None else None
+        )
+        manifest = module.manifest
+        config = official_config.model_copy(update={"scientific_version": manifest.scientific_version}).model_dump(mode="json")
+        requested_range = official_config.time.model_dump(mode="json")
+        run_definition_id, run_definition_version, definition_digest = official_definition_identity(
+            self.definition_service, manifest.algorithm_id,
+        )
+        definition = {
+            "kind": "official_algorithm",
+            "definition_id": run_definition_id,
+            "definition_version": run_definition_version,
+            "definition_digest": definition_digest,
+            "algorithm_id": manifest.algorithm_id,
+            "scientific_version": manifest.scientific_version,
+            "implementation_identity": manifest.implementation_identity,
+        }
+        execution_snapshot = module.execution_snapshot(typed_runtime_config)
+        return {
+            "config": config,
+            "channels": channels,
+            "requested_range": requested_range,
+            "actual_range": dict(requested_range),
+            "run_definition_id": run_definition_id,
+            "run_definition_version": run_definition_version,
+            "definition": definition,
+            "scientific_version": manifest.scientific_version,
+            "window": execution_snapshot.window,
+            "window_policy_version": getattr(module, "window_policy_version", ""),
+            "filters": execution_snapshot.filters,
+            "quality_rules": execution_snapshot.quality_rules,
+            "enriched_montage": enriched_montage,
+        }
+
+    def _resolve_spectral_run_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+        raw = dict(request.config)
+        time = raw.get("time") or {}
+        start = float(time.get("start_s", raw.get("start_s", 0.0)))
+        end = float(time.get("end_s", start + float(raw.get("window_s", 30.0))))
+        mode = "spectrogram" if request.analysis_type == "spectrogram" else str(raw.get("mode", "static"))
+        channels = list(raw.get("channels") or recording.channels)
+        config = AnalysisConfigRequest.model_validate({
+            "mode": mode, "channels": channels, "time": {"start_s": start, "end_s": end},
+            "dynamic_window_s": raw.get("dynamic_window_s", 10),
+            "refresh_step_s": raw.get("refresh_step_s", 1),
+            "custom_frequency_range": raw.get("custom_frequency_range"),
+            "preprocessing": raw.get("preprocessing"),
+        }).model_dump(mode="json")
+        sfreq = float(recording.sfreq or 1.0)
+        duration = float(recording.duration_s or 0.0)
+        actual_start = max(0.0, min(start, duration))
+        start_index = int(np.floor(actual_start * sfreq))
+        stop_index = min(int(round(duration * sfreq)), start_index + int(round((end - start) * sfreq)))
+        filters = {key: ANALYSIS_CONTRACT[key] for key in (
+            "bandpass_type", "bandpass_prototype_order", "bandpass_hz",
+            "notch_hz", "notch_quality_factor", "preprocessing_phase", "filter_form",
+        )}
+        if request.analysis_type == "spectrogram":
+            from app.scientific.contracts.spectrogram import STFT_PREPROCESSING_VERSION, stft_context_s
+            filters.update({
+                "bandpass_hz": [1.0, 50.0],
+                "preprocessing_version": STFT_PREPROCESSING_VERSION,
+                "preprocessing_scope": "bounded_window_with_finite_context",
+                "context_s": stft_context_s(1.0), "boundary_policy": "clamp_to_recording",
+            })
+        return {
+            "config": config,
+            "channels": channels,
+            "requested_range": {"start_s": start, "end_s": end},
+            "actual_range": {"start_s": actual_start, "end_s": actual_start + max(0, stop_index - start_index) / sfreq},
+            "run_definition_id": request.definition_id,
+            "run_definition_version": request.definition_version,
+            "definition": {
+                "kind": request.analysis_type,
+                "contract": dict(ANALYSIS_CONTRACT),
+                "spectrogram_contract": "spectrogram-v4-bounded-notch" if request.analysis_type == "spectrogram" else None,
+            },
+            "scientific_version": (
+                "spectrogram-v4-bounded-notch"
+                if request.analysis_type == "spectrogram"
+                else str(ANALYSIS_CONTRACT["algorithm_version"])
+            ),
+            "window": {
+                "segment_s": 4.0,
+                "step_s": 1.0 if request.analysis_type == "spectrogram" else 2.0,
+                "overlap": 0.0 if request.analysis_type == "spectrogram" else 0.5,
+                "alignment": "window_center" if request.analysis_type == "spectrogram" else "range",
+            },
+            "filters": filters,
+            "quality_rules": {
+                "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],
+                "artifact_peak_uv": ANALYSIS_CONTRACT["artifact_peak_uv"],
+                "reasons": ["non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples"],
+            },
+            "enriched_montage": None,
+        }
+
+    def _build_resolved_run_payload(self, request: RunCreateRequest, recording: Any, resolved: dict[str, Any]) -> dict[str, Any]:
+        config = resolved["config"]
+        definition = resolved["definition"]
+        filters = with_offline_preprocessing(resolved["filters"], config)
+        signal_source = self.recordings.analysis_signal_provenance(recording)
+        if signal_source["signal_mode"] == "acquisition_montage":
+            definition = {**definition, "signal_source": signal_source}
+        channel_mapping: dict[str, Any] = {"channels": resolved["channels"], "signal_source": signal_source}
+        reference: dict[str, Any] = {"mode": signal_source["analysis_reference"]}
+        if resolved["enriched_montage"] is not None:
+            channel_mapping["analysis_montage"] = resolved["enriched_montage"]
+            reference["analysis_montage"] = resolved["enriched_montage"]
+        scientific_context = scientific_context_snapshot(
+            sampling_rate_hz=float(recording.sfreq or 0.0),
+            signal_mapping=channel_mapping,
+            reference=reference,
+            filters=filters,
+            quality_rules=resolved["quality_rules"],
+            window=resolved["window"],
+            window_policy_version=resolved.get("window_policy_version", ""),
+        )
+        # The metric's numerical definition is immutable, while its persisted
+        # evidence contract is independently versioned so legacy summaries
+        # without debug evidence cannot be reused as current Run results.
+        definition_sha = (
+            official_definition_sha256(
+                definition_id=definition["definition_id"],
+                definition_version=definition["definition_version"],
+                definition_digest=definition["definition_digest"],
+                algorithm_id=definition["algorithm_id"],
+                scientific_version=definition["scientific_version"],
+                implementation_identity=definition["implementation_identity"],
+            )
+            if request.analysis_type == "official_algorithm" and config.get("mode") == "dynamic"
+            else sha256_json({**definition, "result_contract_version": OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION})
+            if request.analysis_type == "official_algorithm"
+            else sha256_json(definition)
+        )
+        return {
+            "config": config,
+            "definition_id": resolved["run_definition_id"],
+            "definition_version": resolved["run_definition_version"],
+            "requested_range": resolved["requested_range"],
+            "actual_range": resolved["actual_range"],
+            "channel_mapping": channel_mapping,
+            "reference": reference,
+            "filters": filters,
+            "window": resolved["window"],
+            "quality_rules": resolved["quality_rules"],
+            "scientific_context": scientific_context,
+            "definition_sha256": definition_sha,
+            "scientific_version": resolved["scientific_version"],
+        }
+
+    def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+        resolved = (
+            self._resolve_official_algorithm_request(request, recording)
+            if request.analysis_type == "official_algorithm"
+            else self._resolve_spectral_run_request(request, recording)
+        )
+        return self._build_resolved_run_payload(request, recording, resolved)

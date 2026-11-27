@@ -5,8 +5,8 @@ import pytest
 
 from app.algorithm_runtime.on_demand import DynamicWindowResponse
 from app.bootstrap import build_builtin_registry
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
 from on_demand_fixtures import configure_api, source_hashes
 
 

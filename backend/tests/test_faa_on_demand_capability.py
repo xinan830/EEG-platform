@@ -1,5 +1,5 @@
 from app.models.recording import RecordingSummary
-from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 import numpy as np
 import pytest
@@ -8,7 +8,7 @@ from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindo
 from app.algorithm_runtime.on_demand_result_validation import validate_window_result
 from app.algorithms.faa.config import FaaConfig
 from app.algorithms.faa.runner import FaaAlgorithm
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 from tests.access_fixtures import array_access_session
 from on_demand_fixtures import configure_api, source_hashes
 import time

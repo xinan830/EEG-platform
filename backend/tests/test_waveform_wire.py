@@ -2,7 +2,7 @@ import struct
 
 import numpy as np
 
-from app.services.waveform_wire import (
+from app.services.viewer.waveform_wire import (
     WAVEFORM_BINARY_ENCODING,
     encode_waveform_binary,
     waveform_binary_header_bytes,

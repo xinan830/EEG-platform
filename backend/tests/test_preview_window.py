@@ -2,7 +2,8 @@ from pathlib import Path
 
 import numpy as np
 
-from app.services.recordings import RecordingService
+from app.services.recordings.recordings import RecordingService
+from app.services.viewer.recording_waveform import RecordingWaveformService
 
 
 def test_preview_returns_a_high_resolution_requested_time_window(tmp_path: Path, monkeypatch):
@@ -23,9 +24,10 @@ def test_preview_returns_a_high_resolution_requested_time_window(tmp_path: Path,
             20.0,
         )
 
-    monkeypatch.setattr(service.waveform, "load_preview_data", preview_data)
+    waveform = RecordingWaveformService(service.open_access_session)
+    monkeypatch.setattr(waveform, "load_preview_data", preview_data)
 
-    payload = service.waveform.load_preview(recording, start_s=12.0, window_s=2.0, max_points=10)
+    payload = waveform.load_preview(recording, start_s=12.0, window_s=2.0, max_points=10)
 
     assert payload["duration_s"] == 20.0
     assert payload["window_start_s"] == 12.0

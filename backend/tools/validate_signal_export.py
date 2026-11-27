@@ -11,10 +11,10 @@ import mne
 import numpy as np
 import pyedflib
 
-from app.services.recordings import RecordingService
-from app.services.recording_samples import WpfSampleReader
-from app.services.recording_signal_export import RecordingSignalExporter
-from app.services.wpf_recording import inspect_wpf_recording
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.recording_samples import WpfSampleReader
+from app.services.viewer.recording_signal_export import RecordingSignalExporter
+from app.services.recordings.wpf_recording import inspect_wpf_recording
 
 
 def validate(source: Path, output: Path) -> dict:

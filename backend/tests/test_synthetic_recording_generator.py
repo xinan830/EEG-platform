@@ -6,9 +6,9 @@ from uuid import UUID
 import numpy as np
 import pytest
 
-from app.services.acquisition_analysis_signals import read_acquisition_signal_view
-from app.services.recordings import RecordingService
-from app.services.wpf_recording import WpfRecordingError, inspect_wpf_recording
+from app.services.recordings.acquisition_analysis_signals import read_acquisition_signal_view
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.wpf_recording import WpfRecordingError, inspect_wpf_recording
 from tools import generate_synthetic_24h_recording as generator
 
 

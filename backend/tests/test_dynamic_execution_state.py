@@ -72,7 +72,7 @@ def test_reader_requires_attempt_to_belong_to_its_window(running):
 
 
 def test_worker_closes_reader_after_execution(admission, monkeypatch):
-    import app.services.on_demand_worker as worker
+    import app.services.analysis.windows.on_demand_worker as worker
 
     service, request, started, release = admission
     closed = threading.Event()

@@ -7,9 +7,9 @@ from test_offline_artifact_removal import _CHANNELS_10, _synthesize_eeg_with_bli
 
 
 def test_formal_api_runs_official_rbp_spectrum_full_bad_segment_evidence_and_ica_cache_deletion(tmp_path: Path):
-    from app.services.official_algorithm_catalog import ensure_official_definitions
-    from app.main import app
-    from app.services.runs import RunService
+    from app.services.analysis.official_algorithm_catalog import ensure_official_definitions
+    from app.bootstrap import build_builtin_registry
+    from app.services.analysis.runs.runs import RunService
     from test_recording_import import _client
 
     sfreq = 250.0
@@ -17,7 +17,12 @@ def test_formal_api_runs_official_rbp_spectrum_full_bad_segment_evidence_and_ica
     mixed[1375:1500, 4] += 650e-6 * np.sin(2.0 * np.pi * 5.0 * np.arange(125) / sfreq)
 
     client, recordings, _ = _client(tmp_path)
-    runs = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
+    app = client.app
+    runs = RunService(
+        recordings, recordings.database_path, tmp_path / "artifacts",
+        algorithm_registry=build_builtin_registry(),
+        spectral_analysis=app.state.spectral_analysis_service,
+    )
     ensure_official_definitions(runs.definition_service)
     app.state.definition_service = runs.definition_service
     app.state.run_service = runs
@@ -45,7 +50,7 @@ def test_formal_api_runs_official_rbp_spectrum_full_bad_segment_evidence_and_ica
     ica_body = ica_resp.json()
     fit_fp = ica_body["ica_fit_fingerprint"]
     rec_ics = ica_body["recommended_exclude_components"]
-    assert recordings.ica_review_cache.get(fit_fp) is not None
+    assert app.state.offline_scientific_preprocessing_service.ica_review_cache.get(fit_fp) is not None
 
     preproc_cfg = {
         "bad_channels": {"policy": "exclude", "channels": ["O2"]},
@@ -153,4 +158,4 @@ def test_formal_api_runs_official_rbp_spectrum_full_bad_segment_evidence_and_ica
     # 5. Deleting the recording invalidates its cached fitted ICA models.
     rec = recordings.require_recording(rec_id)
     recordings._delete_recording(rec)
-    assert recordings.ica_review_cache.get(fit_fp) is None
+    assert app.state.offline_scientific_preprocessing_service.ica_review_cache.get(fit_fp) is None

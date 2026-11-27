@@ -12,7 +12,7 @@ from app.scientific.contracts.preprocessing import (
     ArtifactRemovalSpec,
     BadChannelSpec,
 )
-from app.services.preprocessing_preview import build_preprocessing_preview_window
+from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
 
 
 def _make_fake_recordings(baseline_source, processed_source=None, *, formulas=None):
@@ -67,7 +67,7 @@ def test_paired_preview_disabled_policies_reuses_single_preparation_and_matches_
         SimpleNamespace(id="rec-1", source_sha256="sha-1"),
         start_s=0.2,
         window_s=0.5,
-        max_points=400,
+        max_points=400, offline_preprocessing=recordings.offline_scientific_preprocessing,
     )
 
     assert len(calls) == 1, "All-disabled comparison must reuse one continuous scientific preparation"
@@ -107,7 +107,7 @@ def test_paired_preview_preserves_one_sided_narrow_peak_and_gap_on_shared_times(
         start_s=0.0,
         window_s=2.0,
         artifact_rejection_spec=ArtifactRejectionSpec(policy="reject"),
-        max_points=200,
+        max_points=200, offline_preprocessing=recordings.offline_scientific_preprocessing,
     )
 
     assert len(calls) == 2
@@ -138,7 +138,7 @@ def test_paired_preview_excluded_channel_retains_baseline_row_without_shifting()
         start_s=0.0,
         window_s=2.0,
         bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4",)),
-        max_points=200,
+        max_points=200, offline_preprocessing=recordings.offline_scientific_preprocessing,
     )
 
     assert result["baseline"]["channels"] == ["Fp1", "C4", "O1"]
@@ -167,6 +167,7 @@ def test_paired_preview_rejects_mismatched_source_identity_between_sides():
             start_s=0.0,
             window_s=1.0,
             artifact_rejection_spec=ArtifactRejectionSpec(policy="reject"),
+            offline_preprocessing=recordings.offline_scientific_preprocessing,
         )
 
 

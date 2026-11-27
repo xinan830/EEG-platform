@@ -7,16 +7,17 @@ import numpy as np
 import pytest
 
 from app.models.run import RunCreateRequest
-from app.services.acquisition_analysis_signals import (
+from app.services.recordings.acquisition_analysis_signals import (
     AcquisitionMontageSampleReader, historical_montage_catalogue,
     read_acquisition_signal_view,
 )
-from app.services.imported_analysis_signals import (
+from app.services.recordings.imported_analysis_signals import (
     imported_montage_catalogue, read_imported_acquisition_signal_view,
 )
-from app.services.recordings import RecordingService
-from app.services.runs import RunService
-from app.services.wpf_recording import WpfRecordingError
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
+from app.services.recordings.wpf_recording import WpfRecordingError
 
 
 def fixture_recording(root: Path, rows=None):
@@ -196,8 +197,8 @@ def test_unverifiable_snapshot_rejected_without_raw_fallback(tmp_path, damage):
 
 
 def test_nan_source_propagates_to_derived_signal(tmp_path):
-    from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
-    from app.services.recording_samples import ArraySampleReader
+    from app.services.recordings.acquisition_analysis_signals import AcquisitionMontageSampleReader
+    from app.services.recordings.recording_samples import ArraySampleReader
     root = tmp_path / "recording"
     fixture_recording(root, [row("F3", 3, ("F7", "Cz"))])
     reader = AcquisitionMontageSampleReader(ArraySampleReader(np.array([[1., np.nan, 2.], [3., 1., 1.]]), 200, ["F3", "F7", "Cz"]), read_acquisition_signal_view(root))
@@ -211,7 +212,7 @@ def test_run_persists_signal_formula_and_accurate_reference(tmp_path, analysis_t
     fixture_recording(root, [row("F3", 1, ("F7",))])
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     run = runs.create(RunCreateRequest(recording_id=recording.id, analysis_type=analysis_type,
         config={"channels": ["F3-F7"], "time": {"start_s": 0, "end_s": 12}}))
     assert run.status == "completed", run.error
@@ -229,7 +230,7 @@ def test_official_algorithms_use_registered_montage_signals(tmp_path, algorithm_
     fixture_recording(root)
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     config = {
         "algorithm_id": algorithm_id, "mode": mode,
         "time": {"start_s": 0, "end_s": 12},
@@ -251,7 +252,7 @@ def test_source_projection_enters_cache_identity(tmp_path):
     fixture_recording(root)
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     request = RunCreateRequest(recording_id=recording.id, config={
         "channels": ["F3-REF"], "time": {"start_s": 0, "end_s": 12}})
     resolved = runs._resolve_request(request, recording)
@@ -266,7 +267,7 @@ def test_official_run_rejects_stale_historical_montage_identity(tmp_path):
     fixture_recording(root)
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     profile = recording.montage_catalogue[0]
     request = RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
         "algorithm_id": "peak_frequency", "channel": "F3-REF", "mode": "static",
@@ -283,7 +284,7 @@ def test_official_run_rejects_valid_montage_with_wrong_role_mapping(tmp_path):
     fixture_recording(root)
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     profile = recording.montage_catalogue[0]
     request = RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
         "algorithm_id": "peak_frequency", "channel": "F3-REF", "mode": "static",
@@ -446,7 +447,7 @@ def test_imported_analysis_signals_imports_cleanly_before_acquisition_module():
 
     backend_dir = Path(__file__).resolve().parents[1]
     result = subprocess.run(
-        [sys.executable, "-c", "import app.services.imported_analysis_signals; import app.services.recordings"],
+        [sys.executable, "-c", "import app.services.recordings.imported_analysis_signals; import app.services.recordings.recordings"],
         cwd=backend_dir,
         capture_output=True,
         text=True,
@@ -527,7 +528,7 @@ def test_official_run_uses_explicit_analysis_snapshot_channels_and_provenance(tm
         str(root), signal_mode="acquisition_montage", analysis_montage_profiles=[profile],
     )
     selected = next(item for item in recording.montage_catalogue if item.get("snapshot_source") == "analysis_configuration_snapshot")
-    runs = RunService(service, service.database_path, tmp_path / "artifacts")
+    runs = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     request = RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
         "algorithm_id": "peak_frequency", "channel": "F3-AVG", "mode": "static",
         "time": {"start_s": 0, "end_s": 12}, "analysis_montage_id": selected["id"],
@@ -546,7 +547,7 @@ def test_official_run_uses_explicit_analysis_snapshot_channels_and_provenance(tm
 
 
 def test_queued_official_run_resolves_selected_montage_before_channel_validation(tmp_path):
-    from app.services.run_queue import PersistentRunQueue
+    from app.services.analysis.runs.run_queue import PersistentRunQueue
 
     root = tmp_path / "recording"
     _, manifest = fixture_recording(root)
@@ -559,7 +560,7 @@ def test_queued_official_run_resolves_selected_montage_before_channel_validation
         item for item in recording.montage_catalogue
         if item.get("snapshot_source") == "analysis_configuration_snapshot"
     )
-    queue = PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts")
+    queue = PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     request = RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
         "algorithm_id": "peak_frequency", "channel": "F3-AVG", "mode": "static",
         "time": {"start_s": 0, "end_s": 12}, "analysis_montage_id": snapshot["id"],
@@ -614,7 +615,10 @@ def test_ref_spectrum_matches_the_same_historical_raw_signal(tmp_path):
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     raw = service.register_wpf_recording(str(root))
     derived = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    raw_psd = service.load_spectrum(raw, 0, 12, ["F3"])
-    derived_psd = service.load_spectrum(derived, 0, 12, ["F3-REF"])
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    from app.services.analysis.spectral_analysis import SpectralAnalysisService
+    spectral = SpectralAnalysisService(service, OfflineScientificPreprocessingService.for_recordings(service))
+    raw_psd = spectral.load_spectrum(raw, 0, 12, ["F3"])
+    derived_psd = spectral.load_spectrum(derived, 0, 12, ["F3-REF"])
     assert raw_psd["frequencies_hz"] == derived_psd["frequencies_hz"]
     np.testing.assert_allclose(raw_psd["psd"]["F3"], derived_psd["psd"]["F3-REF"], rtol=1e-12, atol=0)

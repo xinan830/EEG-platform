@@ -232,7 +232,8 @@ def test_pre_rereference_bad_channel_exclude_and_interpolate_prevent_car_contami
     assert np.max(np.abs(interp_block[:, 1])) < 40e-6
 
     # 5. Continuous + bounded offline preprocessing caches consume OfflinePreprocessingSpec directly.
-    preproc = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    preproc = OfflineScientificPreprocessingService.for_recordings(recordings)
     f_spec_cont = ScientificFilterSpec(
         low_hz=1.0, high_hz=45.0, notch_hz=50.0, scope="whole_recording_before_window_slice",
     )
@@ -286,7 +287,7 @@ def test_pre_rereference_bad_channel_exclude_and_interpolate_prevent_car_contami
     assert w_interp_inherited.evidence["offline_preprocessing_spec"]["bad_channels"]["policy"] == "interpolate"
 
     # 6. Inspecting bad channels on an ALREADY montage-selected summary still inspects raw unprojected channels.
-    from app.services.bad_channel_reader import inspect_recording_bad_channels
+    from app.services.preprocessing.artifact_inspection import inspect_recording_bad_channels
 
     selected_report = inspect_recording_bad_channels(recordings, selected)
     assert [item["channel"] for item in selected_report["channels"]] == list(labels)

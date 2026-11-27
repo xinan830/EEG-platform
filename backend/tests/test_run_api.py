@@ -4,15 +4,17 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.persistence import connect_database
 from app.main import app
 from app.models.recording import RecordingSummary
 from app.models.run import AnalysisRun, RunStatus
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
-from app.services.recordings import RecordingService
-from app.services.definitions import DefinitionService
-from app.services.runs import RunService
-from app.services.validations import ValidationService
+from app.services.recordings.recordings import RecordingService
+from app.services.workspace.definitions import DefinitionService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
+from app.services.workspace.validations import ValidationService
 from tests.access_fixtures import array_access_session
 
 
@@ -33,7 +35,7 @@ def _configure_services(tmp_path: Path) -> tuple[TestClient, RecordingSummary]:
         database_path=tmp_path / "catalog.sqlite3",
     )
     recording = service.create_recording("synthetic.edf", ".edf", b"synthetic-source")
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         connection.execute(
             """UPDATE recordings SET sfreq = 200, duration_s = 10, channels_json = '[\"F3\", \"Fz\"]',
                raw_channel_labels_json = '[\"F3\", \"Fz\"]', canonical_channel_labels_json = '[\"F3\", \"Fz\"]',
@@ -42,7 +44,7 @@ def _configure_services(tmp_path: Path) -> tuple[TestClient, RecordingSummary]:
         )
     recording = service.require_recording(recording.id)
     app.state.recording_service = service
-    app.state.run_service = RunService(service, service.database_path, tmp_path / "artifacts")
+    app.state.run_service = RunService(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     app.state.validation_service = ValidationService(service.database_path)
     app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
     return TestClient(app), recording

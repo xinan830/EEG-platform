@@ -11,14 +11,17 @@ from app.scientific.primitives import detrend_and_filter_for_inspection
 
 def test_only_offline_facade_constructs_or_calls_the_continuous_executor():
     services = Path(__file__).resolve().parents[1] / "app" / "services"
-    for path in services.glob("*.py"):
+    for path in services.rglob("*.py"):
         if path.name in {"continuous_preprocessing.py", "offline_scientific_preprocessing.py"}:
             continue
         source = path.read_text(encoding="utf-8")
         assert "ContinuousPreprocessingService" not in source, path
-        assert "from app.services.artifact_inspection import detrend_and_filter_for_inspection" not in source, path
+        assert "from app.services.preprocessing.artifact_inspection import detrend_and_filter_for_inspection" not in source, path
+        assert "from app.services.preprocessing.artifact_inspection import detrend_and_filter_for_inspection" not in source, path
     for name in ("tnk_window_preprocessing.py", "spectrogram_source.py"):
-        source = (services / name).read_text(encoding="utf-8")
+        matches = list(services.rglob(name))
+        assert len(matches) == 1, name
+        source = matches[0].read_text(encoding="utf-8")
         assert "return prepare_window(" not in source
         assert "= prepare_window(" not in source
 
@@ -72,24 +75,26 @@ def test_catalogue_exposes_the_registry_capability_contract(tmp_path):
 def test_official_entry_points_reject_unsupported_removal_before_computing(tmp_path):
     from app.models.run import RunCreateRequest
     from app.algorithm_runtime.on_demand import DynamicWindowRequest
-    from app.services.on_demand_dynamic import DynamicWindowService
-    from app.services.runs import RunService
+    from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+    from app.services.analysis.runs.runs import RunService
     from test_recording_import import _client
     from test_offline_bad_channels import _write_multi_channel_edf
 
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     _, recordings, _ = _client(tmp_path)
     values = np.random.default_rng(9).normal(0, 10, (3000, 2))
     payload = _write_multi_channel_edf(tmp_path / "capability.edf", ("F3", "O1"), values, sfreq=200)
     recording = recordings.create_imported_recording("capability.edf", ".edf", payload)
-    prepared = recordings.offline_scientific_preprocessing.prepare_continuous(
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(recordings)
+    prepared = offline_prep.prepare_continuous(
         recording, low_hz=1, high_hz=50, notch_hz=50)
-    repeated = recordings.offline_scientific_preprocessing.prepare_continuous(
+    repeated = offline_prep.prepare_continuous(
         recording, low_hz=1, high_hz=50, notch_hz=50)
     assert repeated is prepared
     assert not prepared.data.flags.writeable
     with pytest.raises(ValueError):
         prepared.data[0, 0] = 1.0
-    runs = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
+    runs = RunService(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     dynamic = DynamicWindowService(recordings, runs.algorithm_runtime_registry,
         database_path=recordings.database_path, artifacts_dir=tmp_path / "artifacts")
     config = {"algorithm_id": "stft", "mode": "dynamic", "channel": "F3",

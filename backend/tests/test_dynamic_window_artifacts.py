@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from app.algorithm_runtime.on_demand import DynamicWindowIdentity, DynamicWindowResult
 
 from app.algorithm_runtime.errors import DynamicWindowCapacityExceededError
-from app.services.dynamic_window_artifacts import DynamicWindowArtifactStore
+from app.services.analysis.windows.dynamic_window_artifacts import DynamicWindowArtifactStore
 
 
 def test_directory_usage_tracks_published_and_removed_files(tmp_path):

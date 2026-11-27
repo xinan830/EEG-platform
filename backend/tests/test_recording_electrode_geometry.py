@@ -12,10 +12,10 @@ from app.scientific.electrode_geometry import (
     validate_geometry,
 )
 from app.scientific.bad_channels import build_spherical_spline_interpolator, apply_spherical_spline_interpolation
-from app.services.electrode_locations import recording_map_coordinates
-from app.services.signal_export_metadata import hardware_metadata
-from app.services.recording_access import RecordingSourceIdentity
-from app.services.recording_geometry import bind_session_geometry
+from app.services.recordings.electrode_locations import recording_map_coordinates
+from app.services.viewer.signal_export_metadata import hardware_metadata
+from app.services.recordings.recording_access import RecordingSourceIdentity
+from app.services.recordings.recording_geometry import bind_session_geometry
 
 
 @pytest.fixture
@@ -141,9 +141,9 @@ def test_import_validates_preserves_and_rejects_without_publication(tmp_path, ge
 
 
 def test_geometry_changes_both_prepared_and_ica_identities(geometry, tmp_path):
-    from app.services.ica_review_cache import compute_ica_fit_fingerprint
+    from app.services.preprocessing.ica_review_cache import compute_ica_fit_fingerprint
     from app.scientific.contracts.preprocessing import ArtifactRemovalSpec
-    from app.services.prepared_source_identity import prepared_source_identity
+    from app.services.preprocessing.prepared_source_identity import prepared_source_identity
     identity = RecordingSourceIdentity("recording", "a" * 64, "test", None)
     first = bind_session_geometry(SimpleNamespace(identity=identity), geometry).identity
     changed = deepcopy(geometry)
@@ -169,8 +169,8 @@ def test_export_import_preserves_recording_geometry(tmp_path, geometry, format):
     from threading import Event
     from test_recording_signal_export import source_fixture
     from test_recording_import import _client
-    from app.services.recording_signal_export import RecordingSignalExporter
-    from app.services.wpf_recording import inspect_wpf_recording
+    from app.services.viewer.recording_signal_export import RecordingSignalExporter
+    from app.services.recordings.wpf_recording import inspect_wpf_recording
     source, _ = source_fixture(tmp_path / "source")
     geometry["electrodes"] = [dict(geometry["electrodes"][0], label="CH0002", native_channel_index=4)]
     snapshot = snapshot_for(geometry)
@@ -232,7 +232,7 @@ def test_iclabel_custom_geometry_retains_car_gates_and_exact_samples(geometry, m
 
 
 def test_component_preview_uses_same_custom_positions_without_standard_fallback(geometry):
-    from app.services.preprocessing_preview import attach_ica_component_visuals
+    from app.services.preprocessing.ica_component_visuals import attach_ica_component_visuals
     names = ("X0", "X1", "X2", "Fp1")
     class IdentityIca:
         def get_components(self):

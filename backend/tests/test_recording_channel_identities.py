@@ -8,11 +8,16 @@ import pytest
 
 from app.models.artifact_references import ChannelIdentitySelection, ChannelIdentityUpdate
 from app.scientific.contracts.preprocessing import ArtifactRemovalSpec
-from app.services.artifact_inspection import inspect_recording_ica_components
-from app.services.artifact_references import discover_artifact_references
-from app.services.recording_channel_roles import save_recording_identities, source_channel_identities
-from app.services.recording_signal_export import RecordingSignalExporter
-from app.services.recordings import RecordingService
+from app.services.preprocessing.artifact_inspection import inspect_recording_ica_components
+from app.services.recordings.recording_channel_roles import (
+    discover_artifact_references,
+    save_recording_identities,
+    source_channel_identities,
+    validate_imported_raw_analysis_channels,
+)
+from app.services.viewer.recording_signal_export import RecordingSignalExporter
+from app.services.recordings.recordings import RecordingService
+from recording_api_fixtures import recording_api_app
 from test_artifact_reference_channels import make_recording
 
 
@@ -23,7 +28,7 @@ def save(service, recording, **roles):
 
 
 def test_automatic_ecg_requires_explicit_choice_when_multiple_identities_exist(tmp_path):
-    from app.services.recording_channel_roles import resolve_removal_references
+    from app.services.recordings.recording_channel_roles import resolve_removal_references
     service, recording, _ = make_recording(tmp_path)
     save(service, recording, AUX_Eye="ecg")
     recording = service.require_recording(recording.id)
@@ -38,13 +43,9 @@ def test_automatic_ecg_requires_explicit_choice_when_multiple_identities_exist(t
 
 def test_ambiguous_ecg_http_review_and_preview_return_actionable_error(tmp_path):
     from fastapi.testclient import TestClient
-    from app.main import app
-    from app.services.audit import AuditService
     service, recording, _ = make_recording(tmp_path)
     save(service, recording, AUX_Eye="ecg")
-    app.state.recording_service = service
-    app.state.audit_service = AuditService(service.database_path)
-    with TestClient(app) as client:
+    with TestClient(recording_api_app(service)) as client:
         route = f"/api/recordings/{recording.id}/preprocessing"
         review = client.get(route + "/ica-components", params={"ica_n_components": 3})
         preview = client.post(route + "/preview-window", json={
@@ -84,7 +85,7 @@ def test_auto_and_explicit_eeg_proxies_have_identical_ica_inputs_scores_and_outp
     service = RecordingService(tmp_path / "new-store", tmp_path / "new-db.sqlite3")
     recording = service.register_wpf_recording(str(root))
     if montage:
-        from app.services.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
+        from app.services.recordings.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
         names = recording.channels
         signals = tuple(AcquisitionSignal(n + "-AVG", n, names, "mean") for n in names)
         provenance = {"snapshot_sha256": "car-view", "formulas": [
@@ -103,49 +104,56 @@ def test_auto_and_explicit_eeg_proxies_have_identical_ica_inputs_scores_and_outp
     assert auto_report["eog_channels_used"] == manual_report["eog_channels_used"]
     assert auto_report["components"] == manual_report["components"]
     assert auto_report["recommended_exclude_components"] == manual_report["recommended_exclude_components"]
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
     outputs = []
     for spec, report in ((automatic, auto_report), (explicit, manual_report)):
-        outputs.append(service.offline_scientific_preprocessing.prepare_continuous(recording, **filters,
+        outputs.append(offline_prep.prepare_continuous(recording, **filters,
             artifact_removal_spec=replace(spec, ica_fit_fingerprint=report["ica_fit_fingerprint"], ica_exclude_components=(0,))))
     np.testing.assert_array_equal(outputs[0].data, outputs[1].data)
     assert outputs[0].channel_names == outputs[1].channel_names == recording.channels
 
 
 def test_identity_persists_and_changes_scientific_cache_without_changing_raw_samples(tmp_path):
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, values = make_recording(tmp_path)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
     filters = dict(low_hz=1, high_hz=50, notch_hz=50)
     before_provenance = service.analysis_signal_provenance(recording)
-    original = service.offline_scientific_preprocessing.prepare_continuous(recording, **filters)
+    original = offline_prep.prepare_continuous(recording, **filters)
     with service.open_access_session(recording) as pending:
         save(service, recording, F3="eog")
         with pytest.raises(ValueError, match="CHANNEL_IDENTITY_CHANGED"):
             pending.read_samples(0, 10)
     restarted = RecordingService(service.storage_dir, service.database_path)
+    restarted_prep = OfflineScientificPreprocessingService.for_recordings(restarted)
     restored = restarted.require_recording(recording.id)
     assert source_channel_identities(restarted.storage_dir, restored)["F3"] == ("eog", "user_confirmed")
     assert restarted.analysis_signal_provenance(restored) != before_provenance
-    after = restarted.offline_scientific_preprocessing.prepare_continuous(restored, **filters)
+    after = restarted_prep.prepare_continuous(restored, **filters)
     assert after.channel_names == ("F4", "C3", "C4")
     assert after.source_identity != original.source_identity
-    assert restarted.offline_scientific_preprocessing.prepare_continuous(restored, **filters) is after
+    assert restarted_prep.prepare_continuous(restored, **filters) is after
     with restarted.open_access_session(restored, scientific_channels=False) as raw:
         assert raw.channel_names == recording.channels
         np.testing.assert_array_equal(raw.read_samples(0, 50).values_v, values[:50, :4])
 
 
 def test_auxiliary_can_be_confirmed_as_eeg_without_changing_scoring_selection(tmp_path):
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
     service, recording, values = make_recording(tmp_path)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
     save(service, recording, AUX_Eye="eeg")
     with service.open_access_session(service.require_recording(recording.id)) as session:
         assert session.channel_names == (*recording.channels, "AUX_Eye")
         np.testing.assert_array_equal(session.read_samples(0, 40).values_v, values[:40, :5])
     restored = service.require_recording(recording.id)
-    from app.services.recording_channel_roles import scientific_channel_names
+    from app.services.recordings.recording_channel_roles import scientific_channel_names
     assert scientific_channel_names(service, restored) == session.channel_names
     filters = dict(low_hz=1, high_hz=50, notch_hz=50)
-    prepared = service.offline_scientific_preprocessing.prepare_continuous(restored, **filters)
+    prepared = offline_prep.prepare_continuous(restored, **filters)
     assert prepared.channel_names == session.channel_names
-    assert service.offline_scientific_preprocessing.prepare_continuous(restored, **filters) is prepared
+    assert offline_prep.prepare_continuous(restored, **filters) is prepared
 
 
 @pytest.mark.parametrize("bad", ["missing", "duplicate", "hash"])
@@ -167,7 +175,7 @@ def test_identity_update_validates_source_and_channels_atomically(tmp_path, bad)
     {"schema_version": "recording-channel-identities-v1",
      "channels": [dict(name="F3", identity=[])]}])
 def test_corrupt_persisted_identity_fails_with_structured_error(tmp_path, payload):
-    from app.services.recording_channel_roles import identity_path
+    from app.services.recordings.recording_channel_roles import identity_path
     service, recording, _ = make_recording(tmp_path)
     path = identity_path(service.storage_dir, recording)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,7 +187,7 @@ def test_corrupt_persisted_identity_fails_with_structured_error(tmp_path, payloa
 
 
 def test_scientific_comparison_reports_identity_exclusions_without_removal(tmp_path):
-    from app.services.preprocessing_preview import build_preprocessing_preview_window
+    from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
     service, recording, _ = make_recording(tmp_path)
     save(service, recording, F3="eog")
     recording = service.require_recording(recording.id)
@@ -193,9 +201,10 @@ def test_scientific_comparison_reports_identity_exclusions_without_removal(tmp_p
 
 def test_queued_run_rejects_changed_roles_instead_of_publishing_under_old_identity(tmp_path):
     from app.models.run import RunCreateRequest, RunStatus
-    from app.services.run_queue import PersistentRunQueue
+    from app.bootstrap import build_builtin_registry
+    from app.services.analysis.runs.run_queue import PersistentRunQueue
     service, recording, _ = make_recording(tmp_path)
-    queue = PersistentRunQueue(service, service.database_path, tmp_path / "artifacts")
+    queue = PersistentRunQueue(service, service.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     run = queue.enqueue(RunCreateRequest(recording_id=recording.id, analysis_type="spectrum",
         config={"channels": ["F4"], "time": {"start_s": 0, "end_s": 10}}))
     save(service, recording, F3="eog")
@@ -207,7 +216,7 @@ def test_queued_run_rejects_changed_roles_instead_of_publishing_under_old_identi
 
 
 def test_window_context_rejects_identity_update_before_using_old_result(tmp_path):
-    from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+    from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
     service, recording, _ = make_recording(tmp_path)
     context = _RecordingAlgorithmContext(service, recording)
     context.validate_source_identity()
@@ -235,12 +244,8 @@ def test_identity_change_during_reader_creation_cannot_bind_a_mixed_session(tmp_
 
 def test_channel_identity_http_save_reload_and_invalid_update_are_atomic(tmp_path):
     from fastapi.testclient import TestClient
-    from app.main import app
-    from app.services.audit import AuditService
     service, recording, _ = make_recording(tmp_path)
-    app.state.recording_service = service
-    app.state.audit_service = AuditService(service.database_path)
-    client = TestClient(app)
+    client = TestClient(recording_api_app(service))
     route = f"/api/recordings/{recording.id}/preprocessing/channel-identities"
     payload = dict(source_sha256=recording.source_sha256, channels=[dict(name="F3", identity="eog")])
     response = client.put(route, json=payload)
@@ -262,7 +267,7 @@ def test_channel_identity_http_save_reload_and_invalid_update_are_atomic(tmp_pat
     ([{"SourceColumn": 0, "Identity": "eeg"}] * 2, ["uV"]),
 ])
 def test_imported_identity_metadata_rejects_invalid_columns_roles_and_nonvoltage(entries, units):
-    from app.services.recording_channel_roles import validated_import_identities
+    from app.services.recordings.recording_channel_roles import validated_import_identities
     with pytest.raises(ValueError, match="CHANNEL_IDENTITY_INVALID"):
         validated_import_identities({"PhysiologicalIdentities": entries}, ["Counter"], units)
 
@@ -302,7 +307,6 @@ def test_export_import_preserves_eeg_and_true_auxiliary_identities(tmp_path, for
         assert [c["identity"] for c in catalogue["channels"]] == ["eog", "eeg", "eeg", "eeg", "eeg", "ecg"]
         with imported_service.open_access_session(imported) as session:
             assert session.channel_names == ("F4", "C3", "C4", "AUX_Eye")
-        from app.services.imported_analysis_signals import validate_imported_raw_analysis_channels
         validate_imported_raw_analysis_channels(imported, ["AUX_Eye"])
         raw_response = client.get(f"/api/recordings/{imported.id}/raw-samples?start_sample=0&end_sample=50")
         assert raw_response.status_code == 200, raw_response.text

@@ -7,7 +7,7 @@ import mne
 import matplotlib
 
 from app.api.electrode_locations import router
-from app.services.electrode_locations import _standard_positions, resolve_electrode_labels
+from app.services.recordings.electrode_locations import _standard_positions, resolve_electrode_labels
 
 
 def client() -> TestClient:

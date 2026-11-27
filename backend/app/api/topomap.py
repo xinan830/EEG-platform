@@ -5,8 +5,8 @@ from typing import Literal
 from starlette.responses import Response
 
 from app.core.api_contract import error_response
-from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
-from app.services.result_scalar_inputs import ResultProjectionUnavailable
+from app.services.analysis.runs.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
+from app.services.analysis.results.result_scalar_inputs import ResultProjectionUnavailable
 
 logger = logging.getLogger("brain_platform.topomap")
 BandId = Literal["delta", "theta", "alpha", "beta", "gamma"]

@@ -3,12 +3,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from app.persistence import connect_database
 from app.models.batch_run import BatchRunCreateRequest
 from app.models.research_project import ProjectCreateRequest, SessionCreateRequest, SubjectCreateRequest
-from app.services.batch_runs import BatchProjectMembershipError, BatchRunService
-from app.services.projects import ProjectService
-from app.services.recordings import RecordingService
-from app.services.run_queue import PersistentRunQueue
+from app.services.analysis.runs.batch_runs import BatchProjectMembershipError, BatchRunService
+from app.services.workspace.projects import ProjectService
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 from tests.access_fixtures import array_access_session
 from app.main import app
 from fastapi.testclient import TestClient
@@ -24,7 +26,7 @@ class SyntheticRecordings(RecordingService):
 
 def _recording(service: RecordingService, name: str, channels: str, duration: float) -> str:
     item = service.create_recording(name, ".edf", name.encode())
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         connection.execute("UPDATE recordings SET sfreq = 200, duration_s = ?, channels_json = ? WHERE id = ?", (duration, channels, item.id))
     return item.id
 
@@ -33,7 +35,7 @@ def _service(tmp_path: Path):
     database = tmp_path / "platform.sqlite3"
     recordings = SyntheticRecordings(tmp_path / "recordings", database)
     projects = ProjectService(database)
-    queue = PersistentRunQueue(recordings, database, tmp_path / "artifacts")
+    queue = PersistentRunQueue(recordings, database, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     return recordings, projects, queue, BatchRunService(projects, queue, database)
 
 

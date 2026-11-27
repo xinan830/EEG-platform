@@ -4,17 +4,19 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.official_algorithm_catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
+from app.persistence import connect_database
+from app.services.analysis.official_algorithm_catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
 from app.core.provenance import sha256_json
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.recordings import RecordingService
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.recording_samples import ArraySampleReader
-from app.services.runs import RunService
-from app.services.analysis_provenance import serialize_analysis_run
-from app.services.run_analysis_executor import _RecordingAlgorithmContext
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recordings.recording_samples import ArraySampleReader
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
+from app.services.analysis.results.analysis_provenance import serialize_analysis_run
+from app.services.analysis.runs.run_analysis_executor import _RecordingAlgorithmContext
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -46,9 +48,9 @@ def _service(tmp_path: Path, *, sfreq_hz: float = 200.0) -> tuple[RunService, st
     recordings = OfficialSyntheticRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
     recordings.synthetic_sfreq_hz = sfreq_hz
     recording = recordings.create_recording("official.edf", ".edf", b"official-source")
-    with recordings._connect() as connection:
+    with connect_database(recordings.database_path) as connection:
         connection.execute("UPDATE recordings SET sfreq = ?, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\", \"F3\", \"F4\"]' WHERE id = ?", (sfreq_hz, recording.id))
-    service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
+    service = RunService(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     ensure_official_definitions(service.definition_service)
     return service, recording.id
 
@@ -142,7 +144,7 @@ def test_official_dynamic_iapf_uses_complete_20_second_windows(tmp_path: Path):
     assert series[-1]["window_end_s"] == 30.0
     assert all("value" in point["output"] and "quality" in point for point in series)
     assert all("value" not in point and "value" in point["output"] for point in series)
-    provenance = serialize_analysis_run(completed)["analysis_provenance"]
+    provenance = serialize_analysis_run(completed, algorithm_registry=service.algorithm_runtime_registry)["analysis_provenance"]
     assert provenance["sfreq_hz"] == 200.0
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}

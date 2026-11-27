@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.result_scalars import router
-from app.services.result_scalars import ResultScalarsService
-from app.services.topomap import TopomapService
+from app.services.analysis.results.result_scalars import ResultScalarsService
+from app.services.analysis.results.topomap import TopomapService
 from test_psd_topomap_density import _payload
 from test_topomap import _bind_dynamic_source_context, _dynamic_window_payload, _set_dynamic_configuration
 
@@ -33,7 +33,7 @@ def test_scalar_http_never_enters_spatial_preparation_or_interpolation(monkeypat
         pytest.fail("Numeric reads must not enter spatial preparation or interpolation")
 
     monkeypatch.setattr(TopomapService, "_interpolate", forbidden)
-    monkeypatch.setattr("app.services.topomap.resolve_dynamic_signal_provenance", forbidden)
+    monkeypatch.setattr("app.services.analysis.results.topomap.resolve_dynamic_signal_provenance", forbidden)
     app = FastAPI()
     app.state.result_scalars_service = ResultScalarsService(window_service)
     app.include_router(router)

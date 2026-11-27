@@ -7,11 +7,11 @@ import pytest
 
 from app.scientific.primitives import preprocess_offline
 from app.scientific.primitives.block_filter import preprocess_blocks
-from app.services.mapped_preprocessing import mapped_preprocess
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.recording_samples import WpfSampleReader
-from app.services.recordings import RecordingService
-from app.services.run_execution_context import RunCancelledError, RunExecutionContext
+from app.services.preprocessing.mapped_preprocessing import mapped_preprocess
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recordings.recording_samples import WpfSampleReader
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.runs.run_execution_context import RunCancelledError, RunExecutionContext
 from tests.test_wpf_recording import _write_fixture
 
 
@@ -90,7 +90,7 @@ def test_wpf_reader_uses_uniform_payload_view(tmp_path):
 
 def test_mapped_owner_cleanup_after_reader_failure(tmp_path, monkeypatch):
     allocated = []
-    from app.services import mapped_preprocessing as module
+    from app.services.preprocessing import mapped_preprocessing as module
     original = module.MappedArrays
     class Owner(original):
         def __init__(self):
@@ -130,8 +130,8 @@ def test_block_filter_cancellation_stops_preprocessing():
 
 
 def test_mapping_reads_bounded_selected_blocks_and_remains_live_after_eviction():
-    from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
-    from app.services.recording_samples import ArraySampleReader
+    from app.services.preprocessing.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+    from app.services.recordings.recording_samples import ArraySampleReader
     calls = []
     class Reader(ArraySampleReader):
         def read(self, start, stop, channels=None, check_cancelled=None):
@@ -161,18 +161,21 @@ def test_mapping_reads_bounded_selected_blocks_and_remains_live_after_eviction()
 
 def test_stft_does_not_require_entry_to_fit_in_memory_cache(tmp_path, monkeypatch):
     from tests.test_spectrum_service import _service
-    from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    from app.services.analysis.spectral_analysis import SpectralAnalysisService
     service, recording = _service(tmp_path)
     time = np.arange(6000) / 200
     from tests.test_spectrum_service import _provide_data
     _provide_data(monkeypatch, service, (10e-6 * np.sin(2 * np.pi * 10 * time))[:, None], 200, ["F3"])
-    service.offline_scientific_preprocessing.prepared_cache.max_resident_bytes = 1
-    result = service.load_spectrogram(recording, 0, 30, ["F3"], notch_hz=None)
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
+    offline_prep.prepared_cache.max_resident_bytes = 1
+    spectral = SpectralAnalysisService(service, offline_prep)
+    result = spectral.load_spectrogram(recording, 0, 30, ["F3"], notch_hz=None)
     assert len(result["times_s"]) == 27
 
 
 def test_edf_reader_uses_sample_range_and_requested_channel_order():
-    from app.services.recording_samples import EdfSampleReader
+    from app.services.recordings.recording_samples import EdfSampleReader
     class Raw:
         info = {"sfreq": 250}
         ch_names = ["F3", "F4"]

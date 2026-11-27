@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 from app.core.api_contract import error_response
-from app.services.recording_signal_preview import signal_preview
+from app.services.viewer.recording_signal_preview import signal_preview
 from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
@@ -48,6 +48,7 @@ def preview(recording_id: str, payload: SignalPreviewRequest, request: Request) 
     try:
         return signal_preview(
             request.app.state.recording_service,
+            request.app.state.recording_waveform_service,
             recording_id,
             **payload.model_dump(),
             request_id=str(getattr(request.state, "request_id", "unknown")),

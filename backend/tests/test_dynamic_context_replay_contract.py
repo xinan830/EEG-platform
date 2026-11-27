@@ -11,7 +11,7 @@ from app.algorithm_runtime.on_demand import (
 )
 from app.algorithm_runtime.offline_execution import scientific_cache_key
 from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
-from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+from app.services.analysis.windows.dynamic_window_resources import DynamicWindowResourcePolicy
 
 ROOT = Path(__file__).resolve().parents[2]
 

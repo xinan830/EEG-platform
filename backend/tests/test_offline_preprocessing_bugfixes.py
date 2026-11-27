@@ -21,8 +21,9 @@ from app.scientific.contracts.preprocessing import (
     ScientificFilterSpec,
 )
 from app.scientific.primitives import preprocess_offline
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.runs import RunService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.runs import RunService
 from test_offline_bad_channels import _write_multi_channel_edf
 
 
@@ -142,7 +143,8 @@ def test_bug3_notch_q_propagates_to_continuous_and_bounded_execution_and_cache_i
     source = _write_multi_channel_edf(tmp_path / "notch_q.edf", ("F3", "O1"), samples_uv, sfreq=sfreq)
     rec_id = client.post("/api/recordings/import", files={"file": ("notch_q.edf", source)}).json()["id"]
     recording = recordings.require_recording(rec_id)
-    preproc = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    preproc = OfflineScientificPreprocessingService.for_recordings(recordings)
 
     spec_q5 = OfflinePreprocessingSpec(
         filter_spec=ScientificFilterSpec(low_hz=1.0, high_hz=60.0, notch_hz=50.0, notch_q=5.0,
@@ -251,7 +253,8 @@ def test_bug4_montage_mode_continuous_cache_hits_when_bad_channel_excluded(tmp_p
     monkeypatch.setattr(recordings, "open_access_session", counted_open)
 
     bad_spec = BadChannelSpec(policy="exclude", channels=("C4",))
-    preproc = recordings.offline_scientific_preprocessing
+    from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+    preproc = OfflineScientificPreprocessingService.for_recordings(recordings)
 
     first = preproc.prepare_continuous(selected, low_hz=1.0, high_hz=45.0, notch_hz=50.0, bad_channel_spec=bad_spec)
     assert "C4-AVG" not in first.channel_names
@@ -275,7 +278,7 @@ def test_bug5_full_run_and_on_demand_share_identical_scientific_identity_with_pr
     rec_id = client.post("/api/recordings/import", files={"file": ("identity_sync.edf", source)}).json()["id"]
     recording = recordings.require_recording(rec_id)
 
-    runs = RunService(recordings, db, tmp_path / "artifacts")
+    runs = RunService(recordings, db, tmp_path / "artifacts", algorithm_registry=build_builtin_registry())
     dynamic_service = DynamicWindowService(
         recordings, runs.algorithm_runtime_registry, database_path=db, artifacts_dir=tmp_path / "artifacts",
     )

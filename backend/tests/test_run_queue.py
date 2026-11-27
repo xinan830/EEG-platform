@@ -4,10 +4,12 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.persistence import connect_database
 from app.main import app
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.recordings import RecordingService
-from app.services.run_queue import PersistentRunQueue
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 from tests.access_fixtures import array_access_session
 
 
@@ -22,9 +24,9 @@ class SyntheticRecordingService(RecordingService):
 def _queue(tmp_path: Path) -> tuple[PersistentRunQueue, str]:
     recordings = SyntheticRecordingService(tmp_path / "recordings", tmp_path / "queue.sqlite3")
     recording = recordings.create_recording("source.edf", ".edf", b"queue-source")
-    with recordings._connect() as connection:
+    with connect_database(recordings.database_path) as connection:
         connection.execute("UPDATE recordings SET sfreq = 200, duration_s = 10, channels_json = '[\"F3\"]' WHERE id = ?", (recording.id,))
-    return PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts"), recording.id
+    return PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts", algorithm_registry=build_builtin_registry()), recording.id
 
 
 def _request(recording_id: str, key: str | None = None) -> RunCreateRequest:
@@ -131,7 +133,7 @@ def test_queue_cancel_recovery_and_retry_keep_provenance(tmp_path: Path):
     stranded = queue.enqueue(_request(recording_id))
     claimed = queue.repository.claim_next_queued()
     assert claimed is not None and claimed.status is RunStatus.RUNNING
-    recovered_queue = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts")
+    recovered_queue = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts", algorithm_registry=queue.algorithm_runtime_registry)
     assert recovered_queue.get(claimed.run_id).status is RunStatus.QUEUED
 
 
@@ -162,7 +164,7 @@ def test_queue_recovers_one_hundred_persisted_jobs_without_duplicate_ids(tmp_pat
     assert len(run_ids) == 100
     assert queue.repository.claim_next_queued() is not None
 
-    recovered = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts")
+    recovered = PersistentRunQueue(queue.recordings, queue.repository.database_path, tmp_path / "artifacts", algorithm_registry=queue.algorithm_runtime_registry)
     states = [item.status for item in recovered.list(limit=1000)]
     assert len(states) == 100
     assert RunStatus.RUNNING not in states

@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.bootstrap import build_builtin_registry
 from app.main import app
-from app.services.algorithm_presets import AlgorithmPresetService
+from app.services.workspace.algorithm_presets import AlgorithmPresetService
 
 
 def _config() -> dict[str, object]:

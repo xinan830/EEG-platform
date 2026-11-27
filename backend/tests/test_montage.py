@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.services.montage import (
+from app.services.viewer.montage import (
     apply_montage,
     build_montage,
     describe_montages,

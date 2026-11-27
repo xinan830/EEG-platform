@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.services.live_filter import LiveFilterService
+from app.services.viewer.live_filter import LiveFilterService
 
 
 def test_live_filter_preserves_non_eeg_columns_and_returns_volts() -> None:

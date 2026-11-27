@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.topomap import TopomapService
-from app.services.result_scalar_inputs import RbpResultScalarAdapter
+from app.services.analysis.results.topomap import TopomapService
+from app.services.analysis.results.result_scalar_inputs import RbpResultScalarAdapter
 from test_topomap import _dynamic_window_payload
 
 

@@ -20,9 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 from on_demand_fixtures import psd_config, write_recording
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.models.run import RunCreateRequest
-from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
-from app.services.run_queue import PersistentRunQueue
-from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.analysis.runs.run_queue import PersistentRunQueue
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
 
 
 PENDING = {"queued", "preparing_source", "computing_window"}
@@ -42,7 +42,7 @@ def run(recording_path: Path, duration_s: float) -> dict:
     process = psutil.Process()
     with tempfile.TemporaryDirectory(prefix="brain-combined-validation-") as scratch_name:
         scratch = Path(scratch_name)
-        from app.services.recordings import RecordingService
+        from app.services.recordings.recordings import RecordingService
         from app.bootstrap import build_builtin_registry
 
         recordings = RecordingService(scratch / "combined-recordings", scratch / "combined.sqlite3")
@@ -54,7 +54,8 @@ def run(recording_path: Path, duration_s: float) -> dict:
             recording = recordings.register_wpf_recording(str(root), signal_mode="acquisition_montage")
         coordinator = ScientificComputeCoordinator(max_active=1, interactive_burst_limit=4, wait_poll_s=0.005)
         runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "combined-artifacts",
-                                  compute_coordinator=coordinator)
+                                  compute_coordinator=coordinator,
+                                  algorithm_registry=build_builtin_registry())
         windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path,
                                        scratch / "combined-artifacts", compute_coordinator=coordinator)
         config = psd_config(recording)

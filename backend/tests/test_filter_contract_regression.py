@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal
 
-from app.services.waveform_filter import DisplaySignalFilter
+from app.services.viewer.waveform_filter import DisplaySignalFilter
 
 
 def test_filter_contract_matches_independent_golden_values():

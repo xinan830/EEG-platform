@@ -8,10 +8,10 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.scientific.contracts.spectrogram import density_uv_to_db
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY as spectral
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm
-from app.services.live_recording_access import LiveRecordingAccessService
-from app.services.result_scalar_inputs import RESULT_SCALAR_ADAPTERS
-from app.services.topomap import TopomapService
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessService
+from app.services.analysis.results.result_scalar_inputs import RESULT_SCALAR_ADAPTERS
+from app.services.analysis.results.topomap import TopomapService
 
 
 RATE = 250

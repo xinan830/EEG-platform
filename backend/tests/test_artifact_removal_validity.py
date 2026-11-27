@@ -77,7 +77,7 @@ def test_disabled_and_empty_data_do_not_report_fabricated_gaps():
 def test_application_version_invalidates_results_without_invalidating_reviewed_fit(monkeypatch):
     from app.core.provenance import with_offline_preprocessing
     from app.scientific.contracts import artifact_removal
-    from app.services.ica_review_cache import compute_ica_fit_fingerprint
+    from app.services.preprocessing.ica_review_cache import compute_ica_fit_fingerprint
 
     spec = ArtifactRemovalSpec(method="ica_infomax", ica_exclude_components=(0,))
     config = {"preprocessing": {"artifact_removal": {"method": "ica_infomax"}}}
@@ -93,8 +93,8 @@ def test_application_version_invalidates_results_without_invalidating_reviewed_f
 
 
 def test_failed_spectral_gate_retains_reconstruction_gap_provenance():
-    from app.services.analysis_preprocess_cache import PreprocessedRecording
-    from app.services.spectral_analysis import SpectralAnalysisService
+    from app.services.preprocessing.analysis_preprocess_cache import PreprocessedRecording
+    from app.services.analysis.spectral_analysis import SpectralAnalysisService
     from app.scientific.quality import SpectralQualityGateError
     from app.scientific.contracts.preprocessing import ArtifactRemovalSpec
 
@@ -119,8 +119,8 @@ def test_failed_spectral_gate_retains_reconstruction_gap_provenance():
 
 
 def test_faa_source_reports_external_missing_input_dependency():
-    from app.services.analysis_preprocess_cache import PreprocessedRecording
-    from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+    from app.services.preprocessing.analysis_preprocess_cache import PreprocessedRecording
+    from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 
     names = ("F3", "F4", "T5")
     before = np.zeros((1000, 3))
@@ -129,10 +129,11 @@ def test_faa_source_reports_external_missing_input_dependency():
     after[100:150] = np.nan
     prepared = PreprocessedRecording(after, 100, names, None, artifact_removal_evidence={
         "method": "ica_infomax", "application_validity": build_application_validity(before, after, names, 100)})
-    context = _RecordingAlgorithmContext(SimpleNamespace(
-        load_preprocessed_signals=lambda *a, **k: prepared,
-        analysis_signal_provenance=lambda _: {"analysis_reference": "as_recorded"}),
-        SimpleNamespace(id="rec", channels=names, sfreq=100, duration_s=10))
+    context = _RecordingAlgorithmContext(
+        SimpleNamespace(analysis_signal_provenance=lambda _: {"analysis_reference": "as_recorded"}),
+        SimpleNamespace(id="rec", channels=names, sfreq=100, duration_s=10),
+        offline_preprocessing=SimpleNamespace(load_preprocessed_signals=lambda *a, **k: prepared),
+    )
     left, right, _, evidence = context.load_faa_signals(
         start_s=1.2, end_s=2, f3_channel="F3", f4_channel="F4", low_hz=1, high_hz=40)
     assert np.isnan(left[:30]).all() and np.isnan(right[:30]).all()

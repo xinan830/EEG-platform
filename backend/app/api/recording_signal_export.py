@@ -10,7 +10,7 @@ from starlette.responses import FileResponse
 from starlette.responses import Response
 
 from app.core.api_contract import error_response
-from app.services.recording_signal_export import SignalExportError
+from app.services.viewer.recording_signal_export import SignalExportError
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 
 from app.models.recording import RecordingSummary
-from app.services.prepared_source_identity import prepared_source_identity
+from app.services.preprocessing.prepared_source_identity import prepared_source_identity
 
 
 class Source:

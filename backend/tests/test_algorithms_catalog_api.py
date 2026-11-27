@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
-from app.services.definitions import DefinitionService
+from app.services.workspace.definitions import DefinitionService
 
 
 def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
@@ -118,7 +118,7 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
 
 
 def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v208(tmp_path) -> None:
-    from app.services.official_algorithm_catalog import ensure_official_definitions, official_definition_draft
+    from app.services.analysis.official_algorithm_catalog import ensure_official_definitions, official_definition_draft
 
     service = DefinitionService(tmp_path / "rbp-upgrade.sqlite3")
     definition = service.create(DefinitionCreateRequest(

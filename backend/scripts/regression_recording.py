@@ -6,11 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
+from app.bootstrap import build_builtin_registry
 from app.models.run import RunCreateRequest
-from app.services.analysis_provenance import build_analysis_provenance
-from app.services.recordings import RecordingService
-from app.services.recording_samples import WpfSampleReader
-from app.services.runs import RunService
+from app.services.analysis.results.analysis_provenance import build_analysis_provenance
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.recording_samples import WpfSampleReader
+from app.services.analysis.runs.runs import RunService
 from scripts import recording_audit_reference as ref
 from scripts.regression_store import Differences, checksum
 
@@ -114,7 +115,7 @@ def snapshot_run(service, run, config, aliases):
                  actual_range=run.actual_range, requested_range=run.requested_range,
                  channels=run.channel_mapping, reference=run.reference, filters=run.filters,
                  window=run.window, quality_rules=run.quality_rules,
-                 provenance=build_analysis_provenance(run))
+                 provenance=build_analysis_provenance(run, algorithm_registry=build_builtin_registry()))
     return normalize(value, replacements), arrays
 
 
@@ -127,7 +128,7 @@ def replay(directory: Path, temporary: Path, progress=print):
     recordings = RecordingService(temporary / "recordings", temporary / "db.sqlite3")
     recording = recordings.register_wpf_recording(str(directory), signal_mode="acquisition_montage",
                                                  analysis_montage_profiles=[alternate])
-    service = RunService(recordings, recordings.database_path, temporary / "artifacts")
+    service = RunService(recordings, recordings.database_path, temporary / "artifacts", algorithm_registry=build_builtin_registry())
     snapshots, arrays, checks, cache = {}, {}, Differences(), {}
     try:
         for kind in ("REF", "AVG"):
@@ -150,7 +151,7 @@ def replay(directory: Path, temporary: Path, progress=print):
                     arrays.update({f"{key}/{name}": value for name, value in values.items()})
                     validate_scenario(key, snapshot, values, sources[kind], labels, fs, checks, cache)
     finally:
-        recordings._analysis_preprocess_cache.clear_recording(recording.id)
+        recordings.invalidate_recording(recording.id)
         after = source_checksums(directory)
         if before != after:
             raise ValueError("Original recording files changed during replay")

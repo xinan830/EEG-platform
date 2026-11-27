@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.api_contract import error_response
-from app.services.electrode_locations import resolve_electrode_labels
+from app.services.recordings.electrode_locations import resolve_electrode_labels
 
 
 router = APIRouter(prefix="/api/electrode-locations", tags=["electrode-locations"])

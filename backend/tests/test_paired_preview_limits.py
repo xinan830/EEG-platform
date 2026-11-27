@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, BadChannelSpec
-from app.services.preprocessing_preview import build_preprocessing_preview_window
-from app.services.preview_envelope import (
+from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
+from app.services.preprocessing.preview_envelope import (
     MAX_PAIRED_PREVIEW_POINTS_PER_TRACE,
     MAX_PAIRED_PREVIEW_RESPONSE_SCALARS,
     PreviewEnvelopeLimitError,
@@ -50,7 +50,8 @@ def test_excluded_output_baseline_also_obeys_hard_trace_limit():
     with pytest.raises(PreviewEnvelopeLimitError):
         build_preprocessing_preview_window(
             recordings, SimpleNamespace(id="rec"), start_s=0, window_s=20,
-            bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4",)))
+            bad_channel_spec=BadChannelSpec(policy="exclude", channels=("C4",)),
+            offline_preprocessing=recordings.offline_scientific_preprocessing)
 
 
 @pytest.mark.parametrize("excluded", [False, True])
@@ -67,7 +68,8 @@ def test_whole_response_budget_counts_all_channels_and_both_sides(excluded):
         build_preprocessing_preview_window(
             recordings, SimpleNamespace(id="rec"), start_s=0, window_s=14,
             bad_channel_spec=BadChannelSpec(policy="exclude", channels=(names[-1],)) if excluded else None,
-            artifact_rejection_spec=ArtifactRejectionSpec(policy="reject"), max_points=4000)
+            artifact_rejection_spec=ArtifactRejectionSpec(policy="reject"), max_points=4000,
+            offline_preprocessing=recordings.offline_scientific_preprocessing)
 
 
 def test_preview_api_reports_stable_limit_error_and_request_id(tmp_path, monkeypatch):
@@ -78,7 +80,7 @@ def test_preview_api_reports_stable_limit_error_and_request_id(tmp_path, monkeyp
     monkeypatch.setattr(recordings, "require_recording", lambda _: recording)
     values = np.ones((20000, 1))
     values[1::2] = np.nan
-    monkeypatch.setattr(recordings.offline_scientific_preprocessing, "prepare_continuous",
+    monkeypatch.setattr(client.app.state.offline_scientific_preprocessing_service, "prepare_continuous",
                         lambda *_a, **_k: _source(values, ("F3",)))
     response = client.post("/api/recordings/rec/preprocessing/preview-window",
                            headers={"X-Request-ID": "preview-limit-test"},

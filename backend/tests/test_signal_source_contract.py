@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from app.algorithm_runtime.signal_source import SignalSourceData, SignalSourceRequest, SpectralSourceRequest
 from app.algorithms.builtin_modules import build_builtin_modules
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 
 
 def test_signal_source_request_requires_explicit_ordered_identity_and_preprocessing():
@@ -172,7 +172,8 @@ def _spectral_request(**changes):
     {"F4": "F4", "F3": "F3", "other": "F3"},
 ])
 def test_spectral_loader_rejects_missing_or_extra_roles(mapping):
-    context = _RecordingAlgorithmContext(_RecordingStub(), _RecordingStub())
+    stub = _RecordingStub()
+    context = _RecordingAlgorithmContext(stub, stub, spectral_analysis=stub)
     with pytest.raises(ValueError, match="exactly the requested channels"):
         context.load_spectral_source(_spectral_request(), role_to_channel=mapping)
 
@@ -184,7 +185,7 @@ def test_spectral_loader_rejects_missing_or_extra_roles(mapping):
 ])
 def test_spectral_loader_rejects_stale_montage_rate_or_sample_bounds(changes):
     recording = _RecordingStub()
-    context = _RecordingAlgorithmContext(recording, recording)
+    context = _RecordingAlgorithmContext(recording, recording, spectral_analysis=recording)
     with pytest.raises(ValueError, match="changed after request planning|exceed the recording"):
         context.load_spectral_source(_spectral_request(**changes), role_to_channel={"F4": "F4", "F3": "F3"})
 
@@ -197,7 +198,7 @@ def test_spectral_loader_rounds_seconds_to_floor_start_and_rounded_duration():
         raise RuntimeError("stop after observing boundary conversion")
 
     recording = _RecordingStub(loader=fail_after_capture)
-    context = _RecordingAlgorithmContext(recording, recording)
+    context = _RecordingAlgorithmContext(recording, recording, spectral_analysis=recording)
     with pytest.raises(RuntimeError, match="stop after observing"):
         context.load_spectrum(start_s=1.29, window_s=1.06, channels=["F4", "F3"],
                               low_hz=1, high_hz=4, notch_hz=None)
@@ -206,7 +207,7 @@ def test_spectral_loader_rounds_seconds_to_floor_start_and_rounded_duration():
 
 def test_spectral_loader_propagates_filter_failure_without_fabricating_spectrum():
     recording = _RecordingStub()
-    context = _RecordingAlgorithmContext(recording, recording)
+    context = _RecordingAlgorithmContext(recording, recording, spectral_analysis=recording)
     with pytest.raises(RuntimeError, match="filter execution failed"):
         context.load_spectral_source(
             _spectral_request(), role_to_channel={"F4": "F4", "F3": "F3"},
@@ -222,7 +223,7 @@ def test_spectral_loader_passes_execution_control_to_preprocessing_service():
         raise RuntimeError("stop after observing execution control")
 
     recording = _RecordingStub(loader=capture_control)
-    context = _RecordingAlgorithmContext(recording, recording, control)
+    context = _RecordingAlgorithmContext(recording, recording, control, spectral_analysis=recording)
     with pytest.raises(RuntimeError, match="stop after observing"):
         context.load_spectral_source(
             _spectral_request(), role_to_channel={"F4": "F4", "F3": "F3"},

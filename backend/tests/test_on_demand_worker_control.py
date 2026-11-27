@@ -1,4 +1,4 @@
-from app.services.on_demand_worker import WindowExecutionControl
+from app.services.analysis.windows.on_demand_worker import WindowExecutionControl
 
 
 class _Lease:

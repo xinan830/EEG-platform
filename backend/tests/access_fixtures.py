@@ -1,5 +1,5 @@
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.recording_samples import ArraySampleReader
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recordings.recording_samples import ArraySampleReader
 
 
 def array_access_session(recording, values, sampling_rate_hz, channel_names):

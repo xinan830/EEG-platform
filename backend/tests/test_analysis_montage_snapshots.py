@@ -7,12 +7,13 @@ import time
 import numpy as np
 import pytest
 
+from app.persistence import connect_database
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.bootstrap import build_builtin_registry
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recordings import RecordingService
-from app.services.wpf_recording import WpfRecordingError
-import app.services.analysis_montage_snapshots as snapshot_module
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.wpf_recording import WpfRecordingError
+import app.services.recordings.analysis_montage_snapshots as snapshot_module
 from test_acquisition_analysis_signals import fixture_recording, compatible_average_profile, row
 
 
@@ -115,7 +116,7 @@ def test_invalid_candidate_rejects_entire_snapshot_batch(tmp_path, invalid_field
                                        analysis_montage_profiles=[valid, invalid])
     assert error.value.code in {"ANALYSIS_MONTAGE_INCOMPATIBLE", "ANALYSIS_MONTAGE_INVALID"}
     assert service.require_recording(recording.id).montage_catalogue == recording.montage_catalogue
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         assert connection.execute("SELECT count(*) FROM analysis_montage_snapshots").fetchone()[0] == 0
 
 
@@ -128,7 +129,7 @@ def test_invalid_first_registration_does_not_leave_recording_or_snapshot_rows(tm
     with pytest.raises(WpfRecordingError):
         service.register_wpf_recording(str(root), signal_mode="acquisition_montage",
                                        analysis_montage_profiles=[invalid])
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         assert connection.execute("SELECT count(*) FROM recordings").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM analysis_montage_snapshots").fetchone()[0] == 0
 
@@ -164,7 +165,7 @@ def test_registration_api_accepts_compatible_profile_and_rejects_incompatible_pr
     })
     assert rejected.status_code == 422
     assert rejected.json()["code"] == "ANALYSIS_MONTAGE_INCOMPATIBLE"
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         assert connection.execute("SELECT count(*) FROM recordings").fetchone()[0] == 1
 
 

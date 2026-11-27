@@ -38,8 +38,8 @@ def test_old_schema_upgrade_preserves_run_and_request_identity(tmp_path, previou
 
 
 def test_retired_faa_result_is_rejected_without_reexecution_or_mutation(tmp_path, monkeypatch):
-    from app.services.analysis_provenance import serialize_analysis_run
-    from app.services.current_algorithm_result import InvalidCurrentResultError
+    from app.services.analysis.results.analysis_provenance import serialize_analysis_run
+    from app.services.analysis.results.current_algorithm_result import InvalidCurrentResultError
     queue, recording_id = _queue(tmp_path)
     run = queue.enqueue(_request(recording_id))
     final = queue.process_next()

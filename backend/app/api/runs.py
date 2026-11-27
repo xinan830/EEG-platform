@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 from app.core.api_contract import error_response
 from app.models.run import RunCreateRequest
 from app.models.run_read import AnalysisRunRead
-from app.services.analysis_provenance import serialize_analysis_run
-from app.services.runs import RunConflictError, RunService
+from app.services.analysis.results.analysis_provenance import serialize_analysis_run
+from app.services.analysis.runs.runs import RunConflictError, RunService
 
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -18,6 +18,13 @@ logger = logging.getLogger("brain_platform.api.runs")
 
 def _service(request: Request) -> RunService:
     return request.app.state.run_service
+
+
+def _registry(request: Request):
+    registry = getattr(request.app.state, "algorithm_runtime_registry", None)
+    if registry is not None:
+        return registry
+    return getattr(_service(request), "algorithm_runtime_registry", None)
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
@@ -41,7 +48,7 @@ def create_run(payload: RunCreateRequest, request: Request):
         "run_created request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
         getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
     )
-    return serialize_analysis_run(run)
+    return serialize_analysis_run(run, algorithm_registry=_registry(request))
 
 
 @router.post("/ensure", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
@@ -67,18 +74,19 @@ def ensure_run(payload: RunCreateRequest, request: Request):
         "run_ensured request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
         getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
     )
-    return serialize_analysis_run(run)
+    return serialize_analysis_run(run, algorithm_registry=_registry(request))
 
 
 @router.get("", response_model=list[AnalysisRunRead], response_model_exclude_unset=True)
 def list_runs(request: Request, recording_id: str | None = None, limit: int = Query(100, ge=1, le=1000)):
-    return [serialize_analysis_run(item) for item in _service(request).list(recording_id, limit)]
+    registry = _registry(request)
+    return [serialize_analysis_run(item, algorithm_registry=registry) for item in _service(request).list(recording_id, limit)]
 
 
 @router.get("/{run_id}", response_model=AnalysisRunRead, response_model_exclude_unset=True)
 def get_run(run_id: str, request: Request):
     try:
-        return serialize_analysis_run(_service(request).get(run_id))
+        return serialize_analysis_run(_service(request).get(run_id), algorithm_registry=_registry(request))
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
 
@@ -86,7 +94,7 @@ def get_run(run_id: str, request: Request):
 @router.post("/{run_id}/cancel")
 def cancel_run(run_id: str, request: Request):
     try:
-        return serialize_analysis_run(_service(request).cancel(run_id))
+        return serialize_analysis_run(_service(request).cancel(run_id), algorithm_registry=_registry(request))
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
     except (RunConflictError, ValueError) as exc:
@@ -103,7 +111,7 @@ def retry_run(run_id: str, request: Request):
         worker = getattr(request.app.state, "run_worker", None)
         if worker is not None:
             worker.wake()
-        return serialize_analysis_run(run)
+        return serialize_analysis_run(run, algorithm_registry=_registry(request))
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
     except ValueError as exc:

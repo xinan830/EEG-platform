@@ -1,6 +1,6 @@
 import numpy as np
 
-from app.services.filter_checkpoint_cache import FilterCheckpointCache
+from app.services.viewer.filter_checkpoint_cache import FilterCheckpointCache
 
 
 def _state(value: float):

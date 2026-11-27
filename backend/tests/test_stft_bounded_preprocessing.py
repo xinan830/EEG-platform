@@ -10,8 +10,10 @@ from scipy import signal
 from app.algorithms.stft.runner import StftAlgorithm
 from app.scientific.contracts.spectrogram import stft_context_s
 from app.scientific.quality import SpectralQualityGateError
-from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
-from app.services.tnk_window_preprocessing import prepare_tnk_window
+from app.services.recordings.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.preprocessing.tnk_window_preprocessing import prepare_tnk_window
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
 from tests.test_spectrum_service import _service
 from tests.test_stft_on_demand_capability import _config, _identity, _inputs, _payload, _session
 
@@ -59,9 +61,10 @@ def _generated_service(tmp_path, monkeypatch, duration_s=86400, gap_sample=None)
         )
 
     monkeypatch.setattr(service, "open_access_session", open_session)
-    monkeypatch.setattr(service.offline_scientific_preprocessing, "prepare_continuous",
+    offline_prep = OfflineScientificPreprocessingService.for_recordings(service)
+    monkeypatch.setattr(offline_prep, "prepare_continuous",
                         lambda *_a, **_kw: pytest.fail("STFT must not prepare whole recording"))
-    return service, recording, readers
+    return SpectralAnalysisService(service, offline_prep), recording, readers
 
 
 @pytest.mark.parametrize("start_s,low,expected", [
@@ -74,7 +77,7 @@ def test_24_hour_source_reads_only_selected_window_and_context(tmp_path, monkeyp
     payload = service.load_spectrogram(recording, start_s, 5, ["pz", "fz"], low_hz=low, high_hz=30)
     assert readers[0].reads == [(*expected, (1, 0))]
     assert readers[0].closed
-    assert not service._analysis_preprocess_cache._entries
+    assert not service.offline_preprocessing.prepared_cache._entries
     evidence = payload["preprocessing"]
     assert evidence["context_s"] == max(2, 3 / low)
     assert evidence["read_range_samples"] == dict(zip(("start", "end"), expected))
@@ -92,7 +95,7 @@ def test_target_and_context_gaps_are_rejected_and_session_closed(tmp_path, monke
     assert error.value.quality["gate_failed"] == "bounded_source_gap"
     assert error.value.quality["evidence"]["preprocessing"]["read_range_samples"] == {"start": 19400, "end": 21600}
     assert readers[0].closed
-    assert not service._analysis_preprocess_cache._entries
+    assert not service.offline_preprocessing.prepared_cache._entries
 
 
 def test_declared_source_gap_is_rejected_even_with_finite_samples(tmp_path, monkeypatch):
@@ -107,7 +110,7 @@ def test_declared_source_gap_is_rejected_even_with_finite_samples(tmp_path, monk
 
 
 def test_filter_failure_closes_source_without_cache(tmp_path, monkeypatch):
-    import app.services.bounded_window_preprocessing as preprocessing
+    import app.services.preprocessing.bounded_window_preprocessing as preprocessing
 
     service, recording, readers = _generated_service(tmp_path, monkeypatch)
 
@@ -118,7 +121,7 @@ def test_filter_failure_closes_source_without_cache(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="filter failure"):
         service.load_spectrogram(recording, 100, 5, ["Fz"], high_hz=30)
     assert readers[0].closed
-    assert not service._analysis_preprocess_cache._entries
+    assert not service.offline_preprocessing.prepared_cache._entries
 
 
 @pytest.mark.parametrize("kwargs", [
@@ -139,7 +142,7 @@ def test_invalid_parameters_do_not_read_samples(tmp_path, monkeypatch, kwargs):
 
 @pytest.mark.parametrize("stage", ["before", "after_filter"])
 def test_cancellation_does_not_publish_or_cache(tmp_path, monkeypatch, stage):
-    import app.services.bounded_window_preprocessing as preprocessing
+    import app.services.preprocessing.bounded_window_preprocessing as preprocessing
 
     service, recording, readers = _generated_service(tmp_path, monkeypatch)
     filtered = False
@@ -159,18 +162,18 @@ def test_cancellation_does_not_publish_or_cache(tmp_path, monkeypatch, stage):
     with pytest.raises(RuntimeError, match="cancelled"):
         service.load_spectrogram(recording, 100, 5, ["Fz"], high_hz=30,
                                  execution_context=SimpleNamespace(check_cancelled=check))
-    assert not service._analysis_preprocess_cache._entries
+    assert not service.offline_preprocessing.prepared_cache._entries
     assert all(reader.closed for reader in readers)
     assert bool(readers) == (stage == "after_filter")
 
 
 def test_three_strategies_match_real_bounded_source(tmp_path, monkeypatch):
-    from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+    from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 
     service, recording, readers = _generated_service(tmp_path, monkeypatch)
     algorithm = StftAlgorithm()
     config = _config().model_copy(update={"channel": "Fz", "start_s": 100, "end_s": 105})
-    inputs = algorithm.resolve_inputs(_RecordingAlgorithmContext(service, recording), config)
+    inputs = algorithm.resolve_inputs(_RecordingAlgorithmContext(service.recordings, recording, spectral_analysis=service), config)
     static = algorithm.execute_static(inputs, config)
     full = algorithm.execute_dynamic(inputs, config)
     plan = algorithm.plan_window(inputs, config, 21000, _session())
@@ -183,7 +186,7 @@ def test_three_strategies_match_real_bounded_source(tmp_path, monkeypatch):
     # All three execution strategies share the same bounded-window scientific preprocessing
     # cache entry, reading and zero-phase filtering the bounded context (19400..21600) once.
     assert [reader.reads for reader in readers] == [[(19400, 21600, (0,))], [], []]
-    assert service.offline_scientific_preprocessing.window_cache_stats() == {
+    assert service.offline_preprocessing.window_cache_stats() == {
         "hits": 2, "misses": 1, "coalesced": 0, "entries": 1,
     }
 
@@ -254,8 +257,9 @@ def test_bounded_reference_and_whole_record_difference(tmp_path, monkeypatch, lo
 
 def test_tnk_shared_operation_preserves_two_second_numerical_contract(tmp_path, monkeypatch):
     service, recording, readers = _generated_service(tmp_path, monkeypatch, duration_s=30)
-    prepared = prepare_tnk_window(service, recording, start_sample=2000, end_sample=3000,
-                                 channels=["Pz"], low_hz=1, high_hz=30, notch_hz=50)
+    prepared = prepare_tnk_window(service.recordings, recording, start_sample=2000, end_sample=3000,
+                                 channels=["Pz"], low_hz=1, high_hz=30, notch_hz=50,
+                                 offline_preprocessing=service.offline_preprocessing)
     raw = GeneratedReader().read(1600, 3400, [1])
     numerator, denominator = signal.iirnotch(50, 30, fs=200)
     notched = signal.filtfilt(numerator, denominator, raw, axis=0)

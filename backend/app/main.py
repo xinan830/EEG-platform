@@ -9,7 +9,7 @@ from app.api.recordings import router as recordings_router
 from app.api.preprocessing import router as preprocessing_router
 from app.api.recording_signal_preview import router as signal_preview_router
 from app.api.recording_signal_export import router as signal_export_router
-from app.services.recording_signal_export import RecordingSignalExporter
+from app.services.viewer.recording_signal_export import RecordingSignalExporter
 from app.api.electrode_locations import router as electrode_locations_router
 from app.api.tnk_workbench import router as tnk_workbench_router
 from app.api.playback import router as playback_router
@@ -18,22 +18,25 @@ from app.api.events import router as events_router
 from app.api.reports import router as reports_router
 from app.api.runs import router as runs_router
 from app.api.validations import router as validations_router
-from app.services.audit import AuditService
-from app.services.events import EventMarkerService
-from app.services.reports import ReportSnapshotService
-from app.services.recordings import RecordingService
-from app.services.definitions import DefinitionService
-from app.services.waveform_playback import WaveformPlaybackService
-from app.services.run_queue import PersistentRunQueue, RunWorker
-from app.services.validations import ValidationService
-from app.services.projects import ProjectService
-from app.services.batch_runs import BatchRunService
+from app.services.workspace.audit import AuditService
+from app.services.workspace.events import EventMarkerService
+from app.services.workspace.reports import ReportSnapshotService
+from app.services.recordings.recordings import RecordingService
+from app.services.workspace.definitions import DefinitionService
+from app.services.viewer.recording_waveform import RecordingWaveformService
+from app.services.viewer.waveform_playback import WaveformPlaybackService
+from app.services.analysis.runs.run_queue import PersistentRunQueue, RunWorker
+from app.services.workspace.validations import ValidationService
+from app.services.workspace.projects import ProjectService
+from app.services.analysis.runs.batch_runs import BatchRunService
 from app.api.projects import router as projects_router
 from app.api.batch_runs import router as batch_runs_router
 from app.api.results import router as results_router
-from app.services.results import ResultService
-from app.services.independent_spectral_reference import IndependentSpectralReferenceService
-from app.services.extension_governance import ExtensionGovernanceService
+from app.services.analysis.results.results import ResultService
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.analysis.spectral_analysis import SpectralAnalysisService
+from app.services.analysis.runs.independent_spectral_reference import IndependentSpectralReferenceService
+from app.services.workspace.extension_governance import ExtensionGovernanceService
 from app.api.extensions import router as extensions_router
 from app.api.algorithms import router as algorithms_router
 from app.api.algorithm_presets import router as algorithm_presets_router
@@ -45,24 +48,24 @@ from app.api.topomap import router as topomap_router, dynamic_router as dynamic_
 from app.api.result_scalars import router as result_scalars_router
 from app.api.custom_frequency_inspection import router as custom_frequency_inspection_router
 from app.api.topomap_3d import router as topomap_3d_router
-from app.services.live_filter import LiveFilterService
-from app.services.live_recording_access import LiveRecordingAccessService
+from app.services.viewer.live_filter import LiveFilterService
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessService
 from app.bootstrap import build_builtin_registry
-from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
-from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm
-from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
-from app.services.live_spectral_algorithms import LiveSpectrumAlgorithm
-from app.services.live_topomap_algorithm import LiveTopomapAlgorithm
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.cache_maintenance import CacheMaintenanceService
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_scientific_preprocessing import LiveScientificPreprocessingService
+from app.services.live_analysis.live_spectral_algorithms import LiveSpectrumAlgorithm
+from app.services.live_analysis.live_topomap_algorithm import LiveTopomapAlgorithm
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.windows.cache_maintenance import CacheMaintenanceService
 from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenanceMiddleware
-from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
-from app.services.topomap import TopomapService
-from app.services.result_scalars import ResultScalarsService
-from app.services.custom_frequency_inspection import CustomFrequencyInspectionService
-from app.services.topomap_3d import Topomap3DService
-from app.services.algorithm_presets import AlgorithmPresetService
+from app.services.analysis.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.analysis.results.topomap import TopomapService
+from app.services.analysis.results.result_scalars import ResultScalarsService
+from app.services.analysis.results.custom_frequency_inspection import CustomFrequencyInspectionService
+from app.services.analysis.results.topomap_3d import Topomap3DService
+from app.services.workspace.algorithm_presets import AlgorithmPresetService
 from app.core.config import DATABASE_PATH, STORAGE_DIR, on_demand_algorithm_enabled
 from app.core.api_contract import (
     RequestContextMiddleware,
@@ -71,7 +74,7 @@ from app.core.api_contract import (
     validation_exception_handler,
 )
 from app.core.logging_setup import configure_logging
-from app.services.current_algorithm_result import InvalidCurrentResultError, invalid_current_result_handler
+from app.services.analysis.results.current_algorithm_result import InvalidCurrentResultError, invalid_current_result_handler
 
 
 configure_logging(STORAGE_DIR)
@@ -105,6 +108,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.state.recording_service = RecordingService()
+app.state.offline_scientific_preprocessing_service = OfflineScientificPreprocessingService.for_recordings(
+    app.state.recording_service
+)
+app.state.spectral_analysis_service = SpectralAnalysisService(
+    app.state.recording_service,
+    app.state.offline_scientific_preprocessing_service,
+)
+app.state.recording_waveform_service = RecordingWaveformService(
+    app.state.recording_service.open_access_session
+)
+app.state.recording_service.add_delete_listener(
+    app.state.recording_waveform_service.invalidate_recording
+)
 app.state.recording_signal_exporter = RecordingSignalExporter(
     STORAGE_DIR / "signal-exports", recording_storage=app.state.recording_service.storage_dir)
 app.state.waveform_playback_service = WaveformPlaybackService(app.state.recording_service)
@@ -117,6 +133,7 @@ app.state.run_service = PersistentRunQueue(
     app.state.recording_service,
     compute_coordinator=app.state.scientific_compute_coordinator,
     algorithm_registry=app.state.algorithm_runtime_registry,
+    spectral_analysis=app.state.spectral_analysis_service,
 )
 app.state.run_worker = RunWorker(app.state.run_service)
 app.state.validation_service = ValidationService()
@@ -125,7 +142,9 @@ app.state.project_service = ProjectService()
 app.state.batch_run_service = BatchRunService(app.state.project_service, app.state.run_service)
 app.state.result_service = ResultService(app.state.run_service, app.state.validation_service)
 app.state.independent_spectral_reference_service = IndependentSpectralReferenceService(
-    app.state.recording_service, app.state.validation_service
+    app.state.recording_service,
+    app.state.validation_service,
+    spectral_analysis=app.state.spectral_analysis_service,
 )
 app.state.extension_governance_service = ExtensionGovernanceService()
 app.state.algorithm_preset_service = AlgorithmPresetService(
@@ -157,6 +176,7 @@ app.state.dynamic_window_service = DynamicWindowService(
         )
     },
     compute_coordinator=app.state.scientific_compute_coordinator,
+    spectral_analysis=app.state.spectral_analysis_service,
 )
 app.state.topomap_service = TopomapService(
     app.state.result_service, app.state.run_service, app.state.dynamic_window_service,

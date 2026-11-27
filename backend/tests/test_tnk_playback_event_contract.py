@@ -10,7 +10,7 @@ from app.algorithm_runtime.on_demand import (
 )
 from app.algorithms.tnk.playback_delivery import TnkPlaybackEventBuffer
 from app.algorithms.tnk.playback_event import TnkPlaybackFrameEvent
-from app.services.tnk_playback_delivery import TnkPlaybackDeliveryService
+from app.services.analysis.windows.tnk_playback_delivery import TnkPlaybackDeliveryService
 
 
 def _identity(**overrides) -> DynamicWindowIdentity:

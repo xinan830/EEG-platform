@@ -20,7 +20,9 @@ def test_spectrum_api_preserves_request_order_and_contract(monkeypatch):
         def record(self, *args, **kwargs):
             return None
 
-    monkeypatch.setattr(app.state, "recording_service", Service())
+    service = Service()
+    monkeypatch.setattr(app.state, "recording_service", service)
+    monkeypatch.setattr(app.state, "spectral_analysis_service", service)
     monkeypatch.setattr(app.state, "audit_service", Audit())
     response = TestClient(app).get("/api/recordings/r1/spectrum?start_s=3.5&window_s=30&channels=Oz,Fz")
 
@@ -51,7 +53,9 @@ def test_spectrum_api_accepts_a_window_longer_than_120_seconds(monkeypatch):
         def record(self, *args, **kwargs):
             return None
 
-    monkeypatch.setattr(app.state, "recording_service", Service())
+    service = Service()
+    monkeypatch.setattr(app.state, "recording_service", service)
+    monkeypatch.setattr(app.state, "spectral_analysis_service", service)
     monkeypatch.setattr(app.state, "audit_service", Audit())
 
     response = TestClient(app).get("/api/recordings/r1/spectrum?start_s=3.5&window_s=149.982&channels=Fz")
@@ -75,7 +79,9 @@ def test_spectrogram_api_accepts_a_window_longer_than_120_seconds(monkeypatch):
         def record(self, *args, **kwargs):
             return None
 
-    monkeypatch.setattr(app.state, "recording_service", Service())
+    service = Service()
+    monkeypatch.setattr(app.state, "recording_service", service)
+    monkeypatch.setattr(app.state, "spectral_analysis_service", service)
     monkeypatch.setattr(app.state, "audit_service", Audit())
 
     response = TestClient(app).get("/api/recordings/r1/spectrogram?start_s=3.5&window_s=149.982&channels=Fz")
@@ -98,7 +104,9 @@ def test_configured_spectrum_api_passes_validated_config(monkeypatch):
         def record(self, *args, **kwargs):
             return None
 
-    monkeypatch.setattr(app.state, "recording_service", Service())
+    service = Service()
+    monkeypatch.setattr(app.state, "recording_service", service)
+    monkeypatch.setattr(app.state, "spectral_analysis_service", service)
     monkeypatch.setattr(app.state, "audit_service", Audit())
     response = TestClient(app).post("/api/recordings/r1/spectrum/configured", json={
         "mode": "static", "channels": ["F3"], "time": {"start_s": 10, "end_s": 40}
@@ -127,7 +135,9 @@ def test_configured_spectrogram_api_passes_spectrogram_mode(monkeypatch):
         def record(self, *args, **kwargs):
             return None
 
-    monkeypatch.setattr(app.state, "recording_service", Service())
+    service = Service()
+    monkeypatch.setattr(app.state, "recording_service", service)
+    monkeypatch.setattr(app.state, "spectral_analysis_service", service)
     monkeypatch.setattr(app.state, "audit_service", Audit())
     response = TestClient(app).post("/api/recordings/r1/spectrogram/configured", json={
         "mode": "spectrogram", "channels": ["F3"], "time": {"start_s": 0, "end_s": 4}

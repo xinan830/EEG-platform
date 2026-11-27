@@ -5,11 +5,12 @@ import json
 
 import pytest
 
+from app.persistence import connect_database
 from app.core.performance_trace import performance_trace
-from app.services.recordings import RecordingService
-from app.services.wpf_recording import WpfRecordingError
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.wpf_recording import WpfRecordingError
 from test_acquisition_analysis_signals import fixture_recording, compatible_average_profile
-import app.services.analysis_montage_snapshots as snapshots_module
+import app.services.recordings.analysis_montage_snapshots as snapshots_module
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ def test_warm_catalogue_revalidates_changed_content(catalogue, damage):
         manifest["HardwareConfiguration"]["channel_configuration_snapshot_json"] = "{}"
         (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     else:
-        with service._connect() as connection:
+        with connect_database(service.database_path) as connection:
             if damage == "digest":
                 connection.execute("UPDATE analysis_montage_snapshots SET snapshot_sha256 = 'broken'")
             else:

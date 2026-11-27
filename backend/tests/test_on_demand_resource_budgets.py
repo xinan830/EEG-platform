@@ -8,8 +8,8 @@ import pytest
 
 from app.algorithm_runtime.errors import DynamicWindowCapacityExceededError, DynamicWindowResourceExceededError
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
-from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
-from app.services.mapped_preprocessing import MappedArrays
+from app.services.analysis.windows.dynamic_window_resources import DynamicWindowResourcePolicy
+from app.services.preprocessing.mapped_arrays import MappedArrays
 from on_demand_fixtures import configure_api, psd_config, source_hashes
 from test_on_demand_admission import admission
 from test_on_demand_psd_api import wait_window
@@ -108,7 +108,7 @@ def test_preparation_capacity_is_execution_failure_not_scientific_rejection(tmp_
 
 
 def test_mapping_allocation_checks_free_disk_before_creating_files(monkeypatch):
-    monkeypatch.setattr("app.services.mapped_preprocessing.shutil.disk_usage", lambda _: SimpleNamespace(free=1))
+    monkeypatch.setattr("app.services.preprocessing.mapped_arrays.shutil.disk_usage", lambda _: SimpleNamespace(free=1))
     owner = MappedArrays(DynamicWindowResourcePolicy())
     try:
         with pytest.raises(DynamicWindowResourceExceededError):

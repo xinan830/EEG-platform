@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.prepared_source_contract import PreparedSourceContract
+from app.services.preprocessing.prepared_source_contract import PreparedSourceContract
 
 
 def contract(**changes):

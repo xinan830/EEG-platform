@@ -5,9 +5,9 @@ import json
 import numpy as np
 import pytest
 
-from app.services.topomap_3d import Topomap3DService
-from app.services.topomap_3d_assets import load_topomap_3d_assets
-import app.services.topomap_3d_assets as asset_loader
+from app.services.analysis.results.topomap_3d import Topomap3DService
+from app.services.analysis.results.topomap_3d_assets import load_topomap_3d_assets
+import app.services.analysis.results.topomap_3d_assets as asset_loader
 
 
 def _service():

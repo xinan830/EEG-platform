@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from app.scientific.contracts.preprocessing import BadChannelSpec
-from app.services.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
+from app.services.recordings.acquisition_analysis_signals import AcquisitionSignal, AcquisitionSignalView
 from test_artifact_reference_channels import make_recording
 
 

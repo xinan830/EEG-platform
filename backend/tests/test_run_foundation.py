@@ -7,7 +7,7 @@ import pytest
 from app.models.run import AnalysisRun, RunStatus
 from app.models.run import RunCreateRequest
 from app.core.provenance import sha256_json
-from app.services.artifacts import ArtifactIntegrityError, ArtifactStore
+from app.services.analysis.runs.artifacts import ArtifactIntegrityError, ArtifactStore
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
 

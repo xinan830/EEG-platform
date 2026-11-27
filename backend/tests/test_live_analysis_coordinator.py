@@ -5,10 +5,10 @@ import numpy as np
 import pytest
 from pydantic import BaseModel
 
-from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry, LiveWindowPlan
-from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm
-from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry, LiveWindowPlan
+from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
 
 
 def source(capacity=2000):

@@ -11,7 +11,7 @@ from app.algorithm_runtime.result_validation import validate_algorithm_result
 from app.algorithms.iapf.manifest import MANIFEST as IAPF
 from app.algorithms.psd.manifest import MANIFEST as PSD
 from app.algorithms.rbp.manifest import MANIFEST as RBP
-from app.services.run_result_serialization import _serialize_structured_result
+from app.services.analysis.runs.run_result_serialization import _serialize_structured_result
 
 
 def scalar():
@@ -101,11 +101,11 @@ def test_wrong_result_family_is_rejected():
 @pytest.mark.parametrize("queued", [False, True], ids=["synchronous", "queued"])
 def test_invalid_module_output_persists_its_error_without_an_artifact(tmp_path, monkeypatch, queued):
     from app.models.run import RunStatus
-    from app.services.run_queue import PersistentRunQueue
+    from app.services.analysis.runs.run_queue import PersistentRunQueue
     from test_official_algorithm_runs import _request, _service
 
     service, recording_id = _service(tmp_path)
-    queue = PersistentRunQueue(service.recordings, service.repository.database_path, tmp_path / "artifacts") if queued else None
+    queue = PersistentRunQueue(service.recordings, service.repository.database_path, tmp_path / "artifacts", algorithm_registry=service.algorithm_runtime_registry) if queued else None
     executor_service = queue.base if queue else service
     module = executor_service.algorithm_runtime_registry.get("iapf")
     malformed = scalar()

@@ -20,10 +20,6 @@ class Source:
         self.selected = montage
         return recording
 
-    @property
-    def waveform(self):
-        return self
-
     def load_window(self, recording, *, start_s, window_s, low_cut_hz, high_cut_hz,
                     notch_hz, reference, channels, montage):
         if any(channel not in recording.channels for channel in channels):
@@ -49,6 +45,7 @@ class Source:
 def client():
     app = FastAPI()
     app.state.recording_service = Source()
+    app.state.recording_waveform_service = app.state.recording_service
     app.include_router(router)
     return TestClient(app), app.state.recording_service
 
@@ -133,12 +130,12 @@ def test_preview_resolves_case_without_changing_original_channel_names():
 
 def test_preview_stage_diagnostics_are_opt_in_and_request_correlated(monkeypatch, caplog):
     import logging
-    from app.services.recording_signal_preview import signal_preview
+    from app.services.viewer.recording_signal_preview import signal_preview
 
     api, source = client()
     caplog.set_level(logging.INFO, logger='brain_platform.signal_preview')
     monkeypatch.setenv('BRAIN_REVIEW_PERF_DIAGNOSTICS', '1')
-    signal_preview(source, 'source', start_s=2, window_s=5, montage_id=None,
+    signal_preview(source, source, 'source', start_s=2, window_s=5, montage_id=None,
                    channels=['Fz-AVG'], max_points=100, request_id='preview-request-1')
 
     diagnostic = next(record.getMessage() for record in caplog.records if 'signal_preview_perf' in record.getMessage())

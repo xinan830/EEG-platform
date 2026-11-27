@@ -10,7 +10,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.algorithm_runtime.on_demand import DynamicWindowRequest, DynamicWindowResponse
 from app.persistence.migrations import migrate_database
-from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
 from app.models.recording import RecordingSummary
 
 
@@ -62,7 +62,8 @@ def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
     recording = RecordingSummary(id="recording", original_name="recording", stored_name="recording", extension=".edf", created_at="now", source_sha256="source", sfreq=200, duration_s=20, channels=("F3",))
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
-    service = DynamicWindowService(_RecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = _RecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     try:
         response = service.ensure(DynamicWindowRequest(
             recording_id="recording", algorithm_id="psd", cursor_sample=800,
@@ -169,7 +170,8 @@ def test_last_subscription_cancels_queued_window(tmp_path):
             release.wait(timeout=2)
             return super().load_spectrum(*args, **kwargs)
 
-    service = DynamicWindowService(BlockingRecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = BlockingRecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     try:
         response = service.ensure(DynamicWindowRequest(
             recording_id="recording", algorithm_id="psd", cursor_sample=800,
@@ -223,7 +225,8 @@ def test_concurrent_ensure_shares_one_window_and_attempt(tmp_path):
     recording = RecordingSummary(id="recording", original_name="recording", stored_name="recording", extension=".edf", created_at="now", source_sha256="source", sfreq=200, duration_s=20, channels=("F3",))
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
-    service = DynamicWindowService(_RecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = _RecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     payload = DynamicWindowRequest(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
@@ -265,7 +268,8 @@ def test_one_subscriber_cancellation_does_not_cancel_shared_work(tmp_path):
 
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
-    service = DynamicWindowService(BlockingRecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = BlockingRecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     payload = dict(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
@@ -312,7 +316,8 @@ def test_explicit_retry_after_cancel_creates_new_window_generation(tmp_path):
 
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
-    service = DynamicWindowService(BlockingRecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = BlockingRecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     payload = dict(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
@@ -369,7 +374,8 @@ def test_starting_new_service_recovers_expired_worker_lease(tmp_path):
             release.wait(timeout=5)
             return super().load_spectrum(*args, **kwargs)
 
-    service = DynamicWindowService(BlockingRecordingStub(recording), registry, database, tmp_path / "artifacts")
+    stub = BlockingRecordingStub(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", spectral_analysis=stub)
     payload = DynamicWindowRequest(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
@@ -388,7 +394,8 @@ def test_starting_new_service_recovers_expired_worker_lease(tmp_path):
                 (pending["window_id"],),
             )
         service.close()
-        restarted = DynamicWindowService(_RecordingStub(recording), registry, database, tmp_path / "artifacts")
+        restarted_stub = _RecordingStub(recording)
+        restarted = DynamicWindowService(restarted_stub, registry, database, tmp_path / "artifacts", spectral_analysis=restarted_stub)
         try:
             # Recovery is automatic: no consumer ensure is needed to recreate
             # the persisted job after a process restart.

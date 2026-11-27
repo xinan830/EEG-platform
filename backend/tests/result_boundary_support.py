@@ -6,7 +6,7 @@ import re
 
 import numpy as np
 
-from app.services.analysis_provenance import build_analysis_provenance
+from app.services.analysis.results.analysis_provenance import build_analysis_provenance
 from test_official_algorithm_runs import _request, _service
 from tests.access_fixtures import array_access_session
 
@@ -46,7 +46,10 @@ def snapshot_run(tmp_path, algorithm_id, mode, rejected, provenance_builder=buil
         service.artifacts.verify(artifact)
     arrays = service.artifacts.read_npz(artifact) if artifact else {}
     summary = {key: value for key, value in run.result_summary.items() if key != "artifacts"}
-    provenance = provenance_builder(run)
+    if provenance_builder is build_analysis_provenance:
+        provenance = provenance_builder(run, algorithm_registry=service.algorithm_runtime_registry)
+    else:
+        provenance = provenance_builder(run)
     # These are storage allocation/cache addresses, not scientific coordinates.
     # Retain the immutable Definition version and all scientific identity fields.
     provenance["official_algorithm_identity"]["definition_id"] = "<allocated-definition-id>"

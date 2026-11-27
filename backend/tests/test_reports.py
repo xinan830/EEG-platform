@@ -2,12 +2,13 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.persistence import connect_database
 from app.main import app
 
 
 def _recording(client: TestClient) -> str:
     service = app.state.recording_service
-    with service._connect() as connection:
+    with connect_database(service.database_path) as connection:
         connection.execute(
             "INSERT OR REPLACE INTO recordings (id, original_name, stored_name, extension, created_at, duration_s, channels_json, mapping_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             ("report-rec", "report.bdf", "report.bdf", ".bdf", "2026-01-01T00:00:00Z", 10.0, "[]", "{}"),

@@ -8,8 +8,8 @@ from app.models.custom_frequency_inspection import (
     CustomFrequencyRangeRequest,
     CustomFrequencyWindowPair,
 )
-from app.services.custom_frequency_inspection import CustomFrequencyInspectionService
-from app.services.result_scalar_inputs import ResultProjectionUnavailable
+from app.services.analysis.results.custom_frequency_inspection import CustomFrequencyInspectionService
+from app.services.analysis.results.result_scalar_inputs import ResultProjectionUnavailable
 
 
 FREQUENCIES = [1.0, 2.0, 4.0, 10.0, 30.0, 50.0]

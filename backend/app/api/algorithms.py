@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from app.algorithm_runtime.errors import AlgorithmRuntimeError
-from app.services.official_algorithm_catalog import available_official_algorithms
+from app.services.analysis.official_algorithm_catalog import available_official_algorithms
 
 
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])

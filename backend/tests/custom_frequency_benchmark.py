@@ -12,7 +12,7 @@ import numpy as np
 from app.algorithms.rbp.custom_frequency import project_bins, project_interval, saved_denominators_uv2
 from app.api.custom_frequency_inspection import router
 from app.models.custom_frequency_inspection import CustomFrequencyWindowPair, CustomFrequencyRangeRequest
-from app.services.custom_frequency_inspection import CustomFrequencyInspectionService
+from app.services.analysis.results.custom_frequency_inspection import CustomFrequencyInspectionService
 from on_demand_fixtures import configure_api
 from test_on_demand_rbp_api import wait_window
 

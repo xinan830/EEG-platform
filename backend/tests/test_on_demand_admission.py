@@ -15,7 +15,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.models.recording import RecordingSummary
 from app.persistence.migrations import migrate_database
-from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
 from test_on_demand_dynamic_service import _RecordingStub
 
 
@@ -35,8 +35,8 @@ def admission(tmp_path):
             return super().load_spectrum(*args, **kwargs)
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
-    service = DynamicWindowService(BlockingRecording(recording), registry, database,
-                                  tmp_path / "artifacts", max_pending_windows=2)
+    stub = BlockingRecording(recording)
+    service = DynamicWindowService(stub, registry, database, tmp_path / "artifacts", max_pending_windows=2, spectral_analysis=stub)
     request = DynamicWindowRequest(recording_id="r", algorithm_id="psd", cursor_sample=800,
         config={"time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
                 "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None})

@@ -39,3 +39,8 @@ include = ["app", "app.*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "gate: fast architecture, policy, and API contract checks",
+    "domain: focused backend domain regression tests",
+    "integration: slower full-pipeline or real-recording integration suites",
+]

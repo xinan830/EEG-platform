@@ -19,10 +19,10 @@ from app.algorithms.faa.official import compute_faa
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.bootstrap import build_builtin_registry
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recording_samples import WpfSampleReader
-from app.services.recordings import RecordingService
-from app.services.run_queue import PersistentRunQueue
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recording_samples import WpfSampleReader
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 from tests.test_faa_continuous import independent_faa, reference_filter
 
 class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
@@ -76,7 +76,7 @@ def validate(directory):
         recording = recordings.register_wpf_recording(str(directory))
         report["source"] = {"sha256": recording.source_sha256, "duration_s": recording.duration_s,
                             "sfreq_hz": recording.sfreq, "channel_count": len(recording.channels)}
-        queue = PersistentRunQueue(recordings, recordings.database_path, root / "artifacts")
+        queue = PersistentRunQueue(recordings, recordings.database_path, root / "artifacts", algorithm_registry=build_builtin_registry())
         windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path,
                                        root / "artifacts", compute_coordinator=queue.compute_coordinator)
         faa_dynamic = None
@@ -240,7 +240,7 @@ def validate(directory):
             "max_legacy_absolute_difference": max(legacy_changes, default=None),
             "legacy_quality_different_windows": legacy_quality_differences,
             "rtol": 1e-11, "atol": 1e-12}
-        recordings._analysis_preprocess_cache.clear_recording(recording.id)
+        recordings.invalidate_recording(recording.id)
         gc.collect()
     stop_sampling.set()
     sampler.join()

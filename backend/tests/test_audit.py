@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.services.audit import AuditService
+from app.services.workspace.audit import AuditService
 
 
 def test_audit_events_are_persistent_and_filterable(tmp_path: Path):

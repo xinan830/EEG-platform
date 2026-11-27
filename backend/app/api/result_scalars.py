@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query, Request
 from starlette.responses import Response
 
 from app.core.api_contract import error_response
-from app.services.result_scalar_inputs import ResultProjectionUnavailable
+from app.services.analysis.results.result_scalar_inputs import ResultProjectionUnavailable
 
 logger = logging.getLogger("brain_platform.result_scalars")
 router = APIRouter(prefix="/api/analysis-windows", tags=["result-scalars"])

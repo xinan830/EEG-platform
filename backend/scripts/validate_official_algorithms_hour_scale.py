@@ -21,8 +21,9 @@ import numpy as np
 import scipy
 
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.recordings import RecordingService
-from app.services.run_queue import PersistentRunQueue
+from app.services.recordings.recordings import RecordingService
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 from validate_run_execution import working_set_bytes
 from tests.on_demand_fixtures import write_recording
 
@@ -63,7 +64,7 @@ def run_algorithm(root: Path, algorithm: str, duration_s: float) -> dict[str, ob
     source_hash = hashlib.sha256((source / "samples-000001.bin").read_bytes()).hexdigest()
     recordings = RecordingService(root / f"stored-{algorithm}", root / f"{algorithm}.sqlite3")
     recording = recordings.register_wpf_recording(str(source), signal_mode="acquisition_montage")
-    queue = PersistentRunQueue(recordings, recordings.database_path, root / f"artifacts-{algorithm}")
+    queue = PersistentRunQueue(recordings, recordings.database_path, root / f"artifacts-{algorithm}", algorithm_registry=build_builtin_registry())
     run = queue.enqueue(request(recording, algorithm, duration_s))
     progress_times: list[float] = []
     previous = [perf_counter()]
@@ -117,7 +118,7 @@ def run_algorithm(root: Path, algorithm: str, duration_s: float) -> dict[str, ob
         "source_sha256": source_hash,
     }
     queue.compute_coordinator.close()
-    recordings._analysis_preprocess_cache.clear_recording(recording.id)
+    recordings.invalidate_recording(recording.id)
     del queue, recordings, recording, final
     gc.collect()
     return result

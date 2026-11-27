@@ -7,9 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.recording_samples import WpfRecordingFactsCache
-from app.services.recordings import RecordingService
-from app.services.wpf_recording import WpfRecordingError, inspect_wpf_recording
+from app.services.recordings.recording_samples import WpfRecordingFactsCache
+from app.services.recordings.recordings import RecordingService
+from app.services.recordings.wpf_recording import WpfRecordingError, inspect_wpf_recording
 
 
 def _write_fixture(root: Path, status: str = "completed") -> None:
@@ -86,7 +86,7 @@ def test_register_wpf_is_idempotent_and_rejects_incomplete(tmp_path: Path, monke
 
 
 def test_wpf_facts_cache_reuses_index_and_revalidates_changed_source(tmp_path, monkeypatch):
-    from app.services import recording_samples
+    from app.services.recordings import recording_samples
 
     root = tmp_path / "recording"
     _write_fixture(root)

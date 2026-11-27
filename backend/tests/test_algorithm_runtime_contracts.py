@@ -18,7 +18,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.scientific.primitives.spectral import SpectralEstimate
 from app.scientific.quality import SpectralQualityGateError
-from app.services.run_analysis_executor import _serialize_structured_result, _serialize_structured_series_result
+from app.services.analysis.runs.run_analysis_executor import _serialize_structured_result, _serialize_structured_series_result
 
 
 def test_algorithm_config_rejects_unknown_scientific_fields() -> None:

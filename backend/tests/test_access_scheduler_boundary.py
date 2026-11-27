@@ -4,9 +4,9 @@ from pathlib import Path
 def test_schedulers_do_not_own_recording_file_readers():
     root = Path(__file__).parents[1] / "app"
     scheduler_files = (
-        root / "services" / "on_demand_dynamic.py",
-        root / "services" / "run_queue.py",
-        root / "services" / "scientific_compute_coordinator.py",
+        root / "services" / "analysis" / "windows" / "on_demand_dynamic.py",
+        root / "services" / "analysis" / "runs" / "run_queue.py",
+        root / "services" / "analysis" / "scientific_compute_coordinator.py",
         root / "algorithms" / "tnk" / "group.py",
         root / "algorithms" / "tnk" / "legacy_runtime.py",
     )

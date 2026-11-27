@@ -125,7 +125,7 @@
     {
       "capability": "validation_official_algorithms",
       "kind": "validation",
-      "canonical_import": "app.services.independent_spectral_reference.IndependentSpectralReferenceService",
+      "canonical_import": "app.services.analysis.runs.independent_spectral_reference.IndependentSpectralReferenceService",
       "owner": "services",
       "scientific_version": "offline-spectral-v4",
       "implementation_identity": "independent-scipy-mne-spectral-reference-v2",

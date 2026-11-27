@@ -61,11 +61,6 @@
       "max_lines": 490,
       "reason": "当前 483 行，验证离线算法选择、完成结果和预览协调。本章同步现有模拟后端结果的当前版本、单位、窗口状态，不扩展页面职责。通用当前格式与不支持格式的验证另置 CurrentAlgorithmResultTests.cs；保留同一交互夹具，避免为少量超线拆散选择流程。"
     },
-    "backend/app/services/on_demand_dynamic.py": {
-      "decision": "keep",
-      "max_lines": 400,
-      "reason": "已执行既定职责拆分：请求配置、导联及科学上下文校验和窗口规划移至 dynamic_window_planning.py（215 行），在准入锁外执行。当前服务 372 行，只保留 attempt/subscription 准入、执行器所有权、恢复和结果交付；数据库容量、租约及发布 fencing 保持原有语义。"
-    },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
       "max_lines": 580,
@@ -275,42 +270,15 @@
       "max_lines": 425,
       "reason": "当前 410 行，纯科学层离线坏段检测与掩码模块（按通道爆幅 PTP、MNE 宽带肌电 z-score、手动坏段校验与不跨通道误伤的区间合并），严格零服务/传输/持久化依赖。本次修复按通道精确合并与全局通道集校验后超出 400 行软目标 10 行，保留同一科学契约避免机械拆分；若后续新增第四类坏段检测器前再拆分子模块。"
     },
-    "backend/app/services/recordings.py": {
-      "decision": "keep",
-      "max_lines": 640,
-      "reason": "638 physical lines; reviewed above 600-line high-risk threshold. This increment adds four lines attaching recording geometry provenance, no new use case/method or scientific formula. Parsing stays in recording_geometry. Preserve the stable facade and existing callers; extract catalog/registration persistence before adding another use case.",
-      "follow_up": "Extract recording catalog/registration persistence from the analysis facade methods before adding new methods to RecordingService."
-    },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
       "max_lines": 450,
       "reason": "顺序迁移是单一、可审计的历史数据库升级入口，438 行。此次仅注册独立模块中的迁移 26，新增可空受试者性别与记录年龄；历史升级、重复执行、外键与数据保留有显式测试。保持 450 行上限，暂不打散历史顺序。"
     },
-    "backend/app/services/spectral_analysis.py": {
-      "decision": "keep",
-      "max_lines": 550,
-      "reason": "当前 494 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理、坏段/去伪迹与有界缓存复用均由独立模块拥有。本轮将共享去伪迹可用性投影到请求窗口/通道，并在成功和质量门失败证据中保留来源；不实现重建公式。继续扩展前复核职责边界。"
-    },
-    "backend/app/services/algorithm_recording_context.py": {
-      "decision": "keep",
-      "max_lines": 450,
-      "reason": "442 physical lines. Run-scoped typed signal access keeps its identity fence alongside session ownership. Role catalogue and persistence are delegated. Extract typed-source preparation before another source representation."
-    },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",
       "max_lines": 490,
       "reason": "动态 attempt mixin 统一管理创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。此次删除不再使用的独立租约轮询方法，470 行；任务独占的一致性取消/租约读取由 dynamic_execution_state.py 拥有，完整事务写入与发布 fencing 仍留在同一 mixin，继续扩展前重新评审。"
-    },
-    "backend/app/services/runs.py": {
-      "decision": "keep",
-      "max_lines": 500,
-      "reason": "当前 401 行。RunService 保留请求解析、运行身份、状态持久化和 artifact 关联的生命周期边界；科学公式、SQL repository、队列执行及 typed result 校验/序列化已分离。本次整理接入专属序列化边界和统一结果错误，不再让生命周期层解释算法科学输出；继续拆散会复制同一状态流转语义。"
-    },
-    "backend/app/services/run_queue.py": {
-      "decision": "keep",
-      "max_lines": 450,
-      "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。结果边界整理复核：当前 435 行，本章仅增加输出契约错误码的持久化映射；验证器和结果序列化已归专属模块，不机械拆分事务状态。",
-      "follow_up": "在 durable single-flight 与受控公平调度单独实现时，抽取队列策略和覆盖校验协作者，保持状态迁移唯一。"
     },
     "backend/app/algorithms/psd/runner.py": {
       "decision": "keep",
@@ -449,11 +417,6 @@
       "max_lines": 422,
       "reason": "单一可复现资产构建流水线，统一读取 fsaverage 图谱、对齐标准头模坐标、验证解剖覆盖并输出带哈希元数据的打包文件；拆分会分散同一坐标与资产契约。"
     },
-    "backend/app/services/recording_import.py": {
-      "decision": "keep",
-      "reason": "448 physical lines. Atomic publication and native bindings retain one rollback boundary. Geometry and physiological validation delegate to focused owners; reject malformed geometry before publication. Extract sidecar binding before a further metadata family.",
-      "max_lines": 450
-    },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ReviewPreprocessingViewModel.cs": {
       "decision": "keep",
       "max_lines": 400,
@@ -464,20 +427,10 @@
       "max_lines": 410,
       "reason": "401 行，同一算法运行时公共契约，新增一项显式去伪迹能力声明；无执行逻辑。保留输入/输出/模块协议之间的类型关系，避免为 1 行机械拆分。后续添加独立契约族时再按职责评估。"
     },
-    "backend/app/services/recording_access.py": {
-      "decision": "keep",
-      "max_lines": 455,
-      "reason": "448 physical lines. Session owns source identity, read modes and pre-montage policy composition. Geometry parsing stays in recording_geometry; only scientific identity and interpolation arguments are wired here. Extract format adapters before another format/read mode."
-    },
     "desktop-client/BrainPlatform.Desktop.Tests/Review/ReviewPreprocessingTests.cs": {
       "decision": "keep",
       "max_lines": 445,
       "reason": "443-line existing shared Review test fixture; adds typed discovery, EEG layout resolution and reference arguments to its fake. New reference behavior and HTTP tests have separate files. Preserve fixture ownership instead of copying shared responses."
-    },
-    "backend/app/services/preprocessing_preview.py": {
-      "decision": "keep",
-      "max_lines": 410,
-      "reason": "407 physical lines. Paired preview serialization and ICA visual projection retain established envelopes. Custom electrode projection delegates to the shared locked/cache-backed location service. Extract ICA visual projection before adding a new preview representation."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/Preprocessing/PreprocessingDialogStyles.xaml": {
       "decision": "keep",
@@ -488,6 +441,47 @@
       "decision": "keep",
       "max_lines": 440,
       "reason": "431-line WebView2 3D topomap host owning shared environment initialization, WebView message lifecycle, and WPF fallback wiring; incremental change adds only CustomElectrodeLocations and ShowElectrodeLabels properties."
+    },
+    "backend/app/services/analysis/windows/on_demand_dynamic.py": {
+      "decision": "keep",
+      "max_lines": 400,
+      "reason": "已执行既定职责拆分：请求配置、导联及科学上下文校验和窗口规划移至 dynamic_window_planning.py（215 行），在准入锁外执行。当前服务 372 行，只保留 attempt/subscription 准入、执行器所有权、恢复和结果交付；数据库容量、租约及发布 fencing 保持原有语义。"
+    },
+    "backend/app/services/analysis/spectral_analysis.py": {
+      "decision": "keep",
+      "max_lines": 600,
+      "reason": "当前 589 行，集中编排频谱请求、质量检查和响应 provenance（`load_spectrum` 已按校验、输入准备、窗口裁剪、响应组装拆分为 4 个清晰步骤方法，导致显式参数签名增加）；连续预处理、坏段/去伪迹与有界缓存复用均由独立模块拥有，不实现重建公式。"
+    },
+    "backend/app/services/analysis/algorithm_recording_context.py": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "442 physical lines. Run-scoped typed signal access keeps its identity fence alongside session ownership. Role catalogue and persistence are delegated. Extract typed-source preparation before another source representation."
+    },
+    "backend/app/services/analysis/runs/runs.py": {
+      "decision": "keep",
+      "max_lines": 500,
+      "reason": "当前 401 行。RunService 保留请求解析、运行身份、状态持久化和 artifact 关联的生命周期边界；科学公式、SQL repository、队列执行及 typed result 校验/序列化已分离。本次整理接入专属序列化边界和统一结果错误，不再让生命周期层解释算法科学输出；继续拆散会复制同一状态流转语义。"
+    },
+    "backend/app/services/analysis/runs/run_queue.py": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。结果边界整理复核：当前 435 行，本章仅增加输出契约错误码的持久化映射；验证器和结果序列化已归专属模块，不机械拆分事务状态。",
+      "follow_up": "在 durable single-flight 与受控公平调度单独实现时，抽取队列策略和覆盖校验协作者，保持状态迁移唯一。"
+    },
+    "backend/app/services/recordings/recording_import.py": {
+      "decision": "keep",
+      "reason": "448 physical lines. Atomic publication and native bindings retain one rollback boundary. Geometry and physiological validation delegate to focused owners; reject malformed geometry before publication. Extract sidecar binding before a further metadata family.",
+      "max_lines": 450
+    },
+    "backend/app/services/recordings/recording_access.py": {
+      "decision": "keep",
+      "max_lines": 455,
+      "reason": "448 physical lines. Session owns source identity, read modes and pre-montage policy composition. Geometry parsing stays in recording_geometry; only scientific identity and interpolation arguments are wired here. Extract format adapters before another format/read mode."
+    },
+    "backend/app/services/preprocessing/offline_scientific_preprocessing.py": {
+      "decision": "keep",
+      "max_lines": 420,
+      "reason": "410 physical lines. Single orchestration owner for offline continuous/bounded preprocessing, reviewed ICA preparation, and recording-delete cache invalidation (for_recordings + load_preprocessed_signals moved off RecordingService during Stage 4 decoupling). No formula logic; keep preparation cache and invalidation lifecycle in one owner and reassess before adding a new preprocessing stage."
     }
   }
 }

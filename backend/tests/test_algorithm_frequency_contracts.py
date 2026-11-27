@@ -11,7 +11,8 @@ from app.algorithms.peak_frequency.compute import compute_peak_frequency
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.algorithms.stft.runner import StftAlgorithm
 from app.models.run import RunCreateRequest, RunStatus
-from app.services.run_queue import PersistentRunQueue
+from app.bootstrap import build_builtin_registry
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 from tests.test_official_algorithm_runs import _service
 
 
@@ -77,7 +78,7 @@ def test_snapshot_preserves_explicit_notch_independently_of_high_cut(module, mod
 @pytest.mark.parametrize("algorithm", ["peak_frequency", "band_ratio"])
 def test_queue_rejects_unsupported_bands_before_loading_or_persisting(tmp_path, algorithm, mode):
     service, recording_id = _service(tmp_path, sfreq_hz=250)
-    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "queued")
+    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "queued", algorithm_registry=build_builtin_registry())
     if algorithm == "peak_frequency":
         extra = dict(low_hz=25, high_hz=60)
     else:
@@ -97,7 +98,7 @@ def test_queue_rejects_unsupported_bands_before_loading_or_persisting(tmp_path, 
 @pytest.mark.parametrize("mode", ["static", "dynamic"])
 def test_queued_and_completed_filters_match_actual_contract(tmp_path, algorithm, mode):
     service, recording_id = _service(tmp_path, sfreq_hz=250)
-    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "queued")
+    queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "queued", algorithm_registry=build_builtin_registry())
     payload = dict(algorithm_id=algorithm, channel="F3", mode=mode,
                    time=dict(start_s=0, end_s=10), dynamic_window_s=5, refresh_step_s=1)
     if algorithm == "peak_frequency":

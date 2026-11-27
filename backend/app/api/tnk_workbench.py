@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 from app.core.api_contract import error_response
-from app.algorithms.tnk.workbench_summary import score_state_summary
+from app.services.analysis.results.tnk_workbench import TnkWorkbenchUnavailableError, build_tnk_workbench_summary
 
 router = APIRouter(prefix="/api/runs", tags=["tnk-workbench"])
 
@@ -33,7 +33,7 @@ def read_summary(run_id: str, request: Request, cursor_s: float = Query(ge=0, al
         run = request.app.state.run_service.get(run_id)
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
-    if run.config.get("algorithm_id") != "tnk_biofeedback" or run.status.value != "completed":
-        return error_response(request, 409, "TNK_WORKBENCH_RUN_UNAVAILABLE", "需要已完成的 TNK 脑指标组 Run")
-    result = score_state_summary(run.result_summary or {}, cursor_s)
-    return dict(run_id=run_id, recording_id=run.recording_id, **result)
+    try:
+        return build_tnk_workbench_summary(run_id, run, cursor_s)
+    except TnkWorkbenchUnavailableError as exc:
+        return error_response(request, 409, "TNK_WORKBENCH_RUN_UNAVAILABLE", str(exc))

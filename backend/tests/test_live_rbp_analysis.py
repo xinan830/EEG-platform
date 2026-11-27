@@ -5,8 +5,8 @@ from pydantic import ValidationError
 
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY
 from app.algorithms.rbp.official import five_band_shares
-from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
-from app.services.live_rbp_algorithm import LiveRbpAlgorithm, LiveRbpConfig
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
+from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm, LiveRbpConfig
 
 
 def _source(*, sfreq=250.0, capacity=20_000):

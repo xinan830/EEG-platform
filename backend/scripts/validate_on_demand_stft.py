@@ -23,9 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.algorithm_runtime.on_demand import DynamicWindowRequest
 from app.bootstrap import build_builtin_registry
 from app.models.run import RunCreateRequest
-from app.services.on_demand_dynamic import DynamicWindowService
-from app.services.recordings import RecordingService
-from app.services.run_queue import PersistentRunQueue
+from app.services.analysis.windows.on_demand_dynamic import DynamicWindowService
+from app.services.recordings.recordings import RecordingService
+from app.services.analysis.runs.run_queue import PersistentRunQueue
 
 
 def file_hashes(root: Path) -> dict[str, str]:
@@ -72,7 +72,7 @@ def validate(recording_root: Path, channel: str) -> dict:
         if selected.casefold() not in {item.casefold() for item in recording.channels}:
             raise ValueError(f"channel {channel!r} is not in recording channels: {recording.channels}")
 
-        runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "artifacts")
+        runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "artifacts", algorithm_registry=build_builtin_registry())
         windows = DynamicWindowService(
             recordings,
             build_builtin_registry(),
@@ -191,7 +191,7 @@ def validate(recording_root: Path, channel: str) -> dict:
             if ensured is not None:
                 windows.cancel_subscription(ensured["subscription_id"])
             windows.close(wait=True)
-            recordings._analysis_preprocess_cache.clear_recording(recording.id)
+            recordings.invalidate_recording(recording.id)
             gc.collect()
 
 

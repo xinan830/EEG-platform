@@ -1,7 +1,7 @@
 import pytest
 
-from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry, LiveAnalysisEnvelope
-from app.services.live_recording_access import LiveRecordingAccessError
+from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry, LiveAnalysisEnvelope
+from app.services.live_analysis.live_recording_access import LiveRecordingAccessError
 
 
 class _Algorithm:

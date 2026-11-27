@@ -2,7 +2,7 @@ import pytest
 
 from app.core.recording_time import cursor_sample_from_seconds, relative_sample_from_counter
 from app.models.result_window import SampleRange, SavedResultWindow
-from app.services.result_window_index import SavedWindowIndex
+from app.services.analysis.results.result_window_index import SavedWindowIndex
 
 
 def _window(index: int, start: int, end: int, quality: str = "valid", reasons=()):

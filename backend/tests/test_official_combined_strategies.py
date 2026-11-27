@@ -9,7 +9,7 @@ import pytest
 
 from combined_strategy_support import ALGORITHM_IDS, compare_arrays, compare_preview, compare_summary, ensure_preview, setup_strategy, uncached_full, validation_context
 from on_demand_fixtures import source_hashes
-from app.services.run_execution_context import RunExecutionContext
+from app.services.analysis.runs.run_execution_context import RunExecutionContext
 from test_on_demand_psd_api import wait_window
 
 

@@ -10,8 +10,8 @@ import pytest
 
 from app.api.recording_signal_export import router
 from app.core.api_contract import RequestContextMiddleware
-from app.services.recording_signal_export import RecordingSignalExporter
-from app.services.recording_samples import WpfSampleReader
+from app.services.viewer.recording_signal_export import RecordingSignalExporter
+from app.services.recordings.recording_samples import WpfSampleReader
 from test_recording_signal_export import source_fixture
 
 
@@ -84,7 +84,7 @@ def test_disconnect_cancels_generation_and_delivery_failure_cleans_package(tmp_p
     import asyncio
     from threading import Event
     from app.api.recording_signal_export import export, ExportResponse, SignalExportRequest
-    from app.services.recording_signal_export import SignalExportPackage
+    from app.services.viewer.recording_signal_export import SignalExportPackage
     from threading import Lock
 
     entered = Event()

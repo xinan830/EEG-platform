@@ -1,5 +1,8 @@
+import pytest
+
+from app.bootstrap import build_builtin_registry
 from app.models.run import AnalysisRun, RunStatus, StructuredRunError
-from app.services.analysis_provenance import build_analysis_provenance, serialize_analysis_run
+from app.services.analysis.results.analysis_provenance import build_analysis_provenance, serialize_analysis_run
 
 
 def _run(*, dynamic: bool = False, failed: bool = False) -> AnalysisRun:
@@ -103,7 +106,7 @@ def test_faa_provenance_keeps_paired_quality_evidence():
         },
     }
 
-    provenance = build_analysis_provenance(run)
+    provenance = build_analysis_provenance(run, algorithm_registry=build_builtin_registry())
 
     assert provenance["channel"] == "F3/F4"
     assert provenance["sfreq_hz"] == 500.0
@@ -113,3 +116,6 @@ def test_faa_provenance_keeps_paired_quality_evidence():
     assert provenance["quality_label_zh"] == "成对 Epoch 质量门"
     assert provenance["definition_version"] == "1.0.0"
     assert provenance["extensions"][-1]["kind"] == "faa_paired_quality"
+
+    with pytest.raises(ValueError, match="algorithm_registry is required"):
+        build_analysis_provenance(run)

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from app.api.custom_frequency_inspection import router
-from app.services.custom_frequency_inspection import CustomFrequencyInspectionService
+from app.services.analysis.results.custom_frequency_inspection import CustomFrequencyInspectionService
 from app.scientific.primitives.spectral import band_power
 from on_demand_fixtures import configure_api, source_hashes
 from test_on_demand_rbp_api import wait_window
@@ -14,9 +14,9 @@ from test_on_demand_rbp_api import wait_window
 
 def test_projection_reads_saved_current_window_only_and_preserves_five_band_outputs(tmp_path, monkeypatch, caplog):
     caplog.set_level("INFO")
-    from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+    from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
     from app.scientific.primitives.gateway import ScientificSpectralGateway
-    from app.services.topomap import TopomapService
+    from app.services.analysis.results.topomap import TopomapService
     client, recording, windows, _, root = configure_api(tmp_path, duration_s=12)
     client.app.include_router(router)
     client.app.state.custom_frequency_inspection_service = CustomFrequencyInspectionService(windows)
@@ -55,7 +55,7 @@ def test_projection_reads_saved_current_window_only_and_preserves_five_band_outp
         monkeypatch.setattr(ScientificSpectralGateway, "welch_annotated_channels", forbidden)
         monkeypatch.setattr(ScientificSpectralGateway, "welch", forbidden)
         monkeypatch.setattr(TopomapService, "_interpolate", forbidden)
-        monkeypatch.setattr("app.services.topomap.resolve_dynamic_signal_provenance", forbidden)
+        monkeypatch.setattr("app.services.analysis.results.topomap.resolve_dynamic_signal_provenance", forbidden)
         pair = {"psd_window_id": saved["psd"]["window_id"], "rbp_window_id": saved["rbp"]["window_id"]}
         response = client.post("/api/analysis-windows/custom-frequency/bins", json=pair)
         assert response.status_code == 200, response.text

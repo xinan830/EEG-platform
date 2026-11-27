@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 
-from app.services.waveform_playback import WaveformPlaybackService
+from app.services.viewer.waveform_playback import WaveformPlaybackService
 from app.models.montage import CustomMontageChannelPayload
 from app.core.api_contract import error_response
 

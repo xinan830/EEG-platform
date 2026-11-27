@@ -6,7 +6,7 @@ from threading import Event
 
 from fastapi import Request, UploadFile
 
-from app.services.recording_import import EdfBdfImportService, RecordingImportError, StagedRecordingImport
+from app.services.recordings.recording_import import EdfBdfImportService, RecordingImportError, StagedRecordingImport
 
 
 async def stage_upload(request: Request, upload: UploadFile, service: EdfBdfImportService) -> StagedRecordingImport:

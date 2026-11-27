@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.persistence.migrations import migrate_database
-from app.services.recordings import RecordingService
+from app.services.recordings.recordings import RecordingService
 
 
 def test_mapping_write_endpoint_is_retired(tmp_path):

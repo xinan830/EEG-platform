@@ -5,9 +5,9 @@ import json
 import numpy as np
 
 from app.api.topomap import dynamic_router
-from app.services.topomap import TopomapService
+from app.services.analysis.results.topomap import TopomapService
 from app.api.result_scalars import router as scalar_router
-from app.services.result_scalars import ResultScalarsService
+from app.services.analysis.results.result_scalars import ResultScalarsService
 from on_demand_fixtures import configure_api, psd_config, source_hashes
 from test_on_demand_psd_api import wait_window
 

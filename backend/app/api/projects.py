@@ -11,10 +11,10 @@ from app.models.research_project import (
     ProjectRecordingDeletionResponse, Session, SessionCreateRequest, SessionRenameRequest, SubjectCreateRequest,
     Subject, SubjectDeletionResponse, SubjectResolutionResponse, SubjectSex,
 )
-from app.services.recording_import import EdfBdfImportService, RecordingImportError
+from app.services.recordings.recording_import import EdfBdfImportService, RecordingImportError
 from app.api.recording_uploads import publish_upload, stage_upload
-from app.services.projects import ProjectConflictError, ProjectService
-from app.services.research_subjects import SubjectBindingError
+from app.services.workspace.projects import ProjectConflictError, ProjectService
+from app.services.workspace.research_subjects import SubjectBindingError
 
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])

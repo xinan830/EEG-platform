@@ -1,5 +1,5 @@
 from app.models.recording import RecordingSummary
-from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
+from app.services.preprocessing.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 import numpy as np
 import pytest
@@ -7,7 +7,7 @@ from scipy import signal
 
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.algorithms.faa.config import FaaConfig
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
+from app.services.analysis.algorithm_recording_context import _RecordingAlgorithmContext
 from tests.access_fixtures import array_access_session
 
 

@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from app.scientific.contracts.preprocessing import BadChannelSpec
-from app.services.preprocessing_preview import attach_ica_component_visuals, build_preprocessing_preview_window
+from app.services.preprocessing.ica_component_visuals import attach_ica_component_visuals
+from app.services.preprocessing.preprocessing_preview import build_preprocessing_preview_window
 
 
 @pytest.mark.parametrize("names,formulas,expected", [
@@ -31,6 +32,7 @@ def test_interpolated_outputs_follow_positive_and_reference_dependencies(names, 
     result = build_preprocessing_preview_window(
         recordings, SimpleNamespace(id="rec"), start_s=0, window_s=1,
         bad_channel_spec=BadChannelSpec(policy="interpolate", channels=("C4",)),
+        offline_preprocessing=recordings.offline_scientific_preprocessing,
     )
     assert result["processed"]["interpolated_channels"] == expected
 

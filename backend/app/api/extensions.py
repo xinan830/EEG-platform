@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 
 from app.core.api_contract import error_response
 from app.models.extension_manifest import ExtensionManifest
-from app.services.extension_governance import ExtensionGovernanceError
+from app.services.workspace.extension_governance import ExtensionGovernanceError
 
 
 router = APIRouter(prefix="/api/extensions", tags=["extension-governance"])

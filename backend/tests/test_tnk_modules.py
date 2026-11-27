@@ -13,7 +13,7 @@ from app.algorithms.tnk.stateful import (
     RhythmStabilityModule, StatefulConfig,
 )
 from app.algorithms.tnk.stateless import AperiodicConfig, HaiConfig, RelaxationConfig, RbpConfig, SpatialConfig
-from app.services.tnk_artifacts import store_tnk_arrays
+from app.services.analysis.results.tnk_artifacts import store_tnk_arrays
 from app.models.run import RunArtifact
 
 
