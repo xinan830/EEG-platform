@@ -60,6 +60,18 @@ public sealed class SettingsCacheViewTests
         await completion.Task;
     }
 
+    [Fact]
+    public void UnifiedThirdPartyNoticesExistOnlyInRootAndLoadInSettingsDialog()
+    {
+        var (filePath, content) = ThirdPartyNoticesDialog.LoadNotices(AppContext.BaseDirectory);
+        Assert.NotNull(filePath);
+        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "THIRD_PARTY_NOTICES.txt"), filePath);
+        Assert.False(File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Topomap3D", "THIRD_PARTY_NOTICES.txt")));
+        Assert.Contains("FreeSurfer Software License Agreement Version 1.0", content);
+        Assert.Contains("NIIVUE (v0.54.0)", content);
+        Assert.Contains("THREE.JS (r170)", content);
+    }
+
     private static void Pump() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject

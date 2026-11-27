@@ -38,9 +38,21 @@ def test_packaged_assets_match_mne_and_publish_distinct_coordinate_contracts():
         site.channel for site in model.electrode_locations
     )
     assert len(model.vertices_gnm) == len(assets.vertices)
-    package = files("app.assets.topomap_3d")
-    assert "Apache License" in package.joinpath("LICENSE").read_text(encoding="utf-8")
-    assert "standard-template visualization" in package.joinpath("NOTICE").read_text(encoding="utf-8")
+    from pathlib import Path
+
+    package = files("app")
+    notices_text = package.joinpath("THIRD_PARTY_NOTICES.txt").read_text(encoding="utf-8")
+    normalized_notices = " ".join(notices_text.split())
+    assert "Apache License" in notices_text
+    assert "standard-template visualization" in normalized_notices
+    assert 'The General Hospital Corporation "MGH"' in notices_text
+    assert "FreeSurfer Software License Agreement Version 1.0" in notices_text
+    assert "Copyright 2011-2025 MNE-Python authors" in notices_text
+    assert "Copyright (c) 2016 Computational Brain Imaging Group (CBIG)" in notices_text
+    assert "mne-icalabel" in notices_text
+    repo_root_notices = Path(__file__).resolve().parents[2] / "THIRD_PARTY_NOTICES.txt"
+    if repo_root_notices.is_file():
+        assert notices_text == repo_root_notices.read_text(encoding="utf-8")
 
 
 def test_registered_scalp_sites_remain_close_to_the_gnm_surface():
@@ -126,6 +138,9 @@ def test_3d_cortex_http_contract_returns_aligned_pial_and_atlases():
     assert body["triangle_count"] == 40960
     assert body["target_coordinate_frame"] == "gnm_native"
     assert set(body["atlases"]) == {"lobes", "dk", "yeo7"}
+    assert body["atlases"]["lobes"]["name"] == "脑叶分区"
+    assert body["atlases"]["dk"]["name"] == "皮层解剖分区"
+    assert body["atlases"]["yeo7"]["name"] == "功能网络分区"
     assert body["vertices_f32_b64"]
     assert body["triangles_i32_b64"]
     assert body["sulc_f32_b64"]

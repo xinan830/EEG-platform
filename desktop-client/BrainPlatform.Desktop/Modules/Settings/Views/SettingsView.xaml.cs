@@ -49,4 +49,13 @@ public partial class SettingsView : UserControl
             navigation.ShowBrainImagingHubView();
         }
     }
+
+    private void OnOpenThirdPartyNoticesClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ThirdPartyNoticesDialog
+        {
+            Owner = Window.GetWindow(this)
+        };
+        dialog.ShowDialog();
+    }
 }

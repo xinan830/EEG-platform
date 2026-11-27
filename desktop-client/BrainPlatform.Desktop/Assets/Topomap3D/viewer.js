@@ -291,7 +291,7 @@ function updateAtlasLegendUI() {
   const atlas = state.cortexData?.atlases?.[state.atlasId];
   if (!atlas) return;
   document.getElementById("atlas-card-title").textContent =
-    atlas.id === "lobes" ? "脑叶 (Atlas)" : (atlas.id === "yeo7" ? "Yeo-7 网络" : "DK 脑区 (68)");
+    atlas.name || (atlas.id === "lobes" ? "脑叶分区" : (atlas.id === "yeo7" ? "功能网络分区" : "皮层解剖分区"));
   for (const r of atlas.regions) {
     if (r.id === 0) continue;
     const item = document.createElement("div");

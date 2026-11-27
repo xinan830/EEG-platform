@@ -9,11 +9,21 @@
   "triangle_count": 40960,
   "lh_vertex_count": 10242,
   "rh_vertex_count": 10242,
-  "npz_sha256": "6bc806b52b47b2bde555ee4c8f5e9619c5547f0bcd5f9ff07666c71b451fa909",
+  "npz_sha256": "7b5440bcc850a97af630fd21abff091b5fb550a0d315a68c6836199964453828",
+  "provenance": {
+    "cortex_geometry": "FreeSurfer fsaverage pial surface (ico-5 decimated, 20,484 vertices), affine-aligned to GNM cranial vault (-2 deg pitch)",
+    "dk": "FreeSurfer fsaverage aparc (Desikan-Killiany 68 cortical regions), FreeSurfer Software License v1.0 Part B",
+    "lobes": "Derived deterministically from Desikan-Killiany (aparc) 68 regions via DK_LOBE_GROUP (PALS-B12 removed)",
+    "yeo7": "ThomasYeoLab/CBIG Yeo2011_7Networks_N1000 (fsaverage5 annotations), MIT License",
+    "cbig_yeo7_annot_sha256": {
+      "lh": "4d2ea20fa33afa722d35884d27b3577486d8d7e15520d7d23efdd84956139190",
+      "rh": "53fa768b6c33a3bc8fb5b147d18049684514fcd07e2cbacceeca17cfc21d9e9b"
+    }
+  },
   "atlases": {
     "lobes": {
       "id": "lobes",
-      "name": "大脑脑叶分区 (PALS-B12)",
+      "name": "脑叶分区",
       "regions": [
         {
           "id": 0,
@@ -44,15 +54,6 @@
         },
         {
           "id": 3,
-          "code": "LOBE.LIMBIC",
-          "name": "边缘叶",
-          "name_en": "Limbic",
-          "lobe": "边缘叶",
-          "hemi": "both",
-          "color": "#B28CE2"
-        },
-        {
-          "id": 4,
           "code": "LOBE.TEMPORAL",
           "name": "颞叶",
           "name_en": "Temporal",
@@ -61,19 +62,37 @@
           "color": "#68C37A"
         },
         {
-          "id": 5,
+          "id": 4,
           "code": "LOBE.OCCIPITAL",
           "name": "枕叶",
           "name_en": "Occipital",
           "lobe": "枕叶",
           "hemi": "both",
           "color": "#F2B650"
+        },
+        {
+          "id": 5,
+          "code": "LOBE.LIMBIC",
+          "name": "边缘叶",
+          "name_en": "Limbic",
+          "lobe": "边缘叶",
+          "hemi": "both",
+          "color": "#B28CE2"
+        },
+        {
+          "id": 6,
+          "code": "LOBE.INSULA",
+          "name": "脑岛",
+          "name_en": "Insula",
+          "lobe": "脑岛",
+          "hemi": "both",
+          "color": "#55C4C4"
         }
       ]
     },
     "dk": {
       "id": "dk",
-      "name": "Desikan-Killiany (68区)",
+      "name": "皮层解剖分区",
       "regions": [
         {
           "id": 0,
@@ -700,7 +719,7 @@
     },
     "yeo7": {
       "id": "yeo7",
-      "name": "Yeo-7 功能网络",
+      "name": "功能网络分区",
       "regions": [
         {
           "id": 0,

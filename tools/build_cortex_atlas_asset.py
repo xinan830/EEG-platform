@@ -15,21 +15,25 @@ from scipy.spatial import cKDTree
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = REPO_ROOT / "backend" / "app" / "assets" / "topomap_3d"
+CBIG_YEO7_DIR = REPO_ROOT / "tools" / "third_party_sources" / "cbig_yeo2011"
+CBIG_YEO7_SHA256 = {
+    "lh": "4d2ea20fa33afa722d35884d27b3577486d8d7e15520d7d23efdd84956139190",
+    "rh": "53fa768b6c33a3bc8fb5b147d18049684514fcd07e2cbacceeca17cfc21d9e9b",
+}
 MAPPING_PATH = ASSETS_DIR / "colin27_1020_gnm_mapping_v4.json"
 SKIN_MESH_PATH = ASSETS_DIR / "gnm_skin_mesh.npz"
 OUT_NPZ = ASSETS_DIR / "fsaverage_cortex_atlas_v1.npz"
 OUT_JSON = ASSETS_DIR / "fsaverage_cortex_atlas_v1.json"
 
-# Clean Chinese names & refined medical-atlas color palette for major lobes and Yeo-7 networks.
-LOBE_INFO = {
-    "LOBE.FRONTAL": ("额叶", "#EF6C6C"),
-    "LOBE.PARIETAL": ("顶叶", "#5B9BD5"),
-    "LOBE.TEMPORAL": ("颞叶", "#68C37A"),
-    "LOBE.OCCIPITAL": ("枕叶", "#F2B650"),
-    "LOBE.LIMBIC": ("边缘叶", "#B28CE2"),
-    "LOBE.INSULA": ("脑岛", "#55C4C4"),
-    "MEDIAL.WALL": ("内侧壁", "#CBD5E1"),
-}
+# Clean Chinese names & refined medical-atlas color palette for major lobes (derived from DK) and Yeo-7 networks.
+LOBE_DEFS = [
+    ("LOBE.FRONTAL", "额叶", "Frontal", "#EF6C6C"),
+    ("LOBE.PARIETAL", "顶叶", "Parietal", "#5B9BD5"),
+    ("LOBE.TEMPORAL", "颞叶", "Temporal", "#68C37A"),
+    ("LOBE.OCCIPITAL", "枕叶", "Occipital", "#F2B650"),
+    ("LOBE.LIMBIC", "边缘叶", "Limbic", "#B28CE2"),
+    ("LOBE.INSULA", "脑岛", "Insula", "#55C4C4"),
+]
 
 YEO7_INFO = {
     "7Networks_1": ("视觉网络 (Visual)", "#8B5CF6"),
@@ -174,13 +178,73 @@ def fit_affine(src_pts: np.ndarray, dst_pts: np.ndarray) -> np.ndarray:
     return mat
 
 
-def load_atlas_for_ico5(
+def derive_lobes_from_dk(dk_ids: np.ndarray, dk_regions: list[dict]) -> tuple[np.ndarray, list[dict]]:
+    """Aggregate Desikan-Killiany (aparc) 68 regions into major anatomical lobes without PALS-B12."""
+    regions: list[dict] = [
+        {"id": 0, "code": "unknown", "name": "内侧壁", "name_en": "Medial Wall", "lobe": "内侧壁", "hemi": "both", "color": "#CBD5E1"}
+    ]
+    lobe_zh_to_id: dict[str, int] = {"内侧壁": 0}
+    for code, name_zh, name_en, color in LOBE_DEFS:
+        rid = len(regions)
+        lobe_zh_to_id[name_zh] = rid
+        regions.append({
+            "id": rid, "code": code, "name": name_zh, "name_en": name_en,
+            "lobe": name_zh, "hemi": "both", "color": color,
+        })
+
+    dk_to_lobe = np.zeros(len(dk_regions), dtype=np.int16)
+    for item in dk_regions:
+        dk_to_lobe[int(item["id"])] = lobe_zh_to_id.get(item.get("lobe", "内侧壁"), 0)
+
+    lobes_ids = dk_to_lobe[dk_ids].astype(np.int16)
+    return lobes_ids, regions
+
+
+def load_cbig_yeo7_ico5(lh_vertno: np.ndarray, rh_vertno: np.ndarray) -> tuple[np.ndarray, list[dict]]:
+    """Load Yeo-7 directly from upstream MIT-licensed ThomasYeoLab/CBIG fsaverage5 annotations."""
+    n_lh = len(lh_vertno)
+    n_rh = len(rh_vertno)
+    region_ids = np.zeros(n_lh + n_rh, dtype=np.int16)
+    regions: list[dict] = [
+        {"id": 0, "code": "unknown", "name": "内侧壁", "name_en": "Medial Wall", "lobe": "内侧壁", "hemi": "both", "color": "#CBD5E1"}
+    ]
+    key_to_id: dict[str, int] = {}
+
+    for hemi, vertno, offset in [("lh", lh_vertno, 0), ("rh", rh_vertno, n_lh)]:
+        annot_path = CBIG_YEO7_DIR / f"{hemi}.Yeo2011_7Networks_N1000.annot"
+        if not annot_path.is_file():
+            raise FileNotFoundError(f"Missing CBIG Yeo-7 annotation: {annot_path}")
+        actual_sha = sha256(annot_path.read_bytes()).hexdigest()
+        if actual_sha != CBIG_YEO7_SHA256[hemi]:
+            raise ValueError(f"CBIG {hemi} Yeo-7 SHA-256 mismatch: {actual_sha}")
+
+        vert_entry_idx, entries = read_fs_annot(annot_path)
+        entry_to_rid = np.zeros(len(entries), dtype=np.int16)
+        for entry_idx, (base, _, _, _) in enumerate(entries):
+            if base.startswith("FreeSurfer_Defined") or base.lower() in ("unknown", "medial_wall", "medial.wall"):
+                continue
+            zh, hex_col = YEO7_INFO.get(base, (base, "#94A3B8"))
+            if base not in key_to_id:
+                rid = len(regions)
+                key_to_id[base] = rid
+                regions.append({
+                    "id": rid, "code": base, "name": zh, "name_en": base,
+                    "lobe": zh, "hemi": "both", "color": hex_col,
+                })
+            entry_to_rid[entry_idx] = key_to_id[base]
+
+        mapped = np.where(vert_entry_idx[vertno] >= 0, entry_to_rid[np.maximum(vert_entry_idx[vertno], 0)], 0)
+        region_ids[offset:offset + len(vertno)] = mapped
+
+    return region_ids, regions
+
+
+def load_dk_for_ico5(
     subjects_dir: str,
-    parc: str,
     lh_vertno: np.ndarray,
     rh_vertno: np.ndarray,
 ) -> tuple[np.ndarray, list[dict]]:
-    """Map FreeSurfer .annot labels onto concatenated [lh_ico5, rh_ico5] vertices."""
+    """Map FreeSurfer Desikan-Killiany (aparc) .annot labels onto concatenated [lh_ico5, rh_ico5] vertices."""
     n_lh = len(lh_vertno)
     n_rh = len(rh_vertno)
     region_ids = np.zeros(n_lh + n_rh, dtype=np.int16)  # 0 = medial wall / unassigned
@@ -192,7 +256,7 @@ def load_atlas_for_ico5(
     label_dir = Path(subjects_dir) / "fsaverage" / "label"
 
     for hemi, vertno, offset in [("lh", lh_vertno, 0), ("rh", rh_vertno, n_lh)]:
-        vert_entry_idx, entries = read_fs_annot(label_dir / f"{hemi}.{parc}.annot")
+        vert_entry_idx, entries = read_fs_annot(label_dir / f"{hemi}.aparc.annot")
         used_entries = set(int(x) for x in np.unique(vert_entry_idx[vertno]) if x >= 0)
         entry_to_rid = np.zeros(len(entries), dtype=np.int16)
         for entry_idx, (base, r, g, b) in enumerate(entries):
@@ -201,47 +265,22 @@ def load_atlas_for_ico5(
             if base.lower() in ("unknown", "medial_wall", "medial.wall") or not base.strip("? "):
                 continue
 
-            if parc == "PALS_B12_Lobes":
-                zh, hex_col = LOBE_INFO.get(base, (base, "#94A3B8"))
-                key = base
-                if key not in key_to_id:
-                    rid = len(regions)
-                    key_to_id[key] = rid
-                    regions.append({
-                        "id": rid, "code": base, "name": zh, "name_en": base.replace("LOBE.", "").title(),
-                        "lobe": zh, "hemi": "both", "color": hex_col,
-                    })
-                entry_to_rid[entry_idx] = key_to_id[key]
-            elif parc == "Yeo2011_7Networks_N1000":
-                if base.startswith("FreeSurfer_Defined"):
-                    continue
-                zh, hex_col = YEO7_INFO.get(base, (base, "#94A3B8"))
-                key = base
-                if key not in key_to_id:
-                    rid = len(regions)
-                    key_to_id[key] = rid
-                    regions.append({
-                        "id": rid, "code": base, "name": zh, "name_en": base,
-                        "lobe": zh, "hemi": "both", "color": hex_col,
-                    })
-                entry_to_rid[entry_idx] = key_to_id[key]
-            else:
-                hemi_zh = "左" if hemi == "lh" else "右"
-                base_zh = DK_ZH.get(base, base)
-                lobe_zh = DK_LOBE_GROUP.get(base, "其他")
-                sr = int(round(r * 0.78 + 52))
-                sg = int(round(g * 0.78 + 52))
-                sb = int(round(b * 0.78 + 52))
-                hex_col = f"#{sr:02X}{sg:02X}{sb:02X}"
-                key = f"{hemi}:{base}"
-                if key not in key_to_id:
-                    rid = len(regions)
-                    key_to_id[key] = rid
-                    regions.append({
-                        "id": rid, "code": f"{base}-{hemi}", "name": f"{hemi_zh}{base_zh}",
-                        "name_en": f"{base} ({hemi.upper()})", "lobe": lobe_zh, "hemi": hemi, "color": hex_col,
-                    })
-                entry_to_rid[entry_idx] = key_to_id[key]
+            hemi_zh = "左" if hemi == "lh" else "右"
+            base_zh = DK_ZH.get(base, base)
+            lobe_zh = DK_LOBE_GROUP.get(base, "其他")
+            sr = int(round(r * 0.78 + 52))
+            sg = int(round(g * 0.78 + 52))
+            sb = int(round(b * 0.78 + 52))
+            hex_col = f"#{sr:02X}{sg:02X}{sb:02X}"
+            key = f"{hemi}:{base}"
+            if key not in key_to_id:
+                rid = len(regions)
+                key_to_id[key] = rid
+                regions.append({
+                    "id": rid, "code": f"{base}-{hemi}", "name": f"{hemi_zh}{base_zh}",
+                    "name_en": f"{base} ({hemi.upper()})", "lobe": lobe_zh, "hemi": hemi, "color": hex_col,
+                })
+            entry_to_rid[entry_idx] = key_to_id[key]
 
         mapped = np.where(vert_entry_idx[vertno] >= 0, entry_to_rid[np.maximum(vert_entry_idx[vertno], 0)], 0)
         region_ids[offset:offset + len(vertno)] = mapped
@@ -379,10 +418,13 @@ def main() -> None:
     triangles = np.vstack([lh_tris, rh_tris]).astype(np.int32)
     vertices_f32 = pial_gnm.astype(np.float32)
 
-    # 4. Extract 3 standard atlases
-    lobes_ids, lobes_regions = load_atlas_for_ico5(subjects_dir, "PALS_B12_Lobes", lh_vertno, rh_vertno)
-    dk_ids, dk_regions = load_atlas_for_ico5(subjects_dir, "aparc", lh_vertno, rh_vertno)
-    yeo7_ids, yeo7_regions = load_atlas_for_ico5(subjects_dir, "Yeo2011_7Networks_N1000", lh_vertno, rh_vertno)
+    # 4. Extract 3 atlases with clear licensing provenance:
+    #    - dk: FreeSurfer aparc (Desikan-Killiany 68 regions)
+    #    - lobes: Deterministically grouped from DK regions via DK_LOBE_GROUP (replaces PALS-B12)
+    #    - yeo7: Directly loaded from MIT-licensed ThomasYeoLab/CBIG fsaverage5 annotations
+    dk_ids, dk_regions = load_dk_for_ico5(subjects_dir, lh_vertno, rh_vertno)
+    lobes_ids, lobes_regions = derive_lobes_from_dk(dk_ids, dk_regions)
+    yeo7_ids, yeo7_regions = load_cbig_yeo7_ico5(lh_vertno, rh_vertno)
 
     np.savez_compressed(
         OUT_NPZ,
@@ -407,10 +449,17 @@ def main() -> None:
         "lh_vertex_count": int(len(lh_vertno)),
         "rh_vertex_count": int(len(rh_vertno)),
         "npz_sha256": npz_sha256,
+        "provenance": {
+            "cortex_geometry": "FreeSurfer fsaverage pial surface (ico-5 decimated, 20,484 vertices), affine-aligned to GNM cranial vault (-2 deg pitch)",
+            "dk": "FreeSurfer fsaverage aparc (Desikan-Killiany 68 cortical regions), FreeSurfer Software License v1.0 Part B",
+            "lobes": "Derived deterministically from Desikan-Killiany (aparc) 68 regions via DK_LOBE_GROUP (PALS-B12 removed)",
+            "yeo7": "ThomasYeoLab/CBIG Yeo2011_7Networks_N1000 (fsaverage5 annotations), MIT License",
+            "cbig_yeo7_annot_sha256": CBIG_YEO7_SHA256,
+        },
         "atlases": {
-            "lobes": {"id": "lobes", "name": "大脑脑叶分区 (PALS-B12)", "regions": lobes_regions},
-            "dk": {"id": "dk", "name": "Desikan-Killiany (68区)", "regions": dk_regions},
-            "yeo7": {"id": "yeo7", "name": "Yeo-7 功能网络", "regions": yeo7_regions},
+            "lobes": {"id": "lobes", "name": "脑叶分区", "regions": lobes_regions},
+            "dk": {"id": "dk", "name": "皮层解剖分区", "regions": dk_regions},
+            "yeo7": {"id": "yeo7", "name": "功能网络分区", "regions": yeo7_regions},
         },
     }
     OUT_JSON.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")

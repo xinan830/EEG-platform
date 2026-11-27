@@ -1,0 +1,93 @@
+<Window x:Class="BrainPlatform.Desktop.Modules.Settings.Views.ThirdPartyNoticesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="第三方软件与数据许可声明"
+        Width="860"
+        Height="640"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/BrandColors.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Margin="20">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="1" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <Grid Grid.Row="0" Margin="24,20,18,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel MouseLeftButtonDown="OnHeaderMouseLeftButtonDown" Background="Transparent">
+                    <TextBlock Text="第三方软件与数据许可声明" FontSize="18" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="本平台整合的开源渲染库、标准头模/皮层图谱、MNI MRI 模板与算法依赖统一许可说明"
+                               Margin="0,4,0,0" FontSize="12.5" Foreground="#64748B" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource ModernCloseCrossButtonStyle}"
+                        IsCancel="True" VerticalAlignment="Top" ToolTip="关闭" />
+            </Grid>
+
+            <!-- 边界提示 -->
+            <Border Grid.Row="1" Margin="24,0,24,12" Padding="12,10" Background="#F8FAFC"
+                    BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+                <TextBlock x:Name="SourcePathText" FontSize="12" Foreground="#475569" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- 完整协议文本 -->
+            <Border Grid.Row="2" Margin="24,0,24,16" Background="#F8FAFC" BorderBrush="#E2E8F0"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <TextBox x:Name="NoticesTextBox"
+                         IsReadOnly="True"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         FontFamily="Consolas, Microsoft YaHei UI"
+                         FontSize="12"
+                         Foreground="#1E293B"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+            </Border>
+
+            <Border Grid.Row="3" Height="1" Background="#F1F5F9" />
+
+            <!-- 底部操作栏 -->
+            <Border Grid.Row="4" Padding="24,14,24,16" Background="#FFFFFF" CornerRadius="0,0,12,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B"
+                               Text="内置模板与图谱仅供科研与标准模板参考，不构成临床诊断依据。" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="OpenFolderButton" Content="打开文件位置" Height="36" Padding="14,0" Margin="0,0,10,0"
+                                Click="OnOpenFolderClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+                        <Button Content="关闭" Width="88" Height="36" Padding="0" IsCancel="True" IsDefault="True"
+                                Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

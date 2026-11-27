@@ -245,6 +245,32 @@
                             Padding="18,8" MinWidth="104" AutomationProperties.Name="清除缓存" />
                 </Grid>
             </Border>
+
+            <!-- ==================== 分组 4：关于与合规 ==================== -->
+            <TextBlock Text="关于与合规" Style="{StaticResource SectionLabelStyle}" />
+            <Button x:Name="ThirdPartyNoticesButton" Style="{StaticResource SettingCardButtonStyle}"
+                    Click="OnOpenThirdPartyNoticesClick">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource SettingIconBoxStyle}">
+                        <Path Data="M 6,3 H 14 L 18,7 V 20 A 1,1 0 0 1 17,21 H 6 A 1,1 0 0 1 5,20 V 4 A 1,1 0 0 1 6,3 M 14,3 V 7 H 18 M 8.5,11 H 14.5 M 8.5,14.5 H 14.5 M 8.5,18 H 12"
+                              Width="19" Height="19" Stretch="Uniform"
+                              Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.8"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="第三方软件与数据许可声明" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="统一查看全部模型、图谱、算法组件与渲染库开源协议及非临床声明"
+                                   FontSize="12.5" Foreground="#64748B" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <Path Grid.Column="2" Style="{StaticResource CardChevronStyle}" />
+                </Grid>
+            </Button>
             </StackPanel>
         </Grid>
     </ScrollViewer>

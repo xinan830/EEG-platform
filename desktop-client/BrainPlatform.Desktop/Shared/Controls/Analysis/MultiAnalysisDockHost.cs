@@ -124,6 +124,7 @@ public sealed class MultiAnalysisDockHost : UserControl
             });
         Content = workspace;
         Unloaded += (_, _) => floatingManager.CloseAll();
+        Loaded += (_, _) => SyncFloatingWindows();
         UpdateWorkspaceVisibility();
     }
 

@@ -42,6 +42,7 @@ public sealed class StftHeatmapTests
                 var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
                 var heatmap = Assert.IsType<FastNonUniformHeatmapRenderableSeries>(surface.RenderableSeries[0]);
                 Assert.NotNull(heatmap.DataSeries);
+                Assert.False(heatmap.UseLinearTextureFiltering);
                 Assert.Equal(4, heatmap.DataSeries!.Count);
 
                 control.Preview = null;
@@ -85,10 +86,13 @@ public sealed class StftHeatmapTests
                     .Where(segment => !ReferenceEquals(segment, oldSegment))
                     .ToArray();
                 Assert.NotEmpty(newSegments);
+                Assert.All(newSegments, segment => Assert.False(segment.UseLinearTextureFiltering));
                 var appendedData = Assert.IsType<NonUniformHeatmapDataSeries<double, double, double>>(Assert.Single(newSegments).DataSeries);
-                Assert.Equal(6, appendedData.Count);
-                Assert.Equal(1.5, appendedData.XMin);
+                var previousData = Assert.IsType<NonUniformHeatmapDataSeries<double, double, double>>(oldSegment.DataSeries);
+                Assert.Equal(4, appendedData.Count);
+                Assert.Equal(2.5, appendedData.XMin);
                 Assert.Equal(4.5, appendedData.XMax);
+                Assert.Equal(previousData.XMax, appendedData.XMin);
             }
             catch (Exception exception) { failure = exception; }
         });

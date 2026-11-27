@@ -1,0 +1,122 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "BrainPlatform.Desktop/1.0.0": {
+        "dependencies": {
+          "Microsoft.Web.WebView2": "1.0.4370.26",
+          "SciChart": "9.1.0.29201",
+          "Microsoft.Web.WebView2.Core": "1.0.4370.26",
+          "Microsoft.Web.WebView2.WinForms": "1.0.4370.26",
+          "Microsoft.Web.WebView2.Wpf": "1.0.4370.26"
+        },
+        "runtime": {
+          "BrainPlatform.Desktop.dll": {}
+        }
+      },
+      "Microsoft.Web.WebView2/1.0.4370.26": {
+        "runtimeTargets": {
+          "runtimes/win-arm64/native/WebView2Loader.dll": {
+            "rid": "win-arm64",
+            "assetType": "native",
+            "fileVersion": "1.0.4370.26"
+          },
+          "runtimes/win-x64/native/WebView2Loader.dll": {
+            "rid": "win-x64",
+            "assetType": "native",
+            "fileVersion": "1.0.4370.26"
+          },
+          "runtimes/win-x86/native/WebView2Loader.dll": {
+            "rid": "win-x86",
+            "assetType": "native",
+            "fileVersion": "1.0.4370.26"
+          }
+        }
+      },
+      "SciChart/9.1.0.29201": {
+        "runtime": {
+          "lib/net6.0-windows7.0/SciChart.Charting.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Core.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Data.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Drawing.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          }
+        }
+      },
+      "Microsoft.Web.WebView2.Core/1.0.4370.26": {
+        "runtime": {
+          "Microsoft.Web.WebView2.Core.dll": {
+            "assemblyVersion": "1.0.4370.26",
+            "fileVersion": "1.0.4370.26"
+          }
+        }
+      },
+      "Microsoft.Web.WebView2.WinForms/1.0.4370.26": {
+        "runtime": {
+          "Microsoft.Web.WebView2.WinForms.dll": {
+            "assemblyVersion": "1.0.4370.26",
+            "fileVersion": "1.0.4370.26"
+          }
+        }
+      },
+      "Microsoft.Web.WebView2.Wpf/1.0.4370.26": {
+        "runtime": {
+          "Microsoft.Web.WebView2.Wpf.dll": {
+            "assemblyVersion": "1.0.4370.26",
+            "fileVersion": "1.0.4370.26"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "BrainPlatform.Desktop/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Microsoft.Web.WebView2/1.0.4370.26": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-fCmdjhw8Gg+cbvEkyF+ygObcByFk35WVxTUmLkjSwjhDuLg4V9P7EVPn3rj3g9M2I3WHes/efHS2tIpGX/NCEA==",
+      "path": "microsoft.web.webview2/1.0.4370.26",
+      "hashPath": "microsoft.web.webview2.1.0.4370.26.nupkg.sha512"
+    },
+    "SciChart/9.1.0.29201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-OBFDwVFxc3WD2RQWg7IOUCNOLuzqtnIyhGRlsn4QvbYEPsDZgeBk5YthjMn2tneg86ZwUN0f34YxNPz0kgmkAg==",
+      "path": "scichart/9.1.0.29201",
+      "hashPath": "scichart.9.1.0.29201.nupkg.sha512"
+    },
+    "Microsoft.Web.WebView2.Core/1.0.4370.26": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Microsoft.Web.WebView2.WinForms/1.0.4370.26": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Microsoft.Web.WebView2.Wpf/1.0.4370.26": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

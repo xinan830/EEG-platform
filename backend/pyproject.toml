@@ -32,8 +32,9 @@ dev = [
 include = ["app", "app.*"]
 
 [tool.setuptools.package-data]
+"app" = ["THIRD_PARTY_NOTICES.txt"]
 "app.algorithms.tnk" = ["assets/*.tflite"]
-"app.assets.topomap_3d" = ["*.json", "*.npz", "LICENSE", "NOTICE"]
+"app.assets.topomap_3d" = ["*.json", "*.npz"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
