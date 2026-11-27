@@ -23,23 +23,37 @@ def estimate_annotated_channel_psd(data: np.ndarray, sfreq: float, *,
     for index in range(values.shape[1]):
         channel = values[:, index:index + 1]
         check = evaluate_spectral_window(channel, len(values))
-        if check.gap.detected:
-            densities.append(np.full(len(freqs), np.nan))
-            qualities.append({"status": "unavailable", "reasons": list(check.reasons),
-                              "gap": check.gap.as_dict(), "peak_uv": check.peak_uv})
-            reasons.extend(check.reasons)
-            continue
         spectrum = estimate_welch_psd(channel, sfreq, low_hz=low_hz, high_hz=high_hz,
                                       annotate_artifacts=True)
-        if spectrum.gate_failed or not np.array_equal(freqs, spectrum.freqs):
+        if spectrum.gate_failed:
+            channel_reasons = list(dict.fromkeys((*check.reasons, *spectrum.rejected_reasons)))
+            densities.append(np.full(len(freqs), np.nan))
+            qualities.append({"status": "unavailable", "reasons": channel_reasons,
+                              "gap": check.gap.as_dict(), "peak_uv": check.peak_uv,
+                              "clean_segments": spectrum.clean_epochs,
+                              "total_segments": spectrum.total_epochs,
+                              "clean_ratio": spectrum.signal_quality,
+                              "evidence": spectrum.evidence})
+            reasons.extend(channel_reasons)
+            continue
+        if not np.array_equal(freqs, spectrum.freqs):
             raise ValueError("Annotated channel spectrum has invalid frequency geometry")
+        finite = channel[np.isfinite(channel)]
+        peak_uv = check.peak_uv if check.peak_uv is not None else (
+            float(np.max(np.abs(finite)) * 1e6) if finite.size else None
+        )
         channel_reasons = list(dict.fromkeys((*check.reasons, *spectrum.rejected_reasons)))
-        qualities.append({"status": "warning" if channel_reasons else "clean",
-                          "reasons": channel_reasons, "peak_uv": check.peak_uv,
-                          "clean_segments": spectrum.clean_epochs,
-                          "total_segments": spectrum.total_epochs,
-                          "clean_ratio": spectrum.signal_quality,
-                          "evidence": spectrum.evidence})
+        quality_entry: dict[str, object] = {
+            "status": "warning" if channel_reasons else "clean",
+            "reasons": channel_reasons, "peak_uv": peak_uv,
+            "clean_segments": spectrum.clean_epochs,
+            "total_segments": spectrum.total_epochs,
+            "clean_ratio": spectrum.signal_quality,
+            "evidence": spectrum.evidence,
+        }
+        if check.gap.detected:
+            quality_entry["gap"] = check.gap.as_dict()
+        qualities.append(quality_entry)
         densities.append(spectrum.psd[0])
         reasons.extend(channel_reasons)
     overlap = float(ANALYSIS_CONTRACT["welch_segment_overlap"])

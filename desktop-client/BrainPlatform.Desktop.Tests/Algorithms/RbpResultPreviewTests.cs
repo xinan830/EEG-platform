@@ -19,7 +19,7 @@ public sealed class RbpResultPreviewTests
         var full = OnDemandDetailClient.FullRbpStructuredPreview();
         var evidence = JsonSerializer.SerializeToElement(new { extensions = new {
             channel_warnings = new { by_channel = new Dictionary<string, object> {
-                ["F3"] = new { status = "warning", reasons = new[] { "amplitude_threshold" } } } },
+                ["F3"] = new { status = "warning", reasons = new[] { "amplitude_threshold", "non_finite" } } } },
             channel_failures = new { by_channel = new { } } } });
         var windows = full.Windows.Select(item => JsonSerializer.SerializeToElement(new {
             start_s = item.GetProperty("start_s").GetDouble(), end_s = item.GetProperty("end_s").GetDouble(),
@@ -28,7 +28,7 @@ public sealed class RbpResultPreviewTests
         var affected = preview.ChannelWindows.First(item => item.Channel == "F3").Window;
         var healthy = preview.ChannelWindows.First(item => item.Channel == "F7").Window;
         Assert.Equal("partial", affected.Quality);
-        Assert.Equal("幅值超限", affected.Warning);
+        Assert.Equal("幅值超限、已跳过坏段/缺失样本", affected.Warning);
         Assert.All(affected.Shares, value => Assert.NotNull(value));
         Assert.Equal("clean", healthy.Quality);
         Assert.Empty(healthy.Warning);

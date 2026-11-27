@@ -166,6 +166,7 @@ public sealed partial class RbpResultPreview
             warnings[channel.Name] = string.Join("、", reasons.EnumerateArray().Select(reason => reason.GetString() switch
             {
                 "amplitude_threshold" => "幅值超限", "clipping" => "疑似削顶", "flatline" => "低幅值/近似平线",
+                "non_finite" => "已跳过坏段/缺失样本",
                 var code => code ?? "质量警告",
             }));
         }
