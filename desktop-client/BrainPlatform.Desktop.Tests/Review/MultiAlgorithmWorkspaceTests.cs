@@ -21,10 +21,10 @@ public sealed partial class RecordingReviewViewModelTests
         var faa = new PanelProvider("faa");
         var iapf = new PanelProvider("iapf");
         var thetaBeta = new PanelProvider("theta_beta");
-        var tnk = new PanelProvider("tnk_biofeedback");
+        var tnk = new TnkCatalogPanelProvider();
         var manifest = Manifest(configuration);
         var recorded = new RegisteredRecording(manifest.SessionId.ToString("N"), "fixture", ".wpf", "now", 500, 100,
-            ["F3", "F4", "Fz", "Pz", "F7"], "sha");
+            ["F3", "F4", "Fz", "Pz", "Oz", "F7"], "sha");
         await using var vm = new RecordingReviewViewModel(new FakeReader(manifest, 100), catalog,
             recordingDirectory: "_temp/multi-algorithm-fixture",
             analysisCoordinators:
@@ -209,5 +209,42 @@ public sealed partial class RecordingReviewViewModelTests
         public string DisplayName { get; } = displayName;
         public bool IsMaximized { get => isMaximized; set => SetProperty(ref isMaximized, value); }
         public bool IsFocused { get => isFocused; set => SetProperty(ref isFocused, value); }
+    }
+
+    private sealed class TnkCatalogPanelProvider : IReviewAlgorithmAdapter
+    {
+        private readonly PanelProvider inner = new("tnk_biofeedback");
+        public string AlgorithmId => inner.AlgorithmId;
+        public string DisplayName => "TNK 脑指标";
+        public bool SupportsOnDemandWindows => true;
+
+        public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
+            IReadOnlyList<MontageProfile>? montageProfiles = null) =>
+            inner.RegisterAsync(directory, cancellationToken, montageProfiles);
+
+        public Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new AlgorithmCatalogItem(
+                "official", "tnk_biofeedback", "tnk-fixture-v1", "TNK 脑指标", "TNK", "",
+                [], ["dynamic"], System.Text.Json.JsonSerializer.SerializeToElement(new { }),
+                new DynamicAnalysisPolicy(4, [4], 4, 1, true),
+                "available", true, "tnk-def", "1.0.0", "tnk-impl",
+                System.Text.Json.JsonSerializer.SerializeToElement(new { on_demand = new { implementation = "implemented" } })));
+
+        public Task<AnalysisRunResponse> EnsureRunAsync(AnalysisRunRequest request,
+            Action<AnalysisRunResponse>? onStatusChanged, CancellationToken cancellationToken) =>
+            inner.EnsureRunAsync(request, onStatusChanged, cancellationToken);
+
+        public Task<WindowPreviewResponse> LoadAsync(string recordingId, string runId, long cursorSample,
+            CancellationToken cancellationToken) =>
+            inner.LoadAsync(recordingId, runId, cursorSample, cancellationToken);
+
+        public Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId,
+            AnalysisRunRequest request, long cursorSample, CancellationToken cancellationToken) =>
+            ((IReviewAlgorithmAdapter)inner).LoadOnDemandAsync(recordingId, request, cursorSample, cancellationToken);
+
+        public Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId,
+            ReviewAnalysisSnapshot snapshot, long cursorSample, CancellationToken cancellationToken,
+            IProgress<DynamicWindowResponse>? progress) =>
+            ((IReviewAlgorithmAdapter)inner).LoadOnDemandAsync(recordingId, snapshot, cursorSample, cancellationToken, progress);
     }
 }
