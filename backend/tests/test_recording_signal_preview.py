@@ -20,6 +20,10 @@ class Source:
         self.selected = montage
         return recording
 
+    @property
+    def waveform(self):
+        return self
+
     def load_window(self, recording, *, start_s, window_s, low_cut_hz, high_cut_hz,
                     notch_hz, reference, channels, montage):
         if any(channel not in recording.channels for channel in channels):

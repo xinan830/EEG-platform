@@ -24,7 +24,7 @@
         <shared:AnalysisPanelShell.HeaderContent>
             <ComboBox x:Name="StftChannelSelector" ItemsSource="{Binding StftParameters.Channels}"
                       SelectedItem="{Binding StftParameters.Channel}"
-                      Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
+                      Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="82"
                       VerticalAlignment="Center" />
         </shared:AnalysisPanelShell.HeaderContent>
         <Grid>

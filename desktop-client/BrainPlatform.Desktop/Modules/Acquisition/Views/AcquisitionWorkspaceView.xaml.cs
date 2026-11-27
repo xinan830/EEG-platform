@@ -1,16 +1,23 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Montages.Views;
+using BrainPlatform.Desktop.Shared.Controls.Analysis.Docking;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
 
 public partial class AcquisitionWorkspaceView : UserControl
 {
+    private LiveAnalysisWorkspaceViewModel? subscribedLiveAnalysis;
+
     public AcquisitionWorkspaceView()
     {
         InitializeComponent();
+        Loaded += (_, _) => AttachLiveAnalysisEvents();
+        Unloaded += (_, _) => DetachLiveAnalysisEvents();
+        DataContextChanged += (_, _) => { if (IsLoaded) AttachLiveAnalysisEvents(); };
     }
 
     private void OnBackClick(object sender, RoutedEventArgs e) =>
@@ -74,4 +81,27 @@ public partial class AcquisitionWorkspaceView : UserControl
         catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
     }
 
+    private void OnLayoutPresetClick(object sender, RoutedEventArgs e) => DockLayoutPresetMenu.Open(sender);
+
+    private void OnSelectLayoutPresetClick(object sender, RoutedEventArgs e) => DockLayoutPresetMenu.Apply(AcquisitionAnalysisHost, sender);
+
+    private void AttachLiveAnalysisEvents()
+    {
+        var liveAnalysis = (DataContext as DesktopWorkspaceViewModel)?.Acquisition.LiveAnalysis;
+        if (ReferenceEquals(subscribedLiveAnalysis, liveAnalysis)) return;
+        DetachLiveAnalysisEvents();
+        subscribedLiveAnalysis = liveAnalysis;
+        if (subscribedLiveAnalysis is not null)
+            subscribedLiveAnalysis.ActivateFloatingSlotRequested += OnActivateFloatingSlotRequested;
+    }
+
+    private void DetachLiveAnalysisEvents()
+    {
+        if (subscribedLiveAnalysis is null) return;
+        subscribedLiveAnalysis.ActivateFloatingSlotRequested -= OnActivateFloatingSlotRequested;
+        subscribedLiveAnalysis = null;
+    }
+
+    private void OnActivateFloatingSlotRequested(object? sender, LiveAnalysisCardViewModel slot) =>
+        AcquisitionAnalysisHost.ActivateFloatingPanel(slot);
 }

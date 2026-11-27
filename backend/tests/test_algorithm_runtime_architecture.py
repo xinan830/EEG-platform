@@ -47,7 +47,7 @@ def test_builtin_registration_is_owned_by_the_composition_root() -> None:
     assert "app.algorithms.theta_beta.runner" in module_imports
 
 
-def test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum() -> None:
+def test_builtin_dynamic_window_maximum_is_declared_by_each_algorithm() -> None:
     from app.algorithms.builtin_modules import build_builtin_modules
 
     for module in build_builtin_modules():
@@ -55,8 +55,9 @@ def test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum() -> None:
             (item for item in module.parameter_schema().parameters if item.key == "window_s"),
             None,
         )
-        if parameter is not None:
-            assert parameter.maximum is None, module.manifest.algorithm_id
+        if parameter is not None and parameter.maximum is not None:
+            options = module.manifest.dynamic_policy.window_options_s
+            assert options and parameter.maximum == max(options), module.manifest.algorithm_id
 
 
 def test_scientific_authority_manifest_has_one_executable_authority_per_capability() -> None:

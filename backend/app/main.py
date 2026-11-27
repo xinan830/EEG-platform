@@ -47,6 +47,7 @@ from app.api.custom_frequency_inspection import router as custom_frequency_inspe
 from app.api.topomap_3d import router as topomap_3d_router
 from app.services.live_filter import LiveFilterService
 from app.services.live_recording_access import LiveRecordingAccessService
+from app.bootstrap import build_builtin_registry
 from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
 from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
 from app.services.live_rbp_algorithm import LiveRbpAlgorithm
@@ -61,7 +62,6 @@ from app.services.topomap import TopomapService
 from app.services.result_scalars import ResultScalarsService
 from app.services.custom_frequency_inspection import CustomFrequencyInspectionService
 from app.services.topomap_3d import Topomap3DService
-from app.bootstrap import build_builtin_registry
 from app.services.algorithm_presets import AlgorithmPresetService
 from app.core.config import DATABASE_PATH, STORAGE_DIR, on_demand_algorithm_enabled
 from app.core.api_contract import (
@@ -112,9 +112,11 @@ app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()
 app.state.report_snapshot_service = ReportSnapshotService()
 app.state.scientific_compute_coordinator = ScientificComputeCoordinator()
+app.state.algorithm_runtime_registry = build_builtin_registry()
 app.state.run_service = PersistentRunQueue(
     app.state.recording_service,
     compute_coordinator=app.state.scientific_compute_coordinator,
+    algorithm_registry=app.state.algorithm_runtime_registry,
 )
 app.state.run_worker = RunWorker(app.state.run_service)
 app.state.validation_service = ValidationService()
@@ -126,7 +128,6 @@ app.state.independent_spectral_reference_service = IndependentSpectralReferenceS
     app.state.recording_service, app.state.validation_service
 )
 app.state.extension_governance_service = ExtensionGovernanceService()
-app.state.algorithm_runtime_registry = build_builtin_registry()
 app.state.algorithm_preset_service = AlgorithmPresetService(
     app.state.algorithm_runtime_registry,
     DATABASE_PATH,

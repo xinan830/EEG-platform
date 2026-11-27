@@ -14,6 +14,7 @@ from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
 from app.core.provenance import execution_environment, implementation_version, sha256_json
 from app.algorithm_runtime.offline_execution import scientific_cache_key, scientific_configuration_sha256
 from app.scientific.quality import SpectralQualityGateError
+from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.recordings import RecordingService
 from app.persistence.clock import utc_now
@@ -51,11 +52,13 @@ class PersistentRunQueue:
         artifacts_dir: Path = ARTIFACTS_DIR,
         *,
         compute_coordinator: ScientificComputeCoordinator | None = None,
+        algorithm_registry: AlgorithmRegistry | None = None,
     ):
         self.base = RunService(
             recordings,
             database_path,
             artifacts_dir,
+            algorithm_registry=algorithm_registry,
         )
         self.recordings = recordings
         self.repository: RunRepository = self.base.repository

@@ -25,9 +25,9 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <ComboBox ItemsSource="{Binding PsdAnalysis.Channels}"
                           SelectedItem="{Binding PsdAnalysis.SelectedChannel, UpdateSourceTrigger=PropertyChanged}"
-                          Height="32" MinWidth="120" VerticalAlignment="Center">
+                          MinWidth="82" VerticalAlignment="Center">
                     <ComboBox.Style>
-                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                        <Style TargetType="ComboBox" BasedOn="{StaticResource AnalysisHeaderComboBoxStyle}">
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
@@ -39,20 +39,20 @@
                 </ComboBox>
                 <ComboBox ItemsSource="{Binding PsdAnalysis.ViewOptions}"
                           SelectedItem="{Binding PsdAnalysis.SelectedView, UpdateSourceTrigger=PropertyChanged}"
-                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
-                          Margin="8,0,0,0" VerticalAlignment="Center" />
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="86"
+                          Margin="5,0,0,0" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding PsdAnalysis.TopomapBandOptions}"
                           SelectedValuePath="Id"
                           SelectedValue="{Binding PsdAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
-                          Height="32" MinWidth="130" ToolTip="频带平均 PSD，单位 µV²/Hz"
-                          Margin="8,0,0,0" VerticalAlignment="Center">
+                          MinWidth="88" ToolTip="频带平均 PSD，单位 µV²/Hz"
+                          Margin="5,0,0,0" VerticalAlignment="Center">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding Label}" />
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                     <ComboBox.Style>
-                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                        <Style TargetType="ComboBox" BasedOn="{StaticResource AnalysisHeaderComboBoxStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">

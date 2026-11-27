@@ -56,6 +56,10 @@ def test_unexpected_preview_failure_is_not_misreported_as_invalid_request(monkey
         def require_recording(self, _recording_id):
             return SimpleNamespace(id="recording-1")
 
+        @property
+        def waveform(self):
+            return self
+
         def load_preview(self, *_args, **_kwargs):
             raise RuntimeError("storage unavailable")
 

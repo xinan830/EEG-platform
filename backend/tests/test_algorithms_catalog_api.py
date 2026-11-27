@@ -81,12 +81,14 @@ def test_active_catalog_excludes_historical_user_algorithms(tmp_path, monkeypatc
 
 def test_public_official_catalog_matches_builtin_module_declarations() -> None:
     from app.algorithms.builtin_modules import build_builtin_modules
-    from app.bootstrap import build_builtin_registry
 
     response = TestClient(app).get("/api/algorithms")
     assert response.status_code == 200
     official = [item for item in response.json()["algorithms"] if item["source"] == "official"]
-    registry = build_builtin_registry()
+    registry = app.state.algorithm_runtime_registry
+    assert registry is app.state.run_service.base.algorithm_runtime_registry
+    assert registry is app.state.dynamic_window_service.registry
+    assert registry is app.state.algorithm_preset_service.registry
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
     assert {item["id"] for item in official} == set(modules)
 
@@ -116,7 +118,7 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
 
 
 def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v208(tmp_path) -> None:
-    from app.algorithms.catalog import ensure_official_definitions, official_definition_draft
+    from app.services.official_algorithm_catalog import ensure_official_definitions, official_definition_draft
 
     service = DefinitionService(tmp_path / "rbp-upgrade.sqlite3")
     definition = service.create(DefinitionCreateRequest(

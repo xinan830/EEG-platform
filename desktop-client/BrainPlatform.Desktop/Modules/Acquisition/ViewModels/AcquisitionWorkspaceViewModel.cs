@@ -104,7 +104,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         this.deviceSession.PropertyChanged += OnDeviceSessionPropertyChanged;
         this.runtime.StateChanged += OnRuntimeStateChanged;
         this.runtime.AnalysisFaulted += OnAnalysisFaulted;
-        LiveAnalysis = new LiveSpectralAnalysisViewModel(this.runtime, this.dispatcher, ReportCommandError);
+        LiveAnalysis = new LiveAnalysisWorkspaceViewModel(this.runtime, this.dispatcher, ReportCommandError);
         StorageStatus = new AcquisitionStorageStatusViewModel(
             () => this.runtime.State.State,
             () => this.runtime.RecordingDirectory,
@@ -183,7 +183,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
 
     public LiveMonitoringViewModel LiveMonitor { get; }
 
-    public LiveSpectralAnalysisViewModel LiveAnalysis { get; }
+    public LiveAnalysisWorkspaceViewModel LiveAnalysis { get; }
 
     public AcquisitionStorageStatusViewModel StorageStatus { get; }
 

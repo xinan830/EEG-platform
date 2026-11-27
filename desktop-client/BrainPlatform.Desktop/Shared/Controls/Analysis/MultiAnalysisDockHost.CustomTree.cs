@@ -6,6 +6,33 @@ namespace BrainPlatform.Desktop.Shared.Controls.Analysis;
 
 public sealed partial class MultiAnalysisDockHost
 {
+    public void ApplyPreset(DockLayoutPreset preset)
+    {
+        if (preset == DockLayoutPreset.AutoClassic)
+        {
+            ResetToAutoLayout();
+            return;
+        }
+        var analysisIds = Materialize(RightSlots).Concat(Materialize(BottomSlots)).Select(ResolvePaneId).ToList();
+        customLayoutTree = DockTreeOperations.BuildPreset(preset, analysisIds);
+        isCustomLayout = true;
+        RenderActiveMode();
+        SaveLayoutIfEnabled();
+    }
+
+    public void ResetToAutoLayout()
+    {
+        isCustomLayout = false;
+        customLayoutTree = null;
+        if (EnableLayoutPersistence) DockLayoutPersistence.Clear(PersistenceFilePath);
+        RenderActiveMode();
+    }
+
+    internal void DockPaneAt(string paneId, string? targetPaneId, DockDropZone zone) =>
+        HandleDropDock(paneId, targetPaneId, zone);
+
+    private string PersistenceFilePath => DockLayoutPersistence.GetFilePath(LayoutPersistenceKey);
+
     private void RenderCustomTree()
     {
         var paneMap = BuildPaneChromeLookup();
@@ -77,7 +104,7 @@ public sealed partial class MultiAnalysisDockHost
     private void TryRestoreSavedLayout()
     {
         if (!EnableLayoutPersistence) return;
-        var snapshot = DockLayoutPersistence.Load();
+        var snapshot = DockLayoutPersistence.Load(PersistenceFilePath);
         if (snapshot is not { IsCustomLayout: true, Root: not null }) return;
         customLayoutTree = snapshot.Root;
         isCustomLayout = true;
@@ -92,7 +119,7 @@ public sealed partial class MultiAnalysisDockHost
             IsCustomLayout = isCustomLayout,
             Root = customLayoutTree?.Clone(),
             FloatingPaneIds = Materialize(FloatingSlots).Select(ResolvePaneId).ToList(),
-        });
+        }, PersistenceFilePath);
     }
 
     private Dictionary<string, DockCardChrome> BuildPaneChromeLookup()

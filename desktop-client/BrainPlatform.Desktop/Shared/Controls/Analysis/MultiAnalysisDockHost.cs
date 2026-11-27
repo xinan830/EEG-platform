@@ -38,6 +38,8 @@ public sealed partial class MultiAnalysisDockHost : UserControl
         nameof(DockFloatingSlotCommand), typeof(ICommand), typeof(MultiAnalysisDockHost));
     public static readonly DependencyProperty EnableLayoutPersistenceProperty = DependencyProperty.Register(
         nameof(EnableLayoutPersistence), typeof(bool), typeof(MultiAnalysisDockHost), new PropertyMetadata(false, OnEnablePersistenceChanged));
+    public static readonly DependencyProperty LayoutPersistenceKeyProperty = DependencyProperty.Register(
+        nameof(LayoutPersistenceKey), typeof(string), typeof(MultiAnalysisDockHost), new PropertyMetadata("review", OnLayoutPersistenceKeyChanged));
 
     private readonly Grid rootContainer = new();
     private readonly Grid workspace = new();
@@ -122,34 +124,10 @@ public sealed partial class MultiAnalysisDockHost : UserControl
     public ICommand? FloatSlotCommand { get => (ICommand?)GetValue(FloatSlotCommandProperty); set => SetValue(FloatSlotCommandProperty, value); }
     public ICommand? DockFloatingSlotCommand { get => (ICommand?)GetValue(DockFloatingSlotCommandProperty); set => SetValue(DockFloatingSlotCommandProperty, value); }
     public bool EnableLayoutPersistence { get => (bool)GetValue(EnableLayoutPersistenceProperty); set => SetValue(EnableLayoutPersistenceProperty, value); }
+    public string LayoutPersistenceKey { get => (string)GetValue(LayoutPersistenceKeyProperty); set => SetValue(LayoutPersistenceKeyProperty, value); }
     public bool IsCustomLayout => isCustomLayout;
 
     public void ActivateFloatingPanel(object slot) => floatingManager.Activate(slot);
-
-    public void ApplyPreset(DockLayoutPreset preset)
-    {
-        if (preset == DockLayoutPreset.AutoClassic)
-        {
-            ResetToAutoLayout();
-            return;
-        }
-        var analysisIds = Materialize(RightSlots).Concat(Materialize(BottomSlots)).Select(ResolvePaneId).ToList();
-        customLayoutTree = DockTreeOperations.BuildPreset(preset, analysisIds);
-        isCustomLayout = true;
-        RenderActiveMode();
-        SaveLayoutIfEnabled();
-    }
-
-    public void ResetToAutoLayout()
-    {
-        isCustomLayout = false;
-        customLayoutTree = null;
-        if (EnableLayoutPersistence) DockLayoutPersistence.Clear();
-        RenderActiveMode();
-    }
-
-    internal void DockPaneAt(string paneId, string? targetPaneId, DockDropZone zone) =>
-        HandleDropDock(paneId, targetPaneId, zone);
 
     private void InitializeAutoWorkspaceGrid()
     {
@@ -212,6 +190,16 @@ public sealed partial class MultiAnalysisDockHost : UserControl
     {
         var host = (MultiAnalysisDockHost)d;
         if (e.NewValue is true) host.TryRestoreSavedLayout();
+    }
+
+    private static void OnLayoutPersistenceKeyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var host = (MultiAnalysisDockHost)d;
+        if (!host.EnableLayoutPersistence) return;
+        host.isCustomLayout = false;
+        host.customLayoutTree = null;
+        host.TryRestoreSavedLayout();
+        if (!host.isCustomLayout) host.RenderActiveMode();
     }
 
     private static void OnPanelTemplateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

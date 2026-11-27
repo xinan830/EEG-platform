@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
+from app.services.official_algorithm_catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
 from app.core.provenance import sha256_json

@@ -15,7 +15,9 @@ from uuid import uuid4
 
 from app.models.recording import RecordingSummary
 from app.persistence import connect_database
+from app.persistence.repositories.recording import RecordingRepository
 from app.services.recording_identity import RECORDING_IMPORT_VERSION, canonical_channel_label
+from app.services.recording_samples import read_edf_bdf_metadata
 from app.services.recordings import RecordingService
 from app.services.research_subjects import SubjectBindingError, resolve_subject, validate_recording_age
 
@@ -92,8 +94,21 @@ class EdfBdfImportService:
         channel_configuration_snapshot_json: str | None = None,
         export_channel_identity_json: str | None = None,
     ) -> RecordingSummary:
-        return self._publish(staged, None, check_cancelled, channel_configuration_snapshot_json,
-                             export_channel_identity_json)
+        metadata = self._inspect(staged.path, channel_configuration_snapshot_json,
+                                 export_channel_identity_json, staged.sha256)
+        check_cancelled()
+        recording_id, stored_name, created_at = uuid4().hex, f"{uuid4().hex}{staged.extension}", _utc_now()
+        recording = self._imported_summary(recording_id, stored_name, staged, created_at, metadata)
+        destination = self.storage_dir / stored_name
+        os.replace(staged.path, destination)
+        try:
+            with connect_database(self.database_path, foreign_keys=True) as connection:
+                RecordingRepository.insert_with_metadata(connection, recording)
+                check_cancelled()
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+        return self.recordings.require_recording(recording_id)
 
     def publish_project(
         self,
@@ -113,6 +128,7 @@ class EdfBdfImportService:
                                  export_channel_identity_json, staged.sha256)
         check_cancelled()
         recording_id, stored_name, created_at, session_id = uuid4().hex, f"{uuid4().hex}{staged.extension}", _utc_now(), uuid4().hex
+        recording = self._imported_summary(recording_id, stored_name, staged, created_at, metadata)
         destination = self.storage_dir / stored_name
         os.replace(staged.path, destination)
         subject_code = new_subject_local_code.strip() if new_subject_local_code is not None else None
@@ -123,7 +139,7 @@ class EdfBdfImportService:
                     raise RecordingImportError("PROJECT_NOT_FOUND", "目标项目不存在。", 404)
                 subject_id = resolve_subject(connection, project_id, created_at, subject_id=subject_id,
                                              code=subject_code, name=new_subject_name, sex=new_subject_sex)
-                self._insert_recording(connection, recording_id, stored_name, staged, created_at, metadata)
+                RecordingRepository.insert_with_metadata(connection, recording)
                 connection.execute("INSERT INTO sessions(session_id, project_id, subject_id, recording_id, condition_id, label, created_at, age_at_recording_years) VALUES (?, ?, ?, ?, NULL, '', ?, ?)",
                                    (session_id, project_id, subject_id, recording_id, created_at, age_at_recording_years))
                 connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (created_at, project_id))
@@ -139,30 +155,10 @@ class EdfBdfImportService:
             raise
         return ImportedProjectRecording(self.recordings.require_recording(recording_id), session_id, subject_id, project_id)
 
-    def _publish(self, staged: StagedRecordingImport, project_id: str | None,
-                 check_cancelled: Callable[[], None], channel_configuration_snapshot_json: str | None,
-                 export_channel_identity_json: str | None) -> RecordingSummary:
-        if project_id is not None:
-            raise AssertionError("project imports must create their Session atomically")
-        metadata = self._inspect(staged.path, channel_configuration_snapshot_json,
-                                 export_channel_identity_json, staged.sha256)
-        check_cancelled()
-        recording_id, stored_name, created_at = uuid4().hex, f"{uuid4().hex}{staged.extension}", _utc_now()
-        destination = self.storage_dir / stored_name
-        os.replace(staged.path, destination)
-        try:
-            with connect_database(self.database_path, foreign_keys=True) as connection:
-                self._insert_recording(connection, recording_id, stored_name, staged, created_at, metadata)
-                check_cancelled()
-        except BaseException:
-            destination.unlink(missing_ok=True)
-            raise
-        return self.recordings.require_recording(recording_id)
-
     def _inspect(self, path: Path, channel_configuration_snapshot_json: str | None = None,
                  export_channel_identity_json: str | None = None, source_sha256: str | None = None):
         try:
-            sfreq, duration_s, channels, channel_types, channel_units = self.recordings._read_metadata(path)
+            sfreq, duration_s, channels, channel_types, channel_units = read_edf_bdf_metadata(path)
         except Exception as exc:
             raise RecordingImportError("RECORDING_IMPORT_INVALID", "无法读取 BDF/EDF 脑电文件。") from exc
         raw_channels = channels
@@ -235,22 +231,22 @@ class EdfBdfImportService:
                 canonical, snapshot, column_mapping, acquisition_snapshot, montage_snapshot, montage_catalogue)
 
     @staticmethod
-    def _insert_recording(connection, recording_id, stored_name, staged, created_at, metadata) -> None:
+    def _imported_summary(recording_id: str, stored_name: str, staged: StagedRecordingImport,
+                          created_at: str, metadata: tuple) -> RecordingSummary:
         (sfreq, duration_s, channels, raw_channels, channel_types, channel_units, canonical,
          snapshot, mapping, acquisition_snapshot, montage_snapshot, montage_catalogue) = metadata
-        connection.execute(
-            """INSERT INTO recordings (id, original_name, stored_name, extension, created_at, sfreq, duration_s,
-               channels_json, source_sha256, file_size_bytes, raw_channel_labels_json, canonical_channel_labels_json,
-               channel_types_json, channel_units_json, import_version,
-               import_channel_configuration_snapshot_json, import_channel_column_mapping_json,
-               import_acquisition_montage_snapshot_json, import_montage_configuration_snapshot_json,
-               import_montage_catalogue_snapshot_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (recording_id, staged.original_name, stored_name, staged.extension, created_at, sfreq, duration_s,
-             json.dumps(channels, ensure_ascii=False), staged.sha256, staged.byte_length,
-             json.dumps(raw_channels, ensure_ascii=False), json.dumps(canonical, ensure_ascii=False),
-             json.dumps(channel_types, ensure_ascii=False), json.dumps(channel_units, ensure_ascii=False),
-             RECORDING_IMPORT_VERSION, snapshot, mapping, acquisition_snapshot, montage_snapshot, montage_catalogue),
+        return RecordingSummary(
+            id=recording_id, original_name=staged.original_name, stored_name=stored_name,
+            extension=staged.extension, created_at=created_at, sfreq=sfreq, duration_s=duration_s,
+            channels=tuple(channels), source_sha256=staged.sha256, file_size_bytes=staged.byte_length,
+            raw_channel_labels=tuple(raw_channels), canonical_channel_labels=tuple(canonical),
+            channel_types=tuple(channel_types), channel_units=tuple(channel_units),
+            import_version=RECORDING_IMPORT_VERSION,
+            import_channel_configuration_snapshot_json=snapshot,
+            import_channel_column_mapping_json=mapping,
+            import_acquisition_montage_snapshot_json=acquisition_snapshot,
+            import_montage_configuration_snapshot_json=montage_snapshot,
+            import_montage_catalogue_snapshot_json=montage_catalogue,
         )
 
 

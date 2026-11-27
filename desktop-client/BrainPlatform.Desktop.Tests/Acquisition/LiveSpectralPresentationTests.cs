@@ -125,7 +125,7 @@ public sealed class LiveSpectralPresentationTests
         var stream = new AcquisitionStreamMetadata("device", "device", 512,
             [new(0, 0, "F3", AcquisitionChannelKind.Reference, "V")], 1, DateTimeOffset.UnixEpoch);
 
-        var config = LiveSpectralPresentation.RbpTopomapConfig(stream, MontageSnapshot(), ["rbp.relative.alpha"]);
+        var config = LiveSpectralPresentation.MultiBandMapConfig(stream, MontageSnapshot(), ["rbp.relative.alpha"]);
 
         Assert.Equal(["F3-REF", "C3-REF"], config.GetProperty("spectrum").GetProperty("channels")
             .EnumerateArray().Select(channel => channel.GetString()));

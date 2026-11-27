@@ -1,6 +1,6 @@
 """Resolve published official provenance once, before any window rows exist."""
 
-from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
+from app.services.official_algorithm_catalog import ensure_official_definitions, official_definition_identity
 from app.algorithm_runtime.errors import DynamicWindowIdentityConflictError
 from app.core.provenance import implementation_version
 from app.algorithm_runtime.offline_execution import official_definition_sha256

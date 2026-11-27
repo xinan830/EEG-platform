@@ -23,9 +23,10 @@ from app.algorithm_runtime.offline_execution import (
 )
 from app.algorithm_runtime.errors import InvalidAlgorithmResultError, RetiredAlgorithmVersionError
 from app.algorithm_runtime.contracts import OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION
+from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
 from app.scientific.quality import SpectralQualityGateError
-from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
+from app.services.official_algorithm_catalog import ensure_official_definitions, official_definition_identity
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.bootstrap import build_builtin_registry
@@ -48,13 +49,15 @@ class RunService:
         recordings: RecordingService,
         database_path: Path = DATABASE_PATH,
         artifacts_dir: Path = ARTIFACTS_DIR,
+        *,
+        algorithm_registry: AlgorithmRegistry | None = None,
     ):
         self.recordings = recordings
         self.repository = RunRepository(database_path)
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
         self.definition_service = DefinitionService(database_path)
         ensure_official_definitions(self.definition_service)
-        self.algorithm_runtime_registry = build_builtin_registry()
+        self.algorithm_runtime_registry = algorithm_registry if algorithm_registry is not None else build_builtin_registry()
         self.executor = RunAnalysisExecutor(
             recordings,
             self.algorithm_runtime_registry,

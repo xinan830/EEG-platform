@@ -22,7 +22,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from fastapi.testclient import TestClient
 
-from app.algorithms.catalog import ensure_official_definitions
+from app.services.official_algorithm_catalog import ensure_official_definitions
 from app.main import app
 from app.services.audit import AuditService
 from app.services.projects import ProjectService

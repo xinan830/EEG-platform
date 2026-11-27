@@ -10,7 +10,7 @@ import numpy as np
 
 from app.algorithms.rbp.amplitude import band_rms_uv
 from app.scientific.contracts.analysis import FREQUENCY_BANDS_HZ
-from app.scientific.primitives.spectral import band_power
+from app.scientific.primitives import band_power
 
 
 class ResultProjectionUnavailable(ValueError):

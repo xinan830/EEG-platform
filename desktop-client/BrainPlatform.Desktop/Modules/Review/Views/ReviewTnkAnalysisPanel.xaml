@@ -26,8 +26,8 @@
                                        HorizontalAlignment="Center" />
                             <ComboBox ItemsSource="{Binding Channels}"
                                       SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"
-                                      Style="{StaticResource AppFilterComboBoxStyle}"
-                                      Height="28" MinWidth="0" ToolTip="TNK 角色来源通道" />
+                                      Style="{StaticResource AnalysisHeaderComboBoxStyle}"
+                                      Height="20" FontSize="10.5" MinWidth="0" ToolTip="TNK 角色来源通道" />
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

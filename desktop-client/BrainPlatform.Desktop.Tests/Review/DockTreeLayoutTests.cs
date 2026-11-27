@@ -148,6 +148,55 @@ public sealed class DockTreeLayoutTests
             Assert.Equal(1, dragStartedCount);
         });
 
+    [Fact]
+    public void DockLayoutPersistence_isolates_workspace_keys_for_acquisition_and_review()
+    {
+        var reviewPath = DockLayoutPersistence.GetFilePath("review");
+        var acqPath = DockLayoutPersistence.GetFilePath("acquisition");
+        Assert.EndsWith("review-dock-layout.json", reviewPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("acquisition-dock-layout.json", acqPath, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual(reviewPath, acqPath);
+        Assert.Equal(reviewPath, DockLayoutPersistence.DefaultFilePath);
+    }
+
+    [Fact]
+    public void MultiAnalysisDockHost_reparents_LiveSciChartCanvas_across_presets_without_error() =>
+        ReviewTimelineNavigatorTests.OnSta(() =>
+        {
+            var right = new ObservableCollection<FakeSlot> { new("rbp", "RBP"), new("psd", "PSD") };
+            var canvas = new BrainPlatform.Desktop.Modules.Acquisition.Waveform.LiveSciChartCanvas();
+            var host = new MultiAnalysisDockHost
+            {
+                Waveform = canvas,
+                RightSlots = right,
+                BottomSlots = new ObservableCollection<FakeSlot>(),
+                FloatingSlots = new ObservableCollection<FakeSlot>(),
+                PanelTemplate = new DataTemplate(),
+            };
+            var window = new Window { Width = 1280, Height = 800, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Content = host };
+            try
+            {
+                window.Show();
+                host.ApplyPreset(DockLayoutPreset.TopBottomWaveform);
+                window.UpdateLayout();
+                Assert.True(host.IsCustomLayout);
+                Assert.True(canvas.IsLoaded);
+
+                host.ApplyPreset(DockLayoutPreset.TabbedAnalysis);
+                window.UpdateLayout();
+                Assert.True(canvas.IsLoaded);
+
+                host.ResetToAutoLayout();
+                window.UpdateLayout();
+                Assert.False(host.IsCustomLayout);
+                Assert.True(canvas.IsLoaded);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
     private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
     {
         for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)

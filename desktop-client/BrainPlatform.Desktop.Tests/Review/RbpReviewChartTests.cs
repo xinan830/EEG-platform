@@ -98,7 +98,7 @@ public sealed class RbpReviewChartTests
         viewModel.Begin(sessionId, 25);
         viewModel.Apply(new LiveRbpUpdate("ready", "", 25, 35, "rbp-live-v1",
             [new LiveRbpChannelResult("Fz", [0.2, 0.2, 0.2, 0.2, 0.2], "clean", "", "")], sessionId, 1));
-        var panel = new LiveRbpAnalysisPanel { DataContext = viewModel };
+        var panel = new LiveRbpAnalysisPanel { DataContext = new { CardHeaderTitle = "RBP", RbpAnalysis = viewModel } };
 
         Arrange(panel, 640);
         LoadCharts(panel);

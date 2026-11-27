@@ -137,26 +137,26 @@
         <shared:AnalysisPanelShell.HeaderContent>
             <DockPanel LastChildFill="False" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left">
-                    <TextBlock Text="频段" FontSize="12" Foreground="{StaticResource TableMutedBrush}"
-                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="频段" FontSize="11.5" Foreground="{StaticResource TableMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,5,0" />
                     <ComboBox ItemsSource="{Binding SpectralValues.Bands}" SelectedValuePath="Id"
                               SelectedValue="{Binding SpectralValues.SelectedBandId, Mode=TwoWay}"
-                              Style="{StaticResource AppFilterComboBoxStyle}" Height="30" MinWidth="175"
+                              Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="148"
                               AutomationProperties.Name="数值核查频段">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Label}" FontSize="12" />
+                                <TextBlock Text="{Binding Label}" FontSize="11.5" />
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
                     <!-- 时间窗口小胶囊 -->
-                    <Border Margin="14,0,0,0" Padding="10,4" Background="#F1F5F9" CornerRadius="12"
+                    <Border Margin="8,0,0,0" Padding="7,2" Background="#F1F5F9" CornerRadius="10"
                             VerticalAlignment="Center" ToolTip="{Binding SpectralValues.ProvenanceText}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE946;" FontSize="11"
-                                       Foreground="#0284C7" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding SpectralValues.WindowText}" FontSize="11"
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE946;" FontSize="10.5"
+                                       Foreground="#0284C7" VerticalAlignment="Center" Margin="0,0,4,0" />
+                            <TextBlock Text="{Binding SpectralValues.WindowText}" FontSize="10.5"
                                        Foreground="#475569" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>

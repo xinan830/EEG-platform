@@ -1,6 +1,6 @@
 """Persisted current official Definition metadata is immutable and idempotent."""
 
-from app.algorithms.catalog import (
+from app.services.official_algorithm_catalog import (
     OFFICIAL_ALGORITHM_MANIFESTS,
     ensure_official_definitions,
     official_definition,

@@ -7,7 +7,7 @@ from test_offline_artifact_removal import _CHANNELS_10, _synthesize_eeg_with_bli
 
 
 def test_formal_api_runs_official_rbp_spectrum_full_bad_segment_evidence_and_ica_cache_deletion(tmp_path: Path):
-    from app.algorithms.catalog import ensure_official_definitions
+    from app.services.official_algorithm_catalog import ensure_official_definitions
     from app.main import app
     from app.services.runs import RunService
     from test_recording_import import _client

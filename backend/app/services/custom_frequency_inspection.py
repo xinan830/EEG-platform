@@ -19,7 +19,7 @@ from app.models.custom_frequency_inspection import (
 )
 from app.services.result_scalar_inputs import ResultProjectionUnavailable
 from app.algorithms.rbp.custom_frequency import project_bins, project_interval, saved_denominators_uv2
-from app.scientific.primitives.spectral import band_power
+from app.scientific.primitives import band_power
 
 
 class CustomFrequencyInspectionService:

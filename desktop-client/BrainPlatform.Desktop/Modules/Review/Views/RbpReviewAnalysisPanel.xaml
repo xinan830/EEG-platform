@@ -34,12 +34,12 @@
         </shared:AnalysisPanelShell.Style>
         <shared:AnalysisPanelShell.HeaderContent>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <ComboBox Width="128" Margin="0"
+                <ComboBox Width="96" Margin="0"
                           ItemsSource="{Binding RbpAnalysis.ChartOptions}"
                           SelectedItem="{Binding RbpAnalysis.SelectedChart, UpdateSourceTrigger=PropertyChanged}"
-                          Style="{StaticResource AppFilterComboBoxStyle}" Height="30"
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}"
                           VerticalAlignment="Center" />
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -50,17 +50,17 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <ComboBox Width="110" Height="30" Margin="0,0,6,0"
+                    <ComboBox Width="84" Margin="0,0,4,0"
                               ItemsSource="{Binding RbpAnalysis.TopomapPowerTypeOptions}"
                               DisplayMemberPath="Label" SelectedValuePath="Id"
                               SelectedValue="{Binding RbpAnalysis.SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="选择功率类型" Style="{StaticResource AppFilterComboBoxStyle}"
+                              ToolTip="选择功率类型" Style="{StaticResource AnalysisHeaderComboBoxStyle}"
                               VerticalAlignment="Center" />
-                    <ComboBox Width="110" Height="30"
+                    <ComboBox Width="84"
                               ItemsSource="{Binding RbpAnalysis.TopomapBandOptions}"
                               DisplayMemberPath="Label" SelectedValuePath="Id"
                               SelectedValue="{Binding RbpAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="选择地形图频段" Style="{StaticResource AppFilterComboBoxStyle}"
+                              ToolTip="选择地形图频段" Style="{StaticResource AnalysisHeaderComboBoxStyle}"
                               VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>

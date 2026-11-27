@@ -278,6 +278,45 @@
         </Setter>
     </Style>
 
+    <!-- 参数框下拉项紧凑样式 -->
+    <Style x:Key="EegParameterComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Padding" Value="6,4" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="#1E293B" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}" Margin="1,1">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                          ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                            <Setter Property="TextElement.Foreground" Value="#1D4ED8" />
+                            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 参数框专用无边框 ComboBox -->
     <Style x:Key="EegParameterComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
         <Setter Property="Height" Value="28" />
@@ -288,6 +327,8 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="#0F172A" />
         <Setter Property="Padding" Value="2,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource EegParameterComboBoxItemStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
@@ -308,15 +349,23 @@
                         <ContentPresenter IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                           Margin="4,0,16,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
-                        <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
-                               Focusable="False" PopupAnimation="Slide">
-                            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,3,0,0"
-                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType={x:Type controls:EegParameterField}}}"
+                               HorizontalOffset="-6" VerticalOffset="0"
+                               AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                            <Border x:Name="DropDownBorder" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1"
+                                    CornerRadius="5" Margin="6,4,6,10" SnapsToDevicePixels="True"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border.MinWidth>
+                                    <PriorityBinding>
+                                        <Binding Path="PlacementTarget.ActualWidth" ElementName="PART_Popup" />
+                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    </PriorityBinding>
+                                </Border.MinWidth>
                                 <Border.Effect>
-                                    <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.12" Color="#000000" />
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.10" Color="#0F172A" />
                                 </Border.Effect>
-                                <ScrollViewer Margin="3" SnapsToDevicePixels="True" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer Margin="2" SnapsToDevicePixels="True" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Auto">
                                     <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
                             </Border>

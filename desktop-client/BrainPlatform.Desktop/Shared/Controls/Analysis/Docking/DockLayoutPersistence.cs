@@ -2,13 +2,21 @@ using System.IO;
 
 namespace BrainPlatform.Desktop.Shared.Controls.Analysis.Docking;
 
-/// <summary>Persists custom Review dock tree layouts to %LocalAppData%\BrainPlatform.</summary>
+/// <summary>Persists custom dock tree layouts per workspace key to %LocalAppData%\BrainPlatform.</summary>
 public static class DockLayoutPersistence
 {
-    public static string DefaultFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "BrainPlatform",
-        "review-dock-layout.json");
+    public static string DefaultFilePath => GetFilePath("review");
+
+    public static string GetFilePath(string? workspaceKey)
+    {
+        var normalized = string.IsNullOrWhiteSpace(workspaceKey)
+            ? "review"
+            : string.Concat(workspaceKey.Trim().ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '-'));
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BrainPlatform",
+            $"{normalized}-dock-layout.json");
+    }
 
     public static DockLayoutSnapshot? Load(string? filePath = null)
     {

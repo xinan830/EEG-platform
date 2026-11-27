@@ -140,7 +140,7 @@ internal static class LiveSpectralPresentation
         }
     }
 
-    internal static JsonElement RbpTopomapConfig(AcquisitionStreamMetadata stream, LiveMontageSnapshot? montage,
+    internal static JsonElement MultiBandMapConfig(AcquisitionStreamMetadata stream, LiveMontageSnapshot? montage,
         IReadOnlyList<string> fieldIds) => montage is { }
             ? MapConfig(montage, fieldIds)
             : MapConfig(stream, fieldIds);

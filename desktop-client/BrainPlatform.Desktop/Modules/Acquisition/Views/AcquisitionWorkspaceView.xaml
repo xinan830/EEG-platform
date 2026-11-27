@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
+             xmlns:vm="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.ViewModels"
              xmlns:waveform="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Waveform"
              xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
              xmlns:panels="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
@@ -17,6 +18,25 @@
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/InstrumentWorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <DataTemplate x:Key="LiveRbpPanelTemplate"><views:LiveRbpAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="LivePsdPanelTemplate"><views:LivePsdAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="LiveStftPanelTemplate"><views:LiveStftAnalysisPanel /></DataTemplate>
+            <Style x:Key="LiveAnalysisPanelContentStyle" TargetType="ContentControl">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static vm:LiveAnalysisPanelKind.Rbp}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource LiveRbpPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static vm:LiveAnalysisPanelKind.Psd}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource LivePsdPanelTemplate}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static vm:LiveAnalysisPanelKind.Stft}">
+                        <Setter Property="ContentTemplate" Value="{StaticResource LiveStftPanelTemplate}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <DataTemplate x:Key="LiveAnalysisCardTemplate">
+                <ContentControl Content="{Binding}" Style="{StaticResource LiveAnalysisPanelContentStyle}" />
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -109,17 +129,23 @@
                                                     IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png"
                                                     Command="{Binding Acquisition.LiveAnalysis.OpenRbpCommand}"
                                                     IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
-                                                    ToolTip="打开实时相对频段功率趋势" />
+                                                    ToolTip="打开实时相对频段功率趋势（支持多算法并行）">
+                                <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding Acquisition.LiveAnalysis.IsRbpOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                            </controls:EegToolButton>
                             <controls:EegToolButton Content="PSD"
                                                     IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png"
                                                     Command="{Binding Acquisition.LiveAnalysis.OpenPsdCommand}"
                                                     IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
-                                                    ToolTip="打开实时功率谱密度" />
+                                                    ToolTip="打开实时功率谱密度（支持多算法并行）">
+                                <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding Acquisition.LiveAnalysis.IsPsdOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                            </controls:EegToolButton>
                             <controls:EegToolButton Content="STFT 时频"
                                                     IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png"
                                                     Command="{Binding Acquisition.LiveAnalysis.OpenStftCommand}"
                                                     IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
-                                                    ToolTip="打开实时短时傅里叶时频图" />
+                                                    ToolTip="打开实时短时傅里叶时频图（支持多算法并行）">
+                                <controls:EegToolButton.Style><Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}"><Style.Triggers><DataTrigger Binding="{Binding Acquisition.LiveAnalysis.IsStftOpen}" Value="True"><Setter Property="Background" Value="#DBEAFE" /><Setter Property="Foreground" Value="#2563EB" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></controls:EegToolButton.Style>
+                            </controls:EegToolButton>
                         </StackPanel>
 
                         <!-- 右侧：会话运行状态与计时器胶囊 -->
@@ -265,16 +291,41 @@
                                     VerticalAlignment="Bottom" ToolTip="打开完整导联设置；保存后切换整套临时波形配置，不参与算法" />
                         </StackPanel>
 
-                        <!-- 右侧：与滤波参数同一行的预览/录制状态栏 -->
+                        <!-- 右侧：与滤波参数同一行的预览/录制状态栏与排版布局按钮 -->
                         <views:AcquisitionStatusBanner DockPanel.Dock="Right" VerticalAlignment="Bottom" />
+                        <Button x:Name="LayoutPresetButton" DockPanel.Dock="Right" Content="排版布局 ▾"
+                                Click="OnLayoutPresetClick"
+                                Style="{StaticResource AppCompactActionButtonStyle}"
+                                Margin="8,0,8,0" VerticalAlignment="Bottom"
+                                ToolTip="拖拽任意面板标题栏可自定义拆分/标签页/浮窗，或选择预设布局">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="经典布局（左波形 · 右自适应网格）" Tag="AutoClassic" Click="OnSelectLayoutPresetClick" />
+                                    <MenuItem Header="上下分栏（上波形 · 下多栏对比）" Tag="TopBottomWaveform" Click="OnSelectLayoutPresetClick" />
+                                    <MenuItem Header="标签聚合（右侧多算法选项卡）" Tag="TabbedAnalysis" Click="OnSelectLayoutPresetClick" />
+                                    <Separator />
+                                    <MenuItem Header="恢复自动排版并清除记忆" Tag="Reset" Click="OnSelectLayoutPresetClick" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </DockPanel>
                 </Border>
             </Grid>
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
-            <panels:AnalysisDockHost IsPanelOpen="{Binding Acquisition.LiveAnalysis.IsOpen}" PanelTitle="实时分析">
-                <panels:AnalysisDockHost.Waveform>
+            <panels:MultiAnalysisDockHost x:Name="AcquisitionAnalysisHost"
+                                          RightSlots="{Binding Acquisition.LiveAnalysis.RightDockedSlots}"
+                                          BottomSlots="{Binding Acquisition.LiveAnalysis.BottomDockedSlots}"
+                                          FloatingSlots="{Binding Acquisition.LiveAnalysis.FloatingSlots}"
+                                          PanelTemplate="{StaticResource LiveAnalysisCardTemplate}"
+                                          FocusSlotCommand="{Binding Acquisition.LiveAnalysis.FocusSlotCommand}"
+                                          FloatingWindowClosedCommand="{Binding Acquisition.LiveAnalysis.FloatingWindowClosedCommand}"
+                                          FloatSlotCommand="{Binding Acquisition.LiveAnalysis.FloatSlotCommand}"
+                                          DockFloatingSlotCommand="{Binding Acquisition.LiveAnalysis.DockFloatingSlotCommand}"
+                                          LayoutPersistenceKey="acquisition"
+                                          EnableLayoutPersistence="True">
+                <panels:MultiAnalysisDockHost.Waveform>
                     <Grid>
                         <waveform:LiveSciChartCanvas DataContext="{Binding Acquisition.LiveMonitor}" />
                         <Border HorizontalAlignment="Center"
@@ -305,11 +356,8 @@
                                        VerticalAlignment="Center" />
                         </Border>
                     </Grid>
-                </panels:AnalysisDockHost.Waveform>
-                <panels:AnalysisDockHost.Panel>
-                    <views:LiveSpectralAnalysisPanel DataContext="{Binding Acquisition.LiveAnalysis}" />
-                </panels:AnalysisDockHost.Panel>
-            </panels:AnalysisDockHost>
+                </panels:MultiAnalysisDockHost.Waveform>
+            </panels:MultiAnalysisDockHost>
         </views:EegWorkspaceShell.Waveform>
 
         <views:EegWorkspaceShell.Overlay>

@@ -42,7 +42,7 @@ def signal_preview(service, recording_id: str, *, start_s: float, window_s: floa
         raise ValueError("预览通道不属于当前导联")
     channels = [available[name.casefold()] for name in channels]
     preparation_started = time.perf_counter()
-    window = service.load_window(
+    window = service.waveform.load_window(
         recording,
         start_s=start_s,
         window_s=window_s,

@@ -252,3 +252,24 @@ class EdfSampleReader:
 
     def close(self) -> None:
         self.raw.close()
+
+
+def read_edf_bdf_metadata(path: Path) -> tuple[float, float, list[str], list[str], list[str]]:
+    """Read channel metadata without loading the signal samples."""
+    import mne
+
+    reader = mne.io.read_raw_bdf if path.suffix.lower() == ".bdf" else mne.io.read_raw_edf
+    raw = reader(path, preload=False, verbose=False)
+    try:
+        names = list(raw.ch_names)
+        original_units = getattr(raw, "_orig_units", {}) or {}
+        units = [str(original_units.get(name, "unknown")) for name in names]
+        return (
+            float(raw.info["sfreq"]),
+            float(raw.n_times / raw.info["sfreq"]),
+            names,
+            list(raw.get_channel_types()),
+            units,
+        )
+    finally:
+        raw.close()

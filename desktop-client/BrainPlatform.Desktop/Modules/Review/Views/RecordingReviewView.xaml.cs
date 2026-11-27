@@ -330,31 +330,7 @@ public partial class RecordingReviewView : UserControl
         (Window.GetWindow(this) as EegSessionWindow)?.Close();
     }
 
-    private void OnLayoutPresetClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu } button)
-        {
-            menu.PlacementTarget = button;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            menu.IsOpen = true;
-        }
-    }
+    private void OnLayoutPresetClick(object sender, RoutedEventArgs e) => DockLayoutPresetMenu.Open(sender);
 
-    private void OnSelectLayoutPresetClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { Tag: string tag }) return;
-        switch (tag)
-        {
-            case "TopBottomWaveform":
-                ReviewAnalysisHost.ApplyPreset(DockLayoutPreset.TopBottomWaveform);
-                break;
-            case "TabbedAnalysis":
-                ReviewAnalysisHost.ApplyPreset(DockLayoutPreset.TabbedAnalysis);
-                break;
-            case "AutoClassic":
-            case "Reset":
-                ReviewAnalysisHost.ResetToAutoLayout();
-                break;
-        }
-    }
+    private void OnSelectLayoutPresetClick(object sender, RoutedEventArgs e) => DockLayoutPresetMenu.Apply(ReviewAnalysisHost, sender);
 }

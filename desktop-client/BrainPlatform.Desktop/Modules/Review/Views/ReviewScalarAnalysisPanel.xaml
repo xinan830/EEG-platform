@@ -24,14 +24,14 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <ComboBox ItemsSource="{Binding ActiveScalarParameters.Channels}"
                           SelectedItem="{Binding ActiveScalarParameters.Channel}"
-                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="105"
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="82"
                           VerticalAlignment="Center" ToolTip="输入通道" />
-                <ComboBox Margin="6,0,0,0" ItemsSource="{Binding ActiveScalarParameters.SecondaryChannels}"
+                <ComboBox Margin="5,0,0,0" ItemsSource="{Binding ActiveScalarParameters.SecondaryChannels}"
                           SelectedItem="{Binding ActiveScalarParameters.SecondaryChannel}"
-                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="105"
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="82"
                           VerticalAlignment="Center" ToolTip="第二输入通道"
                           Visibility="{Binding HasSecondaryScalarChannel, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <ComboBox Margin="6,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="190"
+                <ComboBox Margin="5,0,0,0" Style="{StaticResource AnalysisHeaderComboBoxStyle}" MinWidth="154"
                           SelectedValuePath="Tag" SelectedValue="{Binding ActiveScalarParameters.FrequencyMode, Mode=TwoWay}"
                           Visibility="{Binding ActiveScalarParameters.IsThetaBeta, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ComboBoxItem Content="标准频段（4–8 / 13–30 Hz）" Tag="standard" />

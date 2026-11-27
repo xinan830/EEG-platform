@@ -2,6 +2,7 @@
              x:Name="RbpPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
              xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
              xmlns:rbp="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp">
     <UserControl.Resources>
@@ -12,107 +13,150 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid>
-        <Border Margin="4,2,4,4" Padding="4" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsTopomapSelected}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <Grid>
-                <ItemsControl ItemsSource="{Binding TopomapBands}">
-                    <ItemsControl.Style>
-                        <Style TargetType="ItemsControl">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsAllTopomapBandsSelected}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ItemsControl.Style>
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="8,2">
-                                <topomap:TopomapCanvas Field="{Binding Field}"
-                                    ColorScaleState="{Binding DataContext.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                                <TextBlock Text="{Binding DataContext.TopomapWindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
-                                           Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
-                                           IsHitTestVisible="False" Panel.ZIndex="2" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <Grid>
-                    <Grid.Style>
-                        <Style TargetType="Grid">
+    <shared:AnalysisPanelShell Title="{Binding CardHeaderTitle, FallbackValue=''}" ToolTip="{Binding RbpAnalysis.WindowText}"
+                               DockCommand="{Binding DockCommand, FallbackValue={x:Null}}"
+                               DockToolTip="{Binding DockToolTip, FallbackValue=停靠 / 分离}"
+                               MaximizeCommand="{Binding MaximizeCommand, FallbackValue={x:Null}}"
+                               MaximizeToolTip="{Binding MaximizeToolTip, FallbackValue=放大 / 还原}"
+                               IsMaximizeVisible="{Binding CanMaximize, FallbackValue=False}"
+                               IsMaximized="{Binding IsMaximized, FallbackValue=False}"
+                               CloseCommand="{Binding CloseAnalysisCommand}"
+                               StatusText="{Binding RbpAnalysis.StatusText}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ComboBox Width="96" Margin="0"
+                          ItemsSource="{Binding RbpAnalysis.ChartOptions}"
+                          SelectedItem="{Binding RbpAnalysis.SelectedChart, UpdateSourceTrigger=PropertyChanged}"
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}"
+                          VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsAllTopomapBandsSelected}" Value="False">
+                                <DataTrigger Binding="{Binding RbpAnalysis.IsTopomapSelected}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Grid.Style>
-                    <topomap:TopomapSwitchableView Field="{Binding SelectedTopomapField}"
-                                                   ColorScaleState="{Binding TopomapColorScales}"
-                                                   WindowText="{Binding TopomapWindowText}" />
-                    <TextBlock Text="{Binding TopomapWindowText}"
-                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
-                               Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
-                               IsHitTestVisible="False" Panel.ZIndex="2" />
-                </Grid>
-            </Grid>
-        </Border>
-        <Border Margin="4,2,4,4" Padding="6" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsTopomapSelected}" Value="True">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <ListBox ItemsSource="{Binding ChannelHistories}"
-                     BorderThickness="0" Background="Transparent" Padding="0"
-                     ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                     VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="0">
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Padding" Value="0" />
-                        <Setter Property="Focusable" Value="False" />
+                    </StackPanel.Style>
+                    <ComboBox Width="84" Margin="0,0,4,0"
+                              ItemsSource="{Binding RbpAnalysis.TopomapPowerTypeOptions}"
+                              DisplayMemberPath="Label" SelectedValuePath="Id"
+                              SelectedValue="{Binding RbpAnalysis.SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="选择功率类型" Style="{StaticResource AnalysisHeaderComboBoxStyle}"
+                              VerticalAlignment="Center" />
+                    <ComboBox Width="84"
+                              ItemsSource="{Binding RbpAnalysis.TopomapBandOptions}"
+                              DisplayMemberPath="Label" SelectedValuePath="Id"
+                              SelectedValue="{Binding RbpAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="选择地形图频段" Style="{StaticResource AnalysisHeaderComboBoxStyle}"
+                              VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </shared:AnalysisPanelShell.HeaderContent>
+        <Grid>
+            <Border Margin="4,2,4,4" Padding="4" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RbpAnalysis.IsTopomapSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,0,0,6">
-                            <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
-                            <Grid Height="120">
-                                <rbp:RbpChart IsStackedHistory="True" ShowAxisTitles="False"
-                                              VisibleStartSeconds="{Binding DataContext.VisibleStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                              Bands="{Binding Bands}" Windows="{Binding Windows}" />
-                                <TextBlock Text="{Binding DataContext.WindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
-                                           Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
-                                           IsHitTestVisible="False" Panel.ZIndex="2" />
-                            </Grid>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Border>
-    </Grid>
+                </Border.Style>
+                <Grid>
+                    <ItemsControl ItemsSource="{Binding RbpAnalysis.TopomapBands}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RbpAnalysis.IsAllTopomapBandsSelected}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="8,2">
+                                    <topomap:TopomapCanvas Field="{Binding Field}"
+                                        ColorScaleState="{Binding DataContext.RbpAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <TextBlock Text="{Binding DataContext.RbpAnalysis.TopomapWindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
+                                               Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                               IsHitTestVisible="False" Panel.ZIndex="2" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RbpAnalysis.IsAllTopomapBandsSelected}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <topomap:TopomapSwitchableView Field="{Binding RbpAnalysis.SelectedTopomapField}"
+                                                       ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}"
+                                                       WindowText="{Binding RbpAnalysis.TopomapWindowText}" />
+                        <TextBlock Text="{Binding RbpAnalysis.TopomapWindowText}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                                   Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                   IsHitTestVisible="False" Panel.ZIndex="2" />
+                    </Grid>
+                </Grid>
+            </Border>
+            <Border Margin="4,2,4,4" Padding="6" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RbpAnalysis.IsTopomapSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ListBox ItemsSource="{Binding RbpAnalysis.ChannelHistories}"
+                         BorderThickness="0" Background="Transparent" Padding="0"
+                         ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="0">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Focusable" Value="False" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,6">
+                                <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <Grid Height="120">
+                                    <rbp:RbpChart IsStackedHistory="True" ShowAxisTitles="False"
+                                                  VisibleStartSeconds="{Binding DataContext.RbpAnalysis.VisibleStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                                    <TextBlock Text="{Binding DataContext.RbpAnalysis.WindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
+                                               Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                               IsHitTestVisible="False" Panel.ZIndex="2" />
+                                </Grid>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+    </shared:AnalysisPanelShell>
 </UserControl>

@@ -1,4 +1,4 @@
-"""Official algorithm catalog backed by Runtime manifests."""
+"""Build the official algorithm catalog and persist its Definition identities."""
 
 from __future__ import annotations
 
@@ -6,9 +6,12 @@ from typing import Any
 
 from app.algorithms.builtin_modules import BUILTIN_ALGORITHM_MANIFESTS
 from app.algorithm_runtime.contracts import AlgorithmManifest
+from app.algorithm_runtime.errors import AlgorithmRuntimeError
+from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.core.provenance import sha256_json
 from app.algorithms.catalog_contracts import OfficialAlgorithmCatalogItem
 from app.models.algorithm_definition import DefinitionVersionDraft
+from app.services.definitions import DefinitionService
 
 
 OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = BUILTIN_ALGORITHM_MANIFESTS
@@ -156,3 +159,56 @@ def official_algorithm_catalog(service) -> list[OfficialAlgorithmCatalogItem]:
             definition_id=definition.definition_id, definition_version=version.semver,
         ))
     return catalog
+
+
+def available_official_algorithms(
+    definitions: DefinitionService, registry: AlgorithmRegistry,
+) -> list[dict[str, object]]:
+    """Combine registered algorithm schemas with their published Definition records."""
+    ensure_official_definitions(definitions)
+    official_items = official_algorithm_catalog(definitions)
+    items: list[dict[str, object]] = []
+    for official in official_items:
+        module = registry.get_current(official.algorithm_id)
+        manifest = module.manifest
+        if (
+            manifest.algorithm_id != official.algorithm_id
+            or manifest.scientific_version != official.scientific_version
+            or not manifest.is_current_version
+            or manifest.execution_kind != official.execution_kind
+            or manifest.implementation_identity != official.implementation_identity
+            or manifest.display_name_zh != official.display_name_zh
+            or manifest.abbreviation != official.abbreviation
+            or manifest.purpose_zh != official.purpose_zh
+            or manifest.supported_modes != official.supported_modes
+            or manifest.output_schema != official.output_schema
+            or manifest.output_contract is None
+            or manifest.definition_persistence is None
+        ):
+            raise AlgorithmRuntimeError("official catalog/runtime manifest mismatch")
+        items.append({
+            "source": "official",
+            "id": manifest.algorithm_id,
+            "version": manifest.scientific_version,
+            "display_name_zh": manifest.display_name_zh,
+            "abbreviation": manifest.abbreviation,
+            "description": manifest.purpose_zh,
+            "parameters": [item.model_dump(mode="json") for item in module.parameter_schema().parameters],
+            "modes": list(manifest.supported_modes),
+            "output_schema": manifest.output_schema,
+            "output_contract": manifest.output_contract.model_dump(mode="json"),
+            "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
+            "signal_requirements": (manifest.signal_requirements.model_dump(mode="json")
+                                    if manifest.signal_requirements is not None else None),
+            "dynamic_capabilities": (
+                manifest.dynamic_capabilities.model_dump(mode="json")
+                if manifest.dynamic_capabilities is not None else None
+            ),
+            "availability": official.availability,
+            "is_runnable": official.is_runnable,
+            "definition_id": official.definition_id,
+            "definition_version": official.definition_version,
+            "implementation_identity": manifest.implementation_identity,
+            "group": manifest.catalog_group,
+        })
+    return items

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from app.algorithms.catalog import ensure_official_definitions
+from app.services.official_algorithm_catalog import ensure_official_definitions
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.runs import RunService

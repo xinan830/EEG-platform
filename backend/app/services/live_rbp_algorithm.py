@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
-from app.algorithms.rbp.official import RBP_BANDS, five_band_shares
+from app.algorithms.rbp import RBP_BANDS, five_band_shares
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.scientific.contracts.preprocessing import live_spectral_filter_spec
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY

@@ -39,6 +39,156 @@
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Padding" Value="8,3" />
     </Style>
+    <Style x:Key="AnalysisHeaderIconButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#64748B" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BtnBorder" Property="Background" Value="#E2E8F0" />
+                            <Setter Property="Foreground" Value="#0F172A" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="BtnBorder" Property="Background" Value="#CBD5E1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="AnalysisHeaderCloseButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Path x:Name="ClosePath" Data="M 0,0 L 8,8 M 8,0 L 0,8" Width="8" Height="8" Stretch="None"
+                              Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BtnBorder" Property="Background" Value="#FEE2E2" />
+                            <Setter TargetName="ClosePath" Property="Stroke" Value="#DC2626" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="BtnBorder" Property="Background" Value="#FECACA" />
+                            <Setter TargetName="ClosePath" Property="Stroke" Value="#B91C1C" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="AnalysisHeaderComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="#1E293B" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}" Margin="2,1">
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                            <Setter Property="Foreground" Value="#1D4ED8" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="AnalysisHeaderComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="MaxDropDownHeight" Value="280" />
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="Foreground" Value="#0F172A" />
+        <Setter Property="BorderBrush" Value="#CBD5E1" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource AnalysisHeaderComboBoxItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      Focusable="False"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Chrome" Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="4">
+                                        <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                                              Data="M 0,0 L 3.5,3.5 L 7,0" Stroke="#64748B" StrokeThickness="1.3"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Chrome" Property="BorderBrush" Value="#94A3B8" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          Margin="7,0,18,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                               HorizontalOffset="-6" AllowsTransparency="True"
+                               Focusable="False" PopupAnimation="Slide">
+                            <Border x:Name="DropDownBorder" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
+                                    CornerRadius="5" Margin="6,3,6,8" SnapsToDevicePixels="True"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.10" Color="#0F172A" />
+                                </Border.Effect>
+                                <ScrollViewer Margin="2" SnapsToDevicePixels="True"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style TargetType="{x:Type analysis:AnalysisPanelShell}">
         <Setter Property="Background" Value="{DynamicResource AnalysisSurfaceBrush}" />
         <Setter Property="Padding" Value="{DynamicResource AnalysisPanelPadding}" />
@@ -53,45 +203,45 @@
                                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" /><RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Border x:Name="PART_HeaderBar" Background="Transparent" BorderThickness="0" Padding="0" Margin="{DynamicResource AnalysisSectionSpacing}">
+                            <Border x:Name="PART_HeaderBar" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock x:Name="PART_DragGrip" Text="⋮⋮" FontSize="12" FontWeight="Bold" Foreground="#94A3B8"
-                                                   VerticalAlignment="Center" Margin="0,0,6,0" Visibility="Collapsed"
+                                        <TextBlock x:Name="PART_DragGrip" Text="⋮⋮" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"
+                                                   VerticalAlignment="Center" Margin="0,0,4,0" Visibility="Collapsed"
                                                    ToolTip="按住标题栏空白处或拖拽图标可拆分、合并标签页或弹出为独立窗口" />
-                                        <TextBlock x:Name="PART_TitleText" Text="{TemplateBinding Title}" FontSize="16" FontWeight="SemiBold"
+                                        <TextBlock x:Name="PART_TitleText" Text="{TemplateBinding Title}" FontSize="13.5" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource AnalysisHeadingBrush}" VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                                   TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
                                     </StackPanel>
                                     <ContentPresenter x:Name="PART_HeaderContent" Grid.Column="1"
                                                       Content="{TemplateBinding HeaderContent}"
-                                                      VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                      VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button x:Name="PART_MaximizeButton" Style="{DynamicResource ToolbarGearButtonStyle}"
+                                        <Button x:Name="PART_MaximizeButton" Style="{StaticResource AnalysisHeaderIconButtonStyle}"
                                                 Command="{TemplateBinding MaximizeCommand}"
                                                 ToolTip="{TemplateBinding MaximizeToolTip}" AutomationProperties.Name="放大或还原"
-                                                Visibility="Collapsed" Margin="0,0,6,0">
-                                            <TextBlock x:Name="PART_MaximizeGlyph" FontFamily="Segoe MDL2 Assets" Text="&#xE740;" FontSize="13" />
+                                                Visibility="Collapsed" Margin="0,0,2,0">
+                                            <TextBlock x:Name="PART_MaximizeGlyph" FontFamily="Segoe MDL2 Assets" Text="&#xE740;" FontSize="10.5" />
                                         </Button>
-                                        <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
-                                                ToolTip="{TemplateBinding DockToolTip}" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
-                                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
+                                        <Button x:Name="PART_DockButton" Style="{StaticResource AnalysisHeaderIconButtonStyle}"
+                                                ToolTip="{TemplateBinding DockToolTip}" AutomationProperties.Name="停靠 / 分离" Margin="0,0,2,0">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="11" />
                                         </Button>
-                                        <Button Style="{DynamicResource ModernCloseCrossButtonStyle}" Command="{TemplateBinding CloseCommand}"
+                                        <Button Style="{StaticResource AnalysisHeaderCloseButtonStyle}" Command="{TemplateBinding CloseCommand}"
                                                 ToolTip="关闭分析面板" AutomationProperties.Name="关闭分析面板" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
                             <ContentPresenter x:Name="PART_Parameters" Grid.Row="1" Content="{TemplateBinding Parameters}"
                                               Margin="{DynamicResource AnalysisSectionSpacing}" />
-                            <Grid x:Name="PART_StatusRow" Grid.Row="2" Margin="0,0,0,8">
+                            <Grid x:Name="PART_StatusRow" Grid.Row="2" Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock x:Name="PART_StatusText" Text="{TemplateBinding StatusText}" Style="{StaticResource AnalysisStatusTextStyle}"
                                            Margin="0,0,10,0" />
                                 <Button x:Name="PART_ApplyButton" Grid.Column="1" Content="应用并分析"
                                         Command="{TemplateBinding ApplyCommand}" Style="{DynamicResource ModernDialogPrimaryButtonStyle}"
-                                        Height="32" Padding="12,0" FontSize="12" />
+                                        Height="28" Padding="10,0" FontSize="11.5" />
                             </Grid>
                             <ContentPresenter x:Name="PART_BodyContent" Grid.Row="3" Content="{TemplateBinding Content}"
                                               ContentTemplate="{TemplateBinding ContentTemplate}"
@@ -104,14 +254,14 @@
                             <Setter TargetName="PART_HeaderBar" Property="Background" Value="#F8FAFC" />
                             <Setter TargetName="PART_HeaderBar" Property="BorderBrush" Value="#E2E8F0" />
                             <Setter TargetName="PART_HeaderBar" Property="BorderThickness" Value="0,0,0,1" />
-                            <Setter TargetName="PART_HeaderBar" Property="Padding" Value="8,4,8,4" />
-                            <Setter TargetName="PART_HeaderBar" Property="Margin" Value="0,0,0,6" />
+                            <Setter TargetName="PART_HeaderBar" Property="Padding" Value="6,3,6,3" />
+                            <Setter TargetName="PART_HeaderBar" Property="Margin" Value="0,0,0,4" />
                             <Setter TargetName="PART_HeaderBar" Property="Cursor" Value="SizeAll" />
                             <Setter TargetName="PART_DragGrip" Property="Visibility" Value="Visible" />
-                            <Setter TargetName="PART_TitleText" Property="FontSize" Value="13.5" />
-                            <Setter TargetName="PART_Parameters" Property="Margin" Value="10,0,10,8" />
-                            <Setter TargetName="PART_StatusRow" Property="Margin" Value="10,0,10,6" />
-                            <Setter TargetName="PART_BodyContent" Property="Margin" Value="10,0,10,8" />
+                            <Setter TargetName="PART_TitleText" Property="FontSize" Value="12" />
+                            <Setter TargetName="PART_Parameters" Property="Margin" Value="6,0,6,6" />
+                            <Setter TargetName="PART_StatusRow" Property="Margin" Value="6,0,6,4" />
+                            <Setter TargetName="PART_BodyContent" Property="Margin" Value="6,0,6,6" />
                         </Trigger>
                         <Trigger Property="IsMaximizeVisible" Value="True">
                             <Setter TargetName="PART_MaximizeButton" Property="Visibility" Value="Visible" />

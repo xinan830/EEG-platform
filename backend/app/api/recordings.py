@@ -161,7 +161,7 @@ def get_preview(
 ) -> dict:
     try:
         recording = _service(request).require_recording(recording_id)
-        return _service(request).load_preview(recording, start_s=start_s, window_s=window_s)
+        return _service(request).waveform.load_preview(recording, start_s=start_s, window_s=window_s)
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
@@ -188,7 +188,7 @@ def get_window(
     try:
         recording = _service(request).require_recording(recording_id)
         requested_channels = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = _service(request).load_window(
+        payload = _service(request).waveform.load_window(
             recording,
             start_s=start_s,
             window_s=window_s,
@@ -328,7 +328,7 @@ def algorithm_check(
         service = _service(request)
         recording = service.require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        payload = service.load_window(
+        payload = service.waveform.load_window(
             recording, start_s=time_s, window_s=0.1, low_cut_hz=low_cut_hz,
             high_cut_hz=high_cut_hz, notch_hz=notch_hz, baseline_stabilization=baseline_stabilization, reference=reference,
             channels=requested, montage=montage,
