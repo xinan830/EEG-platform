@@ -22,7 +22,10 @@ public sealed partial class RecordingReviewViewModelTests
         var iapf = new PanelProvider("iapf");
         var thetaBeta = new PanelProvider("theta_beta");
         var tnk = new PanelProvider("tnk_biofeedback");
-        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog,
+        var manifest = Manifest(configuration);
+        var recorded = new RegisteredRecording(manifest.SessionId.ToString("N"), "fixture", ".wpf", "now", 500, 100,
+            ["F3", "F4", "Fz", "Pz", "F7"], "sha");
+        await using var vm = new RecordingReviewViewModel(new FakeReader(manifest, 100), catalog,
             recordingDirectory: "_temp/multi-algorithm-fixture",
             analysisCoordinators:
             [
@@ -32,7 +35,8 @@ public sealed partial class RecordingReviewViewModelTests
                 new ReviewAnalysisCoordinator(iapf),
                 new ReviewAnalysisCoordinator(thetaBeta),
                 new ReviewAnalysisCoordinator(tnk),
-            ]);
+            ],
+            registeredAnalysisRecording: recorded);
         await vm.InitializeAsync();
         await vm.SeekAsync(20);
 
@@ -94,7 +98,10 @@ public sealed partial class RecordingReviewViewModelTests
         var thetaBeta = new PanelProvider("theta_beta");
         var classic = new PanelProvider("brainbeat");
         var individualized = new PanelProvider("brainbeat_individualized");
-        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog,
+        var manifest = Manifest(configuration);
+        var recorded = new RegisteredRecording(manifest.SessionId.ToString("N"), "fixture", ".wpf", "now", 500, 100,
+            ["F3", "F4", "Fz", "Pz", "F7"], "sha");
+        await using var vm = new RecordingReviewViewModel(new FakeReader(manifest, 100), catalog,
             recordingDirectory: "_temp/isolated-multi-fixture",
             analysisCoordinators:
             [
@@ -102,7 +109,8 @@ public sealed partial class RecordingReviewViewModelTests
                 new ReviewAnalysisCoordinator(thetaBeta),
                 new ReviewAnalysisCoordinator(classic),
                 new ReviewAnalysisCoordinator(individualized),
-            ]);
+            ],
+            registeredAnalysisRecording: recorded);
         await vm.InitializeAsync();
         await vm.SeekAsync(25);
 
