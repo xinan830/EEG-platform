@@ -148,7 +148,11 @@ def test_live_scalar_algorithms_compute_and_skip_iapf_segment_diagnostics(caplog
     tb = LiveScalarAlgorithm("theta_beta", preprocessor=preprocessor)
     bb = LiveScalarAlgorithm("brainbeat", preprocessor=preprocessor)
 
-    iapf_cfg, _ = iapf.configure(session, {"channels": ["Pz"], "window_s": 20.0})
+    iapf_cfg, iapf_plan = iapf.configure(session, {"channels": ["Pz"], "window_s": 20.0})
+    assert iapf_cfg.step_s == 2.0
+    assert iapf_plan.step_samples == 500
+    _, iapf_1s_plan = iapf.configure(session, {"channels": ["Pz"], "window_s": 20.0, "step_s": 1.0})
+    assert iapf_1s_plan.step_samples == 250
     tb_std_cfg, _ = tb.configure(session, {"channels": ["Fz"], "window_s": 20.0, "frequency_mode": "standard"})
     tb_ind_cfg, _ = tb.configure(session, {"channels": ["Pz"], "window_s": 20.0, "frequency_mode": "individualized"})
     bb_cfg, _ = bb.configure(session, {"channels": ["Fz", "Pz"], "window_s": 20.0})
@@ -163,11 +167,15 @@ def test_live_scalar_algorithms_compute_and_skip_iapf_segment_diagnostics(caplog
     assert 9.5 <= (iapf_res.value or 0.0) <= 10.5
     assert iapf_res.provenance["preprocessing_scope"] == "window_local_zero_phase"
     assert iapf_res.provenance["equivalent_to_offline_continuous_preprocessing"] is False
+    assert iapf_res.provenance["welch_segment_overlap"] == 0.5
+    assert iapf_res.provenance["welch_step_s"] == 2.0
     assert "iapf_welch_segment_diagnostics" not in caplog.text
 
     tb_std_res = tb.calculate("live-scalar-session", fz_block, tb_std_cfg, 0)
     assert tb_std_res.state == "ready"
     assert tb_std_res.unit == "dimensionless"
+    assert tb_std_res.provenance["welch_segment_overlap"] == 0.5
+    assert tb_std_res.provenance["welch_step_s"] == 2.0
     assert (tb_std_res.value or 0.0) > 1.0
 
     tb_ind_res = tb.calculate("live-scalar-session", pz_block, tb_ind_cfg, 0)
@@ -178,6 +186,8 @@ def test_live_scalar_algorithms_compute_and_skip_iapf_segment_diagnostics(caplog
     bb_res = bb.calculate("live-scalar-session", bb_block, bb_cfg, 0)
     assert bb_res.state == "ready"
     assert bb_res.unit == "ratio"
+    assert bb_res.provenance["welch_segment_overlap"] == 0.5
+    assert bb_res.provenance["welch_step_s"] == 2.0
     assert (bb_res.value or 0.0) > 0.0
     assert bb_res.provenance["paired_role_order"] == ["Fz", "Pz"]
 
@@ -413,3 +423,28 @@ def test_live_scalar_api_end_to_end() -> None:
         assert rejected.status_code == 422
         assert rejected.json()["code"] == "LIVE_CONFIG_INVALID"
         client.delete(f"/api/live-recordings/sessions/{sid}")
+
+
+def test_live_iapf_split_peak_falls_back_to_cog_with_evidence() -> None:
+    preprocessor = LiveScientificPreprocessingService()
+    session = _session()
+    sfreq = 250.0
+    t = np.arange(int(20.0 * sfreq), dtype=np.float64) / sfreq
+    split_alpha = (
+        18e-6 * np.sin(2 * math.pi * 9.5 * t)
+        + 18e-6 * np.sin(2 * math.pi * 12.25 * t)
+    )
+    values = np.column_stack([split_alpha, split_alpha])
+    session.append(0, values, values.shape[0])
+
+    iapf = LiveScalarAlgorithm("iapf", preprocessor=preprocessor)
+    cfg, _ = iapf.configure(session, {"channels": ["Pz"], "window_s": 20.0})
+    block = session.read_samples(0, values.shape[0], ("Pz",))
+    res = iapf.calculate("live-scalar-session", block, cfg, 0)
+
+    assert res.state == "ready"
+    assert res.scientific_identity == "iapf-live-v2"
+    iapf_ev = res.evidence["extensions"]["iapf_evidence"]
+    assert iapf_ev["source"] == "cog"
+    assert iapf_ev["split_peak"] is True
+    assert iapf_ev["peak_dominance_ratio"] < 1.20

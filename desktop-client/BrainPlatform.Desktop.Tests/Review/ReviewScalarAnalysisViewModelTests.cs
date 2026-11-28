@@ -26,17 +26,41 @@ public sealed class ReviewScalarAnalysisViewModelTests
                     Unit = "Hz",
                     Points = new[]
                     {
-                        new ReviewScalarPoint(41.4, 41, 41.4, 9.18, "Complete", "clean", "", null, null),
-                        new ReviewScalarPoint(42, 41.4, 42, 9.0, "Complete", "clean", "", null, null),
+                        new ReviewScalarPoint(41.4, 41, 41.4, 9.18, "Complete", "clean", "", null, null, "peak", 9.18, 9.45),
+                        new ReviewScalarPoint(42, 22, 42, 7.5, "Complete", "clean", "", null, null, "cog", null, 7.5),
                     },
                 };
-                var axis = Assert.Single(Chart(iapf).YAxes);
+                var iapfSurface = Chart(iapf);
+                var axis = Assert.Single(iapfSurface.YAxes);
                 Assert.Equal(AutoRange.Never, axis.AutoRange);
+                Assert.False(axis.DrawMinorTicks);
                 Assert.Equal(8d, Convert.ToDouble(axis.VisibleRange.Min));
                 Assert.Equal(13d, Convert.ToDouble(axis.VisibleRange.Max));
+                var band = Assert.IsType<SciChart.Charting.Visuals.Annotations.BoxAnnotation>(Assert.Single(iapfSurface.Annotations));
+                Assert.False(band.IsHidden);
+                Assert.True(iapfSurface.RenderableSeries[0].IsVisible);
+                Assert.Equal(2, iapfSurface.RenderableSeries[0].DataSeries.Count);
+                Assert.Equal(7.5, Convert.ToDouble(iapfSurface.RenderableSeries[0].DataSeries.YValues[1]));
+                Assert.False(iapfSurface.RenderableSeries[1].IsVisible);
+
+                iapf.IapfDisplayMode = "compare";
+                Assert.True(iapfSurface.RenderableSeries[0].IsVisible);
+                Assert.False(iapfSurface.RenderableSeries[1].IsVisible);
+                Assert.True(iapfSurface.RenderableSeries[2].IsVisible);
+                Assert.True(iapfSurface.RenderableSeries[3].IsVisible);
+
+                iapf.IapfDisplayMode = "peak";
+                Assert.True(iapfSurface.RenderableSeries[0].IsVisible);
+                Assert.True(iapfSurface.RenderableSeries[1].IsVisible);
+                Assert.Equal(2, iapfSurface.RenderableSeries[1].DataSeries.Count);
+                Assert.True(double.IsNaN(Convert.ToDouble(iapfSurface.RenderableSeries[1].DataSeries.YValues[1])));
+                Assert.Equal(1, iapfSurface.RenderableSeries[2].DataSeries.Count);
+                Assert.Equal(1, iapfSurface.RenderableSeries[3].DataSeries.Count);
 
                 var thetaBeta = new ReviewScalarTrendChart { AlgorithmId = "theta_beta", Unit = "dimensionless" };
-                Assert.Equal(AutoRange.Always, Assert.Single(Chart(thetaBeta).YAxes).AutoRange);
+                var tbSurface = Chart(thetaBeta);
+                Assert.Equal(AutoRange.Always, Assert.Single(tbSurface.YAxes).AutoRange);
+                Assert.True(Assert.IsType<SciChart.Charting.Visuals.Annotations.BoxAnnotation>(Assert.Single(tbSurface.Annotations)).IsHidden);
             }
             catch (Exception exception) { failure = exception; }
         });
@@ -56,7 +80,7 @@ public sealed class ReviewScalarAnalysisViewModelTests
         var response = Preview(raw);
         Func<DynamicWindowResponse, string?, string?, IReadOnlyList<ReviewScalarPoint>> projector =
             algorithmId == "iapf" ? ReviewScalarProjectors.Iapf : ReviewScalarProjectors.ThetaBeta;
-        var viewModel = new ReviewScalarAnalysisViewModel(unit, projector);
+        var viewModel = new ReviewScalarAnalysisViewModel(unit, projector, algorithmId);
 
         viewModel.Apply(response, "F3", null);
 
@@ -69,10 +93,22 @@ public sealed class ReviewScalarAnalysisViewModelTests
         Assert.NotNull(point.Evidence);
         Assert.NotNull(point.Provenance);
         Assert.Equal("1–6 s", viewModel.CurrentWindowRangeText);
+        if (algorithmId == "iapf")
+        {
+            Assert.Equal("cog", viewModel.IapfDisplayMode);
+            Assert.Equal("COG 9.9 Hz", viewModel.LatestValueText);
+            viewModel.IapfDisplayMode = "peak";
+            Assert.Equal("0.5 Hz", viewModel.LatestValueText);
+        }
+        else
+        {
+            Assert.Equal("0.5", viewModel.LatestValueText);
+        }
 
         viewModel.Apply(null, "F3", null);
 
         Assert.Equal("分析范围不可用", viewModel.CurrentWindowRangeText);
+        Assert.Equal("--", viewModel.LatestValueText);
     }
 
     [Fact]

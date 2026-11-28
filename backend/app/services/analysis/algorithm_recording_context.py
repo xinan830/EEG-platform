@@ -85,11 +85,11 @@ class _RecordingAlgorithmContext:
             if self._preprocessing is not None else {}
         )
         payload = self._spectral_analysis.load_spectrum(
-            self._recording, start_s, window_s, channels,
-            filter_low_hz=request.filter_low_hz, filter_high_hz=request.filter_high_hz,
-            output_low_hz=request.output_low_hz, output_high_hz=request.output_high_hz,
-            notch_hz=request.notch_hz, preprocessing_scope=request.preprocessing_scope,
-            quality_policy=request.quality_policy, include_welch_segments=include_welch_segments,
+            self._recording, start_s, window_s, channels, filter_low_hz=request.filter_low_hz,
+            filter_high_hz=request.filter_high_hz, output_low_hz=request.output_low_hz,
+            output_high_hz=request.output_high_hz, notch_hz=request.notch_hz,
+            preprocessing_scope=request.preprocessing_scope, quality_policy=request.quality_policy,
+            include_welch_segments=include_welch_segments,
             execution_context=self.execution_context, **extra,
         )
         estimate = self._spectral_estimate(payload)
@@ -182,10 +182,8 @@ class _RecordingAlgorithmContext:
             output_low_hz=float(output_low), output_high_hz=float(output_high),
             notch_hz=notch_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy,
         )
-        return self.load_spectral_source(
-            request, role_to_channel=dict(zip(channels, channels)),
-            include_welch_segments=include_welch_segments,
-        )
+        return self.load_spectral_source(request, role_to_channel=dict(zip(channels, channels)),
+                                         include_welch_segments=include_welch_segments)
 
     @staticmethod
     def _spectral_estimate(payload: dict[str, Any]) -> SpectralEstimate:

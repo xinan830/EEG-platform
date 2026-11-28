@@ -120,7 +120,7 @@ Live scalar algorithms SHALL validate role-specific inputs before calculation an
 
 ### Requirement: Keep the IAPF live trend scale stable
 
-The live IAPF trend chart SHALL use a fixed 8–13 Hz vertical range so incoming values cannot cause automatic axis rescaling.
+The live IAPF trend chart SHALL use a fixed 8–13 Hz vertical range independent of the backend 7–13 Hz search range with an 8–13 Hz classic Alpha band highlight and optional COG reference line so incoming values cannot cause automatic axis rescaling.
 
 #### Scenario: IAPF values move below 8 Hz
 - **WHEN** a valid IAPF result is below 8 Hz

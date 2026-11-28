@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from app.algorithms.iapf import compute as iapf_compute
 from app.algorithms.iapf.compute import compute_iapf
@@ -26,7 +27,8 @@ def test_prominent_local_alpha_peak_is_selected_as_paf() -> None:
     estimate = estimate_iapf(_spectrum(excess))
 
     assert estimate.source == "peak"
-    assert estimate.value == 10.25
+    assert estimate.value == pytest.approx(10.25, abs=0.06)
+    assert estimate.split_peak is False
     assert estimate.peak_width_bins is not None and estimate.peak_width_bins >= 1.2
     assert estimate.peak_prominence_ratio is not None and estimate.peak_prominence_ratio >= 0.20
 
@@ -117,5 +119,74 @@ def test_compute_logs_segment_estimates_without_spectral_arrays(monkeypatch) -> 
     assert "window_start_s=58.000" in record
     diagnostics = json.loads(record.split("segments=", 1)[1])
     assert [item["start_s"] for item in diagnostics] == [58.0, 60.0]
-    assert [item["peak_hz"] for item in diagnostics] == [9.25, 9.5]
+    assert [item["peak_hz"] for item in diagnostics] == pytest.approx([9.25, 9.5], abs=0.06)
     assert "psd" not in diagnostics[0]
+
+
+def test_off_grid_symmetric_peak_is_refined_below_bin_resolution() -> None:
+    import pytest
+
+    freqs = np.arange(1.0, 30.001, 0.25)
+    baseline = 1e-12 / freqs
+    excess = 9e-12 * np.exp(-0.5 * ((freqs - 10.12) / 0.65) ** 2)
+    excess[(freqs < 7.0) | (freqs > 13.0)] = 0.0
+
+    estimate = estimate_iapf(_spectrum(excess))
+
+    assert estimate.source == "peak"
+    assert estimate.split_peak is False
+    assert estimate.value == pytest.approx(10.12, abs=0.02)
+
+
+def test_ambiguous_split_alpha_peaks_fall_back_to_cog() -> None:
+    freqs = np.arange(1.0, 30.001, 0.25)
+    baseline = 1e-10 / freqs**1.2
+    ref_amp = float(baseline[np.flatnonzero(freqs == 10.0)[0]])
+    peak1 = ref_amp * 1.0 * np.exp(-0.5 * ((freqs - 9.5) / 0.45) ** 2)
+    peak2 = ref_amp * 0.92 * np.exp(-0.5 * ((freqs - 12.25) / 0.45) ** 2)
+    excess = peak1 + peak2
+    excess[(freqs < 7.0) | (freqs > 13.0)] = 0.0
+
+    estimate = estimate_iapf(_spectrum(excess))
+
+    assert estimate.source == "cog"
+    assert estimate.split_peak is True
+    assert estimate.peak_dominance_ratio is not None and estimate.peak_dominance_ratio < 1.20
+    assert estimate.secondary_peak_hz is not None
+    assert estimate.cog is not None
+    assert estimate.value == pytest.approx(estimate.cog)
+
+
+def test_dominant_primary_peak_over_weak_secondary_peak_stays_peak() -> None:
+    import pytest
+
+    freqs = np.arange(1.0, 30.001, 0.25)
+    baseline = 1e-10 / freqs**1.2
+    peak1 = baseline * 1.6 * np.exp(-0.5 * ((freqs - 10.0) / 0.5) ** 2)
+    peak2 = baseline * 0.8 * np.exp(-0.5 * ((freqs - 12.25) / 0.45) ** 2)
+    excess = peak1 + peak2
+    excess[(freqs < 7.0) | (freqs > 13.0)] = 0.0
+
+    estimate = estimate_iapf(_spectrum(excess))
+
+    assert estimate.source == "peak"
+    assert estimate.split_peak is False
+    assert estimate.peak_dominance_ratio is not None and estimate.peak_dominance_ratio >= 1.20
+    assert estimate.value == pytest.approx(10.0, abs=0.05)
+
+
+def test_iapf_2s_step_aligns_with_50_percent_welch_segment_grid() -> None:
+    from app.scientific.primitives.spectral import estimate_welch_psd
+
+    sfreq = 250.0
+    t = np.arange(int(22.0 * sfreq), dtype=np.float64) / sfreq
+    signal_22s = (15e-6 * np.sin(2 * np.pi * 9.5 * t)).reshape(-1, 1)
+    win_a = estimate_welch_psd(signal_22s[: int(20.0 * sfreq)], sfreq, low_hz=1.0, high_hz=30.0, include_segments=True)
+    win_b = estimate_welch_psd(signal_22s[int(2.0 * sfreq) :], sfreq, low_hz=1.0, high_hz=30.0, include_segments=True)
+
+    assert win_a.total_epochs == 9
+    assert win_b.total_epochs == 9
+    assert win_a.evidence["welch"]["overlap_fraction"] == 0.5
+    assert win_a.evidence["welch"]["step_s"] == 2.0
+    # 8 of 9 segment intervals match between adjacent 2 s windows
+    assert [round(x + 2.0, 6) for x in win_b.welch_segment_offsets_s[:-1]] == [round(x, 6) for x in win_a.welch_segment_offsets_s[1:]]

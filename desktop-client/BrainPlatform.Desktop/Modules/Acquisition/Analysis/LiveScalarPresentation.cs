@@ -13,7 +13,11 @@ public sealed record LiveScalarPoint(
     double? WindowStartSeconds,
     double? WindowEndSeconds,
     string? FailureCode,
-    string? Message);
+    string? Message,
+    string? EstimateSource = null,
+    double? PeakHz = null,
+    double? CogHz = null,
+    bool SplitPeak = false);
 
 public sealed record LiveScalarUpdate(
     string AlgorithmId,
@@ -31,7 +35,12 @@ public sealed record LiveScalarUpdate(
     double? IapfHz,
     string? DetailSummary,
     Guid? SessionId,
-    long Revision);
+    long Revision,
+    string? EstimateSource = null,
+    double? PeakHz = null,
+    double? CogHz = null,
+    bool SplitPeak = false,
+    string? ProcessingSummary = null);
 
 /// <summary>Owns live scalar configuration serialization, result validation, and Fz/Pz channel role mapping.</summary>
 internal static class LiveScalarPresentation
@@ -121,7 +130,8 @@ internal static class LiveScalarPresentation
             failureMessage = Text(failureEl, "message") is { Length: > 0 } msg ? msg : failureMessage;
         }
 
-        var (frequencyMode, iapfHz, detailSummary) = ReadEvidenceSummary(payload, update.AlgorithmId, expectedChannels);
+        var (frequencyMode, iapfHz, estimateSource, peakHz, cogHz, splitPeak, detailSummary) =
+            ReadEvidenceSummary(payload, update.AlgorithmId, expectedChannels);
         var processingSummary = ReadProcessingSummary(payload);
         if (!string.IsNullOrWhiteSpace(processingSummary))
             detailSummary = string.IsNullOrWhiteSpace(detailSummary)
@@ -143,7 +153,12 @@ internal static class LiveScalarPresentation
             iapfHz,
             detailSummary,
             update.SessionId,
-            update.Revision);
+            update.Revision,
+            estimateSource,
+            peakHz,
+            cogHz,
+            splitPeak,
+            processingSummary);
     }
 
     internal static (string? Primary, string? Secondary) ResolveBrainbeatChannels(
@@ -203,7 +218,7 @@ internal static class LiveScalarPresentation
     private static string? ResolveSelectedRole(IReadOnlyList<string> options, string? current) =>
         options.FirstOrDefault(name => string.Equals(name, current, StringComparison.OrdinalIgnoreCase)) ?? options.FirstOrDefault();
 
-    private static (string? FrequencyMode, double? IapfHz, string? DetailSummary) ReadEvidenceSummary(
+    private static (string? FrequencyMode, double? IapfHz, string? EstimateSource, double? PeakHz, double? CogHz, bool SplitPeak, string? DetailSummary) ReadEvidenceSummary(
         JsonElement payload,
         string algorithmId,
         IReadOnlyList<string> channels)
@@ -211,7 +226,7 @@ internal static class LiveScalarPresentation
         if (!payload.TryGetProperty("evidence", out var evidence) || evidence.ValueKind != JsonValueKind.Object ||
             !evidence.TryGetProperty("extensions", out var extensions) || extensions.ValueKind != JsonValueKind.Object)
         {
-            return (null, null, algorithmId == "brainbeat" && channels.Count == 2 ? $"{channels[0]} / {channels[1]}" : null);
+            return (null, null, null, null, null, false, algorithmId == "brainbeat" && channels.Count == 2 ? $"{channels[0]} / {channels[1]}" : null);
         }
 
         if (string.Equals(algorithmId, "theta_beta", StringComparison.OrdinalIgnoreCase) &&
@@ -223,27 +238,31 @@ internal static class LiveScalarPresentation
             var summary = mode == "individualized"
                 ? iapf is { } hz ? $"IAF 相对 · IAPF {hz.ToString("0.##", CultureInfo.InvariantCulture)} Hz" : "IAF 相对"
                 : "标准频段";
-            return (mode, iapf, summary);
+            return (mode, iapf, null, null, null, false, summary);
         }
 
         if (string.Equals(algorithmId, "iapf", StringComparison.OrdinalIgnoreCase) &&
             extensions.TryGetProperty("iapf_evidence", out var iapfEv) && iapfEv.ValueKind == JsonValueKind.Object)
         {
             var source = Text(iapfEv, "source");
-            var summary = source switch
-            {
-                "peak" => "峰值估计",
-                "cog" => "重心估计",
-                _ => null,
-            };
-            return (null, null, summary);
+            double? peakHz = Number(iapfEv, "peak_hz");
+            double? cogHz = Number(iapfEv, "cog_hz");
+            var splitPeak = iapfEv.TryGetProperty("split_peak", out var splitEl) && splitEl.ValueKind == JsonValueKind.True;
+            var summary = Modules.Algorithms.Views.Shared.ScalarTrendChartStyle.FormatIapfSummary(source, peakHz, cogHz, splitPeak);
+            return (null, null, string.IsNullOrEmpty(source) ? null : source, peakHz, cogHz, splitPeak, summary);
         }
 
         if (string.Equals(algorithmId, "brainbeat", StringComparison.OrdinalIgnoreCase) && channels.Count == 2)
-            return (null, null, $"{channels[0]} / {channels[1]}");
+            return (null, null, null, null, null, false, $"{channels[0]} / {channels[1]}");
 
-        return (null, null, null);
+        return (null, null, null, null, null, false, null);
     }
+
+    private static double? Number(JsonElement element, string key) =>
+        element.TryGetProperty(key, out var item) && item.ValueKind == JsonValueKind.Number &&
+        item.TryGetDouble(out var value) && double.IsFinite(value)
+            ? value
+            : null;
 
     private static string? ReadProcessingSummary(JsonElement payload)
     {

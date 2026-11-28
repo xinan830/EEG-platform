@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 
@@ -94,8 +95,21 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
         var first = montage?.Outputs.FirstOrDefault(output => output.Available &&
             string.Equals(output.Role, preferred, StringComparison.OrdinalIgnoreCase))?.Id;
         first ??= Channels.FirstOrDefault(value => string.Equals(value, preferred, StringComparison.OrdinalIgnoreCase));
-        Channel = Channels.FirstOrDefault(value => string.Equals(value, Channel, StringComparison.OrdinalIgnoreCase))
-            ?? first ?? (primaryRole is null ? Channels.FirstOrDefault() : null);
+        var existingChannel = Channels.FirstOrDefault(value => string.Equals(value, Channel, StringComparison.OrdinalIgnoreCase));
+        if (existingChannel is not null)
+        {
+            Channel = existingChannel;
+        }
+        else if (primaryRole is null && string.Equals(AlgorithmId, "iapf", StringComparison.OrdinalIgnoreCase))
+        {
+            Channel = ScalarTrendChartStyle.SelectPreferredIapfChannel(Channels, id =>
+                montage?.Outputs.FirstOrDefault(output => output.Available &&
+                    string.Equals(output.Id, id, StringComparison.OrdinalIgnoreCase))?.Role);
+        }
+        else
+        {
+            Channel = first ?? (primaryRole is null ? Channels.FirstOrDefault() : null);
+        }
         var second = secondaryRole is null ? null : montage?.Outputs.FirstOrDefault(output => output.Available &&
             string.Equals(output.Role, secondaryRole, StringComparison.OrdinalIgnoreCase))?.Id;
         second ??= secondaryRole is null ? null : SecondaryChannels.FirstOrDefault(value =>

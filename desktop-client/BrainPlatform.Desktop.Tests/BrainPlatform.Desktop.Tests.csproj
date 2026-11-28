@@ -31,6 +31,8 @@
           Link="Fixtures\ArtifactRemovalStepDialog.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\BrainPlatform.Desktop\Modules\Review\Views\IcaReviewDialog.xaml"
           Link="Fixtures\IcaReviewDialog.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\BrainPlatform.Desktop\Shared\Controls\ScreenCalibrationView.xaml"
+          Link="Fixtures\ScreenCalibrationView.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

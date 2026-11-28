@@ -79,8 +79,8 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert completed.status is RunStatus.COMPLETED
     assert completed.definition_id is not None
     assert completed.definition_version == "1.0.0"
-    assert completed.scientific_version == "official-iapf-v5"
-    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v7-20s-segment-diagnostics"
+    assert completed.scientific_version == "official-iapf-v6"
+    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v10-savgol-parabolic-split-peak-guard"
     assert completed.result_summary["artifacts"][0]["sha256"]
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
@@ -127,19 +127,32 @@ def test_official_theta_beta_rejects_unknown_raw_channel(tmp_path: Path):
         service.create(request)
 
 
-def test_official_dynamic_iapf_uses_complete_20_second_windows(tmp_path: Path):
+@pytest.mark.parametrize("requested_step", [None, 1.0, 2.0])
+def test_official_dynamic_iapf_uses_complete_20_second_windows(tmp_path: Path, requested_step):
     service, recording_id = _service(tmp_path)
-    completed = service.create(_request(recording_id, "iapf", dynamic=True))
+    request = _request(recording_id, "iapf", dynamic=True)
+    request.config.pop("dynamic_window_s")
+    request.config.pop("refresh_step_s")
+    if requested_step is not None:
+        request.config["refresh_step_s"] = requested_step
+    completed = service.create(request)
+    step_s = 2.0 if requested_step is None else requested_step
 
     assert completed.status is RunStatus.COMPLETED
     series = completed.result_summary["metric"]["series"]
-    assert len(series) == 11
+    assert len(series) == int(10 / step_s) + 1
+    assert completed.config["dynamic_window_s"] == 20.0
+    assert completed.config["refresh_step_s"] == step_s
+    assert completed.window["dynamic_window_s"] == 20.0
+    assert completed.window["refresh_step_s"] == step_s
+    assert completed.window["welch_overlap"] == 0.5
     assert series[0]["window_start_s"] == 0.0
     assert series[0]["window_end_s"] == 20.0
     assert series[0]["time_s"] == 20.0
     assert series[0]["analysis_state"] == "Complete"
-    assert series[1]["window_start_s"] == 1.0
-    assert series[1]["window_end_s"] == 21.0
+    assert [(point["window_start_s"], point["window_end_s"]) for point in series] == [
+        (index * step_s, 20.0 + index * step_s) for index in range(len(series))
+    ]
     assert series[-1]["window_start_s"] == 10.0
     assert series[-1]["window_end_s"] == 30.0
     assert all("value" in point["output"] and "quality" in point for point in series)
@@ -149,6 +162,21 @@ def test_official_dynamic_iapf_uses_complete_20_second_windows(tmp_path: Path):
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
     assert provenance["quality"] == {"clean_segments": 9, "total_segments": 9, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
+
+
+def test_iapf_default_and_explicit_steps_have_consistent_cache_identity(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "iapf", dynamic=True)
+    request.config.pop("dynamic_window_s")
+    request.config.pop("refresh_step_s")
+    default = service.create(request)
+    request.config.update({"dynamic_window_s": 20, "refresh_step_s": 2})
+    explicit_two = service.create(request)
+    request.config["refresh_step_s"] = 1
+    explicit_one = service.create(request)
+    assert default.cache_key == explicit_two.cache_key
+    assert explicit_two.reused_from_run_id == default.run_id
+    assert default.cache_key != explicit_one.cache_key
 
 
 def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_path: Path):

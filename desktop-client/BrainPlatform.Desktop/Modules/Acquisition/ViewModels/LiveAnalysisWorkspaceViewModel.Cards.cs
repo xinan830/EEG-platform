@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
@@ -73,9 +74,14 @@ public sealed partial class LiveAnalysisWorkspaceViewModel
         var secondaryChannels = isPaired
             ? LiveScalarPresentation.BrainbeatChannelOptions(channels, montage, "Pz")
             : null;
+        var defaultSingleChannel = string.Equals(algorithmId, "iapf", StringComparison.OrdinalIgnoreCase)
+            ? ScalarTrendChartStyle.SelectPreferredIapfChannel(channels, name =>
+                montage?.Profile.DerivedChannels.FirstOrDefault(item =>
+                    string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase))?.PositiveLabel)
+            : initialChannel;
         var (primary, secondary) = isPaired
             ? LiveScalarPresentation.ResolveBrainbeatChannels(channels, montage)
-            : (initialChannel, null);
+            : (defaultSingleChannel, null);
         card = new LiveAnalysisCardViewModel(
             this, algorithmId, displayName, headerTitle, LiveAnalysisPanelKind.Scalar,
             primaryChannels, primary, c => _ = SafeReconfigureAsync(c),
@@ -124,8 +130,9 @@ public sealed partial class LiveAnalysisWorkspaceViewModel
             }
             var channel = card.SelectedChannel ?? card.Channels.FirstOrDefault()
                 ?? throw new InvalidOperationException("请选择分析通道。");
+            var stepSeconds = string.Equals(card.AlgorithmId, "iapf", StringComparison.OrdinalIgnoreCase) ? 2d : 1d;
             return [(card.AlgorithmId, LiveScalarPresentation.Config(
-                card.AlgorithmId, [channel], card.WindowSeconds, 1d, 50d, scalar.FrequencyMode), false)];
+                card.AlgorithmId, [channel], card.WindowSeconds, stepSeconds, 50d, scalar.FrequencyMode), false)];
         }
         var selectedChannel = card.SelectedChannel ?? card.Channels.FirstOrDefault()
             ?? throw new InvalidOperationException("请选择分析通道。");

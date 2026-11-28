@@ -48,9 +48,9 @@
       ]
     },
     "iapf": {
-      "scientific_version": "official-iapf-v5",
-      "implementation_identity": "iapf-runtime-v7-20s-segment-diagnostics",
-      "manifest_sha256": "431c77146f829dca3a98dada803dac67a03c211778a61e4b0dea27c0e356add7",
+      "scientific_version": "official-iapf-v6",
+      "implementation_identity": "iapf-runtime-v10-savgol-parabolic-split-peak-guard",
+      "manifest_sha256": "215e81210c6ca08b44f9f84b8eac68f8797e7f5f5a5f9994b4c68f29bbba6a97",
       "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
       "output_schema_sha256": "7255731ece9fdd7acbc59321b99efb0a22c47ad99ed89d1c6dd2689753591e6f",
       "supported_modes": [
@@ -104,8 +104,8 @@
     },
     "theta_beta": {
       "scientific_version": "official-theta-beta-v5",
-      "implementation_identity": "theta-beta-runtime-v4-iapf-v5-frequency-modes",
-      "manifest_sha256": "6bf51efcdb54a5442c2d66310026e8ca497ec07cb161c5ad6489bc4addce055e",
+      "implementation_identity": "theta-beta-runtime-v5-iapf-v6-frequency-modes",
+      "manifest_sha256": "4aa0cbe61f75b42703b7c58b367a31762f174ddc51075cbc109df6b36624ee41",
       "parameter_schema_sha256": "1fc2eac09f034fd30eb4cd6f06fedb93d55ad7c1d6334e6f9f028f67466533cc",
       "output_schema_sha256": "47d783a280a398fa3d7aeda0d376517fb12e6f23337eac5b29a6bb1e8a42bdc1",
       "supported_modes": [

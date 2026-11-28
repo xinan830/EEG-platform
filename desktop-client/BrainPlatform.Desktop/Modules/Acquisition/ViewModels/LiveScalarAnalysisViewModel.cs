@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
@@ -16,6 +17,8 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
     private string statusText;
     private string detailText = "";
     private string frequencyMode = "standard";
+    private string iapfDisplayMode = ScalarTrendChartStyle.IapfDisplayModeCog;
+    private LiveScalarUpdate? latestUpdate;
     private bool hasResult;
 
     public LiveScalarAnalysisViewModel(
@@ -95,9 +98,29 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
         }
     }
 
+    public string IapfDisplayMode
+    {
+        get => iapfDisplayMode;
+        set
+        {
+            var normalized = ScalarTrendChartStyle.NormalizeIapfDisplayMode(value);
+            if (!SetProperty(ref iapfDisplayMode, normalized))
+                return;
+            RaisePropertyChanged(nameof(IsIapfCogMode));
+            RaisePropertyChanged(nameof(IsIapfCompareMode));
+            RaisePropertyChanged(nameof(IsIapfPeakMode));
+            RefreshLatestDisplay();
+        }
+    }
+
+    public bool IsIapfCogMode => IsIapf && iapfDisplayMode == ScalarTrendChartStyle.IapfDisplayModeCog;
+    public bool IsIapfCompareMode => IsIapf && iapfDisplayMode == ScalarTrendChartStyle.IapfDisplayModeCompare;
+    public bool IsIapfPeakMode => IsIapf && iapfDisplayMode == ScalarTrendChartStyle.IapfDisplayModePeak;
+
     public void Begin(double? analysisStartSeconds, string? message = null)
     {
         Points.Clear();
+        latestUpdate = null;
         StartSeconds = analysisStartSeconds is { } s && double.IsFinite(s) ? Math.Max(0d, s) : 0d;
         EndSeconds = StartSeconds + 1d;
         LatestValueText = "--";
@@ -130,7 +153,11 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
                 update.StartSeconds,
                 update.EndSeconds,
                 update.FailureCode,
-                update.Message);
+                update.Message,
+                update.EstimateSource,
+                update.PeakHz,
+                update.CogHz,
+                update.SplitPeak);
             Points.Add(point);
             while (Points.Count > MaxRetainedPoints)
                 Points.RemoveAt(0);
@@ -142,19 +169,8 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
             EndSeconds = Math.Max(StartSeconds + 1d, time);
         }
 
-        if (update.State == "ready" && update.Value is { } readyValue && double.IsFinite(readyValue))
-        {
-            HasResult = true;
-            LatestValueText = FormatValue(readyValue);
-            DetailText = update.DetailSummary ?? "";
-            StatusText = "";
-        }
-        else
-        {
-            LatestValueText = "--";
-            DetailText = update.DetailSummary ?? "";
-            StatusText = FormatUnavailableStatus(update);
-        }
+        latestUpdate = update;
+        RefreshLatestDisplay();
     }
 
     internal void SetOverloaded(string message) => StatusText = message;
@@ -162,6 +178,7 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
     internal void SetUnavailableConfiguration(string message)
     {
         Points.Clear();
+        latestUpdate = null;
         LatestValueText = "--";
         WindowText = "";
         DetailText = "";
@@ -172,11 +189,48 @@ public sealed class LiveScalarAnalysisViewModel : ObservableObject
     internal void SetFault(string message)
     {
         Points.Clear();
+        latestUpdate = null;
         LatestValueText = "--";
         WindowText = "";
         DetailText = "";
         HasResult = false;
         StatusText = message;
+    }
+
+    private void RefreshLatestDisplay()
+    {
+        if (latestUpdate is not { } update)
+            return;
+
+        var isReady = update.State == "ready" && update.Value is { } readyValue && double.IsFinite(readyValue);
+        if (isReady)
+        {
+            HasResult = true;
+            LatestValueText = IsIapf
+                ? ScalarTrendChartStyle.FormatIapfLatestValue(iapfDisplayMode, update.Value, update.CogHz, Unit)
+                : FormatValue(update.Value!.Value);
+            StatusText = "";
+        }
+        else
+        {
+            LatestValueText = "--";
+            StatusText = FormatUnavailableStatus(update);
+        }
+
+        if (IsIapf)
+        {
+            var modeSummary = ScalarTrendChartStyle.FormatIapfSummaryForMode(
+                iapfDisplayMode, update.EstimateSource, update.Value, update.PeakHz, update.CogHz, update.SplitPeak);
+            DetailText = string.IsNullOrWhiteSpace(update.ProcessingSummary)
+                ? modeSummary ?? ""
+                : string.IsNullOrWhiteSpace(modeSummary)
+                    ? update.ProcessingSummary
+                    : $"{modeSummary} · {update.ProcessingSummary}";
+        }
+        else
+        {
+            DetailText = update.DetailSummary ?? "";
+        }
     }
 
     private string DefaultWarmupMessage() => $"等待可用的 {WindowSeconds:0} 秒窗口";

@@ -46,6 +46,9 @@ def compute_iapf(
                 "model_r2": segment.model_r2,
                 "peak_prominence_ratio": segment.peak_prominence_ratio,
                 "peak_width_bins": segment.peak_width_bins,
+                "split_peak": segment.split_peak,
+                "secondary_peak_hz": segment.secondary_peak_hz,
+                "peak_dominance_ratio": segment.peak_dominance_ratio,
             })
         _LOGGER.info(
             "iapf_welch_segment_diagnostics recording_id=%s channel=%s window_start_s=%.3f window_end_s=%.3f segments=%s",
@@ -80,6 +83,9 @@ def compute_iapf(
                     "peak_width_bins": estimate.peak_width_bins,
                     "cog_excess_ratio": estimate.cog_excess_ratio,
                     "cog_effective_bins": estimate.cog_effective_bins,
+                    "split_peak": estimate.split_peak,
+                    "secondary_peak_hz": estimate.secondary_peak_hz,
+                    "peak_dominance_ratio": estimate.peak_dominance_ratio,
                 }},
             },
         )
@@ -101,6 +107,9 @@ def compute_iapf(
                 "peak_width_bins": estimate.peak_width_bins,
                 "cog_excess_ratio": estimate.cog_excess_ratio,
                 "cog_effective_bins": estimate.cog_effective_bins,
+                "split_peak": estimate.split_peak,
+                "secondary_peak_hz": estimate.secondary_peak_hz,
+                "peak_dominance_ratio": estimate.peak_dominance_ratio,
             }},
             "calculation_trace": {"formula": "在 1/f 校正后的 Alpha 范围内选择 Peak 或 COG", "inputs": [
                 {"label": "峰值频率", "value": estimate.peak_hz, "unit": "Hz"},

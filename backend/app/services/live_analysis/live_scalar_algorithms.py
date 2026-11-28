@@ -23,10 +23,11 @@ from app.services.recordings.sample_access_contract import SampleBlock
 
 _SCALAR_SPECS: dict[str, dict[str, Any]] = {
     "iapf": {
-        "scientific_identity": "iapf-live-v1",
-        "implementation_identity": "iapf-live-window-v1",
+        "scientific_identity": "iapf-live-v2",
+        "implementation_identity": "iapf-live-window-v4",
         "unit": "Hz",
         "min_window_s": 20.0,
+        "default_step_s": 2.0,
         "required_channel_count": 1,
         "output_high_hz": 30.0,
     },
@@ -35,6 +36,7 @@ _SCALAR_SPECS: dict[str, dict[str, Any]] = {
         "implementation_identity": "theta-beta-live-window-v1",
         "unit": "dimensionless",
         "min_window_s": 20.0,
+        "default_step_s": 1.0,
         "required_channel_count": 1,
         "output_high_hz": 50.0,
     },
@@ -43,6 +45,7 @@ _SCALAR_SPECS: dict[str, dict[str, Any]] = {
         "implementation_identity": "brainbeat-classic-live-window-v1",
         "unit": "ratio",
         "min_window_s": 10.0,
+        "default_step_s": 1.0,
         "required_channel_count": 2,
         "output_high_hz": 30.0,
     },
@@ -55,7 +58,7 @@ class LiveScalarConfig(BaseModel):
     schema_version: Literal["live-scalar-config-v1"] = "live-scalar-config-v1"
     channels: list[str] = Field(min_length=1, max_length=2)
     window_s: float = Field(default=20.0, gt=0, le=30.0)
-    step_s: float = Field(default=1.0, gt=0, le=10.0)
+    step_s: float | None = Field(default=None, gt=0, le=10.0)
     notch_hz: float | None = 50.0
     frequency_mode: Literal["standard", "individualized"] = "standard"
 
@@ -115,6 +118,7 @@ class LiveScalarAlgorithm:
         self.implementation_identity: str = spec["implementation_identity"]
         self._unit: str = spec["unit"]
         self._min_window_s: float = spec["min_window_s"]
+        self._default_step_s: float = spec["default_step_s"]
         self._required_channel_count: int = spec["required_channel_count"]
         self._output_high_hz: float = spec["output_high_hz"]
         self._preprocessor = preprocessor or LiveScientificPreprocessingService()
@@ -160,11 +164,12 @@ class LiveScalarAlgorithm:
                 "BrainBeat 需要符合 Fz / Pz 角色的原始、REF 或 AVG 来源通道。",
             )
 
-        normalized = requested.model_copy(update={"channels": channels})
+        effective_step_s = self._default_step_s if requested.step_s is None else float(requested.step_s)
+        normalized = requested.model_copy(update={"channels": channels, "step_s": effective_step_s})
         return normalized, LiveWindowPlan(
             tuple(channels),
             round(requested.window_s * source.sampling_rate_hz),
-            max(1, round(requested.step_s * source.sampling_rate_hz)),
+            max(1, round(effective_step_s * source.sampling_rate_hz)),
         )
 
     def calculate(
@@ -343,6 +348,8 @@ class LiveScalarAlgorithm:
         )
 
     def _provenance(self, config: LiveScalarConfig, block: SampleBlock, scope_status: str) -> dict[str, object]:
+        welch_segment_s = float(ANALYSIS_CONTRACT["welch_segment_s"])
+        welch_overlap = float(ANALYSIS_CONTRACT["welch_segment_overlap"])
         return {
             "schema_version": "live-scalar-provenance-v1",
             "preprocessing_scope": "window_local_zero_phase",
@@ -354,7 +361,9 @@ class LiveScalarAlgorithm:
             "unit": "V",
             "window_s": config.window_s,
             "step_s": config.step_s,
-            "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
+            "welch_segment_s": welch_segment_s,
+            "welch_segment_overlap": welch_overlap,
+            "welch_step_s": float(ANALYSIS_CONTRACT["welch_step_s"]),
             "channel_order": list(config.channels),
             "paired_role_order": ["Fz", "Pz"] if self.algorithm_id == "brainbeat" else None,
             "frequency_mode": config.frequency_mode if self.algorithm_id == "theta_beta" else None,

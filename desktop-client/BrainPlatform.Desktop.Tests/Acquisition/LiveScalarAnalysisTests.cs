@@ -43,17 +43,42 @@ public sealed class LiveScalarAnalysisTests
             Assert.Equal("Fz", brainbeat.SelectedChannel);
             Assert.Equal("Pz", brainbeat.SecondaryChannel);
 
-            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 1, ["Fz"], 10.25, "Hz", "iapf-live-v1"));
+            var iapf = Assert.Single(workspace.OpenSlots, s => s.AlgorithmId == "iapf");
+            Assert.Equal("O1", iapf.SelectedChannel);
+            Assert.Contains(backend.Calls, c => c.AlgorithmId == "iapf" && c.Enabled &&
+                c.Config.GetProperty("step_s").GetDouble() == 2d);
+            Assert.Contains(backend.Calls, c => c.AlgorithmId == "theta_beta" && c.Enabled &&
+                c.Config.GetProperty("step_s").GetDouble() == 1d);
+            Assert.Contains(backend.Calls, c => c.AlgorithmId == "brainbeat" && c.Enabled &&
+                c.Config.GetProperty("step_s").GetDouble() == 1d);
+            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 1, ["O1"], 10.25, "Hz", "iapf-live-v2",
+                evidence: new { extensions = new { iapf_evidence = new { source = "peak", peak_hz = 10.25, cog_hz = 9.62 } } }));
             backend.Publish(CreateScalarUpdate(sessionId, "theta_beta", 1, ["Fz"], 1.85, "dimensionless", "theta-beta-live-v1"));
             backend.Publish(CreateScalarUpdate(sessionId, "brainbeat", 1, ["Fz", "Pz"], 1.42, "ratio", "brainbeat-classic-live-v1"));
             FlushDispatcher(dispatcher);
 
-            var iapf = Assert.Single(workspace.OpenSlots, s => s.AlgorithmId == "iapf");
             var tb = Assert.Single(workspace.OpenSlots, s => s.AlgorithmId == "theta_beta");
-            Assert.Equal("10.25 Hz", iapf.ScalarAnalysis!.LatestValueText);
+            Assert.Equal("cog", iapf.ScalarAnalysis!.IapfDisplayMode);
+            Assert.Equal("COG 9.62 Hz", iapf.ScalarAnalysis.LatestValueText);
+            Assert.Contains("综合 IAPF 10.25 Hz", iapf.ScalarAnalysis.DetailText);
             Assert.Contains("实时窗内零相位 1–50 Hz", iapf.ScalarAnalysis.DetailText);
             Assert.Contains("陷波 50 Hz (Q=30)", iapf.ScalarAnalysis.DetailText);
             Assert.Contains("与回溯连续预处理不等价", iapf.ScalarAnalysis.DetailText);
+            Assert.Equal(9.62, Assert.Single(iapf.ScalarAnalysis.Points).CogHz);
+
+            var callCountBeforeSwitch = backend.Calls.Count;
+            iapf.ScalarAnalysis.IapfDisplayMode = "peak";
+            Assert.Equal(callCountBeforeSwitch, backend.Calls.Count);
+            Assert.Equal("10.25 Hz", iapf.ScalarAnalysis.LatestValueText);
+            Assert.Contains("峰值估计", iapf.ScalarAnalysis.DetailText);
+            Assert.Contains("COG 9.62 Hz", iapf.ScalarAnalysis.DetailText);
+
+            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 2, ["O1"], 7.5, "Hz", "iapf-live-v2",
+                start: 2, end: 22,
+                evidence: new { extensions = new { iapf_evidence = new { source = "cog", peak_hz = 9.48, cog_hz = 7.5, split_peak = true } } }));
+            FlushDispatcher(dispatcher);
+            Assert.Contains("双峰回退重心", iapf.ScalarAnalysis.DetailText);
+            Assert.Equal("7.5 Hz", iapf.ScalarAnalysis.LatestValueText);
             Assert.Equal("1.85", tb.ScalarAnalysis!.LatestValueText);
             Assert.Equal("1.42 ratio", brainbeat.ScalarAnalysis!.LatestValueText);
 
@@ -159,8 +184,9 @@ public sealed class LiveScalarAnalysisTests
             await workspace.OpenOrFocusAsync("iapf");
             FlushDispatcher(dispatcher);
             var card = Assert.Single(workspace.OpenSlots);
+            Assert.Equal("Pz", card.SelectedChannel);
 
-            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 1, ["Fz"], 10.1, "Hz", "iapf-live-v1"));
+            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 1, ["Pz"], 10.1, "Hz", "iapf-live-v2"));
             FlushDispatcher(dispatcher);
             Assert.Single(card.ScalarAnalysis!.Points);
             Assert.Equal("10.1 Hz", card.ScalarAnalysis.LatestValueText);
@@ -178,7 +204,7 @@ public sealed class LiveScalarAnalysisTests
             Assert.Contains("已跳过 3 个窗口", card.StatusText);
             Assert.Contains("已跳过 3 个窗口", card.ScalarAnalysis.StatusText);
 
-            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 3, ["Fz"], 10.4, "Hz", "iapf-live-v1", start: 2, end: 22));
+            backend.Publish(CreateScalarUpdate(sessionId, "iapf", 3, ["Pz"], 10.4, "Hz", "iapf-live-v2", start: 2, end: 22));
             FlushDispatcher(dispatcher);
             Assert.Equal(2, card.ScalarAnalysis.Points.Count);
             Assert.Equal("10.4 Hz", card.ScalarAnalysis.LatestValueText);
@@ -186,7 +212,7 @@ public sealed class LiveScalarAnalysisTests
         });
 
     [Fact]
-    public void Iapf_yaxis_stays_fixed_at_8_to_13_for_low_alpha_values()
+    public void Iapf_yaxis_stays_fixed_at_8_to_13_and_renders_cog_and_alpha_band()
     {
         var empty = LiveScalarTrendChart.ComputeYAxisRange("iapf");
         Assert.False(empty.AutoRange);
@@ -195,6 +221,67 @@ public sealed class LiveScalarAnalysisTests
 
         Assert.True(LiveScalarTrendChart.ComputeYAxisRange("theta_beta").AutoRange);
         Assert.True(LiveScalarTrendChart.ComputeYAxisRange("brainbeat").AutoRange);
+
+        ReviewTimelineNavigatorTests.OnSta(() =>
+        {
+            var chart = new LiveScalarTrendChart
+            {
+                AlgorithmId = "iapf",
+                Unit = "Hz",
+                Points = new[]
+                {
+                    new LiveScalarPoint(20d, 10.0, "Complete", "clean", 0d, 20d, null, null, "peak", 10.0, 9.6),
+                    new LiveScalarPoint(22d, 7.5, "Complete", "clean", 2d, 22d, null, null, "cog", null, 7.5),
+                },
+            };
+            var surface = Assert.IsType<SciChart.Charting.Visuals.SciChartSurface>(((System.Windows.Controls.Grid)chart.Content).Children[0]);
+            var yAxis = Assert.Single(surface.YAxes);
+            Assert.False(yAxis.DrawMinorTicks);
+            Assert.Equal(8d, Convert.ToDouble(yAxis.VisibleRange.Min));
+            Assert.Equal(13d, Convert.ToDouble(yAxis.VisibleRange.Max));
+            var band = Assert.IsType<SciChart.Charting.Visuals.Annotations.BoxAnnotation>(Assert.Single(surface.Annotations));
+            Assert.False(band.IsHidden);
+            Assert.Equal(8d, Convert.ToDouble(band.Y1));
+            Assert.Equal(13d, Convert.ToDouble(band.Y2));
+            Assert.Equal(4, surface.RenderableSeries.Count);
+
+            // Default "cog" mode: solid COG primary line only, peak/cog markers hidden
+            Assert.True(surface.RenderableSeries[0].IsVisible);
+            Assert.Equal(2, surface.RenderableSeries[0].DataSeries.Count);
+            Assert.Equal(7.5, Convert.ToDouble(surface.RenderableSeries[0].DataSeries.YValues[1]));
+            Assert.False(surface.RenderableSeries[1].IsVisible);
+            Assert.False(surface.RenderableSeries[2].IsVisible);
+            Assert.False(surface.RenderableSeries[3].IsVisible);
+
+            // "compare" mode: solid COG primary line + discrete translucent peak dots + COG fallback markers
+            chart.IapfDisplayMode = "compare";
+            Assert.True(surface.RenderableSeries[0].IsVisible);
+            Assert.False(surface.RenderableSeries[1].IsVisible);
+            Assert.True(surface.RenderableSeries[2].IsVisible);
+            Assert.True(surface.RenderableSeries[3].IsVisible);
+            Assert.Equal(1, surface.RenderableSeries[2].DataSeries.Count);
+            Assert.Equal(1, surface.RenderableSeries[3].DataSeries.Count);
+
+            // "peak" mode: dashed COG reference + peak line with NaN gap on COG fallback + markers
+            chart.IapfDisplayMode = "peak";
+            Assert.True(surface.RenderableSeries[0].IsVisible);
+            Assert.True(surface.RenderableSeries[1].IsVisible);
+            Assert.Equal(2, surface.RenderableSeries[1].DataSeries.Count);
+            Assert.True(double.IsNaN(Convert.ToDouble(surface.RenderableSeries[1].DataSeries.YValues[1])));
+            Assert.Equal(1, surface.RenderableSeries[2].DataSeries.Count);
+            Assert.Equal(1, surface.RenderableSeries[3].DataSeries.Count);
+        });
+    }
+
+    [Fact]
+    public void Iapf_default_channel_prefers_posterior_regions_with_fallback()
+    {
+        Assert.Equal("Oz", BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.ScalarTrendChartStyle
+            .SelectPreferredIapfChannel(["Fp1", "Fz", "Pz", "O1", "Oz"]));
+        Assert.Equal("O1-REF", BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.ScalarTrendChartStyle
+            .SelectPreferredIapfChannel(["Fp1-REF", "Fz-REF", "Pz-REF", "O1-REF"]));
+        Assert.Equal("Fp1", BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.ScalarTrendChartStyle
+            .SelectPreferredIapfChannel(["Fp1", "Fp2", "Fz"]));
     }
 
     [Fact]
@@ -229,7 +316,8 @@ public sealed class LiveScalarAnalysisTests
         string unit,
         string scientificIdentity,
         double start = 0d,
-        double end = 20d)
+        double end = 20d,
+        object? evidence = null)
     {
         var payload = JsonSerializer.SerializeToElement(new
         {
@@ -250,7 +338,7 @@ public sealed class LiveScalarAnalysisTests
             unit,
             quality = "clean",
             failure = (object?)null,
-            evidence = new { },
+            evidence = evidence ?? new { },
             provenance = new
             {
                 preprocessing_scope = "window_local_zero_phase",

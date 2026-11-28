@@ -17,7 +17,8 @@ public static class ReviewScalarProjectors
     public static IReadOnlyList<ReviewScalarPoint> Iapf(DynamicWindowResponse response, string? channel, string? _) =>
         IapfResultPreview.FromWindow(response, channel ?? "").DynamicPoints.Select(point =>
             Point(response, point.TimeSeconds, point.StartSeconds, point.EndSeconds,
-                point.ValueHz, point.State, point.Quality, point.Failure)).ToArray();
+                point.ValueHz, point.State, point.Quality, point.Failure,
+                point.Source, point.PeakHz, point.CogHz, point.SplitPeak)).ToArray();
 
     public static IReadOnlyList<ReviewScalarPoint> ThetaBeta(DynamicWindowResponse response, string? channel, string? _) =>
         ThetaBetaResultPreview.FromWindow(response, channel ?? "").DynamicPoints.Select(point =>
@@ -31,7 +32,8 @@ public static class ReviewScalarProjectors
                 point.Value, point.State, point.Quality, point.Failure)).ToArray();
 
     private static ReviewScalarPoint Point(DynamicWindowResponse response, double timeSeconds,
-        double startSeconds, double endSeconds, double? value, string state, string quality, string failure) =>
+        double startSeconds, double endSeconds, double? value, string state, string quality, string failure,
+        string? estimateSource = null, double? peakHz = null, double? cogHz = null, bool splitPeak = false) =>
         new(timeSeconds, startSeconds, endSeconds, value, state, quality, failure,
-            response.Result?.Evidence, response.Result?.Provenance);
+            response.Result?.Evidence, response.Result?.Provenance, estimateSource, peakHz, cogHz, splitPeak);
 }

@@ -54,7 +54,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public ReviewScalarParameters BrainbeatParameters { get; } = new("brainbeat", "Fz", "Pz", "secondary_channel");
     public ReviewScalarParameters IndividualizedBrainbeatParameters { get; } = new("brainbeat_individualized", "Fz", "Pz", "secondary_channel");
     public ReviewScalarAnalysisViewModel FaaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.Faa);
-    public ReviewScalarAnalysisViewModel IapfAnalysis { get; } = new("Hz", ReviewScalarProjectors.Iapf);
+    public ReviewScalarAnalysisViewModel IapfAnalysis { get; } = new("Hz", ReviewScalarProjectors.Iapf, "iapf");
     public ReviewScalarAnalysisViewModel ThetaBetaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.ThetaBeta);
     public ReviewScalarAnalysisViewModel BrainbeatAnalysis { get; } = new("ratio", ReviewScalarProjectors.Brainbeat);
     public ReviewScalarAnalysisViewModel IndividualizedBrainbeatAnalysis { get; } = new("ratio", ReviewScalarProjectors.Brainbeat);

@@ -31,7 +31,7 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "minimum_window_s": 20.0,
         "window_options_s": [20.0, 30.0],
         "default_window_s": 20.0,
-        "refresh_step_s": 1.0,
+        "refresh_step_s": 2.0,
         "refresh_step_options_s": [1.0, 2.0, 5.0],
         "allow_warmup": False,
     }
@@ -168,12 +168,12 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "brainbeat": ("official-brainbeat-v6-classic-absolute", "brainbeat-runtime-v6-classic-fixed-band-absolute"),
         "brainbeat_individualized": ("official-brainbeat-individualized-v1-relative", "brainbeat-individualized-runtime-v1-iapf-relative"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
-        "iapf": ("official-iapf-v5", "iapf-runtime-v7-20s-segment-diagnostics"),
+        "iapf": ("official-iapf-v6", "iapf-runtime-v10-savgol-parabolic-split-peak-guard"),
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
         "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
         "rbp": ("official-rbp-v4", "rbp-runtime-v9-private-projection-source"),
         "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v8-bounded-notch"),
-        "theta_beta": ("official-theta-beta-v5", "theta-beta-runtime-v4-iapf-v5-frequency-modes"),
+        "theta_beta": ("official-theta-beta-v5", "theta-beta-runtime-v5-iapf-v6-frequency-modes"),
     }
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
     assert set(expected).issubset(modules)

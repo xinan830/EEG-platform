@@ -50,13 +50,23 @@ def test_current_rbp_rejects_missing_gamma_frequency_coverage():
 
 
 def _reference_iapf(frequencies: np.ndarray, psd: np.ndarray) -> float:
+    from scipy.signal import savgol_filter
+
     mean_psd = np.mean(psd, axis=0)
     fit = (frequencies >= 3.0) & (frequencies <= 30.0) & ~((frequencies >= 7.0) & (frequencies <= 13.0))
     slope, intercept = np.polyfit(np.log10(frequencies[fit]), np.log10(mean_psd[fit]), 1)
     alpha = (frequencies >= 7.0) & (frequencies <= 13.0)
     alpha_frequencies = frequencies[alpha]
     residual = np.clip(mean_psd[alpha] - 10.0 ** (intercept + slope * np.log10(alpha_frequencies)), 0.0, None)
-    index = int(np.argmax(residual))
+    smoothed = np.clip(savgol_filter(residual, window_length=5, polyorder=2), 0.0, None)
+    index = int(np.argmax(smoothed))
+    if 0 < index < len(alpha_frequencies) - 1:
+        y_l, y_c, y_r = float(smoothed[index - 1]), float(smoothed[index]), float(smoothed[index + 1])
+        denom = y_l - 2.0 * y_c + y_r
+        if denom < -1e-30:
+            delta = float(np.clip(0.5 * (y_l - y_r) / denom, -0.5, 0.5))
+            step_hz = 0.5 * float(alpha_frequencies[index + 1] - alpha_frequencies[index - 1])
+            return float(np.clip(float(alpha_frequencies[index]) + delta * step_hz, alpha_frequencies[0], alpha_frequencies[-1]))
     return float(alpha_frequencies[index])
 
 

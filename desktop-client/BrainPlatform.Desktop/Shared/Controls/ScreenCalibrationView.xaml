@@ -4,7 +4,7 @@
              Background="#F8FAFC">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid Margin="32,24">
+        <Grid Margin="24,20">
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,31 +16,24 @@
             <!-- 页面标题 -->
             <!-- ========================================================= -->
 
-            <StackPanel Grid.Row="0"
-                        Margin="0,0,0,22">
-
-                <Button Content="‹  返回设置"
-                        Click="OnBackClick"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Foreground="#475569"
-                        HorizontalAlignment="Left"
-                        Padding="0"
-                        FontSize="13"
-                        Cursor="Hand" />
-
-                <TextBlock Text="屏幕尺寸校准"
-                           FontSize="24"
-                           FontWeight="Bold"
-                           Foreground="#0F172A"
-                           Margin="0,16,0,0" />
-
-                <TextBlock Text="校准当前显示器的真实物理尺寸，让走纸速度在屏幕上对应准确的毫米长度。"
-                           FontSize="13.5"
-                           Foreground="#64748B"
-                           Margin="0,7,0,0" />
-
-            </StackPanel>
+            <Grid Grid.Row="0" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Style="{StaticResource BackNavigationIconButtonStyle}"
+                        Click="OnBackClick" ToolTip="返回设置" AutomationProperties.Name="返回设置"
+                        Margin="0,0,14,0" VerticalAlignment="Center">
+                    <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12" Stroke="#475569" StrokeThickness="1.8"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"
+                          Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Button>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="屏幕尺寸校准" FontSize="20" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="校准当前显示器的真实物理尺寸，让走纸速度在屏幕上对应准确的毫米长度。"
+                               FontSize="13" Foreground="#64748B" Margin="0,5,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
 
 
             <!-- ========================================================= -->

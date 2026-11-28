@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry, LiveWindowPlan
 from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
 from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_scalar_algorithms import LiveScalarAlgorithm
 from app.services.live_analysis.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
 
 
@@ -83,6 +84,42 @@ def make_coordinator():
 def append(coordinator, samples, start, count):
     samples.append(start, np.tile([1e-6, 2e-6], (count, 1)), count)
     return coordinator.on_samples("acq-live", samples)
+
+
+@pytest.mark.parametrize("requested_step,expected_step", [(None, 2), (1.0, 1)])
+def test_iapf_schedules_complete_windows_at_resolved_step(make_coordinator, requested_step, expected_step):
+    samples = source(capacity=7000)
+    coordinator = make_coordinator(LiveScalarAlgorithm("iapf"))
+    config = {"channels": ["F3"]}
+    if requested_step is not None:
+        config["step_s"] = requested_step
+    assert coordinator.start("acq-live", samples, "iapf", config).state == "warming_up"
+    origin, rate = 1000, 250
+    t = np.arange(24 * rate) / rate
+    signal = np.tile((15e-6 * np.sin(2 * np.pi * 10 * t))[:, None], (1, 2))
+    samples.append(origin, signal[:19 * rate], 19 * rate)
+    coordinator.on_samples("acq-live", samples)
+    assert coordinator.latest("acq-live", "iapf").revision == 0
+    windows = []
+    revision = 0
+    for second in range(20, 25):
+        start = (second - 1) * rate
+        samples.append(origin + start, signal[start:second * rate], rate)
+        coordinator.on_samples("acq-live", samples)
+        if (second - 20) % expected_step:
+            assert coordinator.latest("acq-live", "iapf").revision == revision
+            continue
+        revision += 1
+        result = wait_result(coordinator, "iapf", revision)
+        assert result.state == "ready"
+        assert (result.start_sample, result.end_sample) == (origin + (second - 20) * rate, origin + second * rate)
+        assert result.skipped_windows == 0
+        evidence = result.payload["provenance"]
+        assert evidence["step_s"] == expected_step
+        assert evidence["welch_segment_overlap"] == 0.5
+        assert evidence["welch_step_s"] == 2.0
+        windows.append((result.start_s, result.end_s))
+    assert windows == [(second - 20, second) for second in range(20, 25, expected_step)]
 
 
 def test_enable_uses_latest_ten_seconds_even_after_retention_overwrites_origin(make_coordinator):

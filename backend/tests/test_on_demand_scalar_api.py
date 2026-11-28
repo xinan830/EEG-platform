@@ -15,6 +15,7 @@ ALGORITHMS = [
         "denominator_low_hz": 15, "denominator_high_hz": 25}),
     ("peak_frequency", "peak_frequency_hz", "Hz", {"low_hz": 8, "high_hz": 12}),
     ("iapf", "iapf_hz", "Hz", {}),
+    ("iapf", "iapf_hz", "Hz", {"_use_defaults": True}),
     ("theta_beta", "theta_beta", "dimensionless", {}),
 ]
 
@@ -40,10 +41,15 @@ def test_scalar_real_file_api_matches_each_full_run_point(
         tmp_path, duration_s=22 if algorithm_id in {"iapf", "theta_beta"} else 12,
         gap=gap, rejected=rejected)
     before = source_hashes(root)
+    parameters = dict(parameters)
+    use_defaults = parameters.pop("_use_defaults", False)
     config = {"algorithm_id": algorithm_id, "channel": "F3-REF", "mode": "dynamic",
               "time": {"start_s": 0, "end_s": recording.duration_s},
               "dynamic_window_s": 20 if algorithm_id in {"iapf", "theta_beta"} else 5,
               "refresh_step_s": 1, **parameters}
+    if use_defaults:
+        config.pop("dynamic_window_s")
+        config.pop("refresh_step_s")
     try:
         response = client.post("/api/runs", json={"recording_id": recording.id,
             "analysis_type": "official_algorithm", "config": config})
@@ -52,6 +58,10 @@ def test_scalar_real_file_api_matches_each_full_run_point(
         assert run.status.value == "completed", run.error
         series = run.result_summary["metric"]["series"]
         assert series
+        if use_defaults:
+            assert run.config["dynamic_window_s"] == 20.0
+            assert run.config["refresh_step_s"] == 2.0
+            assert [(frame["window_start_s"], frame["window_end_s"]) for frame in series] == [(0, 20), (2, 22)]
         for index, frame in enumerate(series):
             ensured = client.post("/api/analysis-windows/ensure", json={
                 "recording_id": recording.id, "algorithm_id": algorithm_id, "config": config,

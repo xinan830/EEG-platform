@@ -86,7 +86,8 @@ def test_iapf_dynamic_manifest_defaults_to_20_seconds_and_one_second(monkeypatch
     from app.algorithms.iapf.manifest import MANIFEST
 
     assert MANIFEST.dynamic_policy.default_window_s == 20.0
-    assert MANIFEST.dynamic_policy.refresh_step_s == 1.0
+    assert MANIFEST.dynamic_policy.refresh_step_s == 2.0
+    assert 1.0 in MANIFEST.dynamic_policy.refresh_step_options_s
     assert MANIFEST.dynamic_policy.allow_warmup is False
     result = _runtime(monkeypatch).execute(
         algorithm_id="iapf",

@@ -104,6 +104,8 @@ def _reference_stft(source: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.nd
 
 
 def _reference_iapf(freqs: np.ndarray, psd: np.ndarray) -> dict[str, float | str | None]:
+    from scipy.signal import savgol_filter
+
     mean_psd = np.mean(psd, axis=0)
     fit = (freqs >= 3) & (freqs <= 30) & ~((freqs >= 7) & (freqs <= 13))
     slope, intercept = np.polyfit(np.log10(freqs[fit]), np.log10(mean_psd[fit]), 1)
@@ -116,9 +118,17 @@ def _reference_iapf(freqs: np.ndarray, psd: np.ndarray) -> dict[str, float | str
     baseline = 10 ** (intercept + slope * np.log10(alpha_f))
     residual = np.maximum(mean_psd[alpha] - baseline, 0)
     cog = float(np.sum(alpha_f * residual) / np.sum(residual)) if np.sum(residual) > 0 else None
-    index = int(np.argmax(residual))
+    smoothed = np.clip(savgol_filter(residual, window_length=5, polyorder=2), 0.0, None)
+    index = int(np.argmax(smoothed))
     peak = float(alpha_f[index])
-    prominence = float(residual[index] / max(baseline[index], 1e-20))
+    if 0 < index < len(alpha_f) - 1:
+        y_l, y_c, y_r = float(smoothed[index - 1]), float(smoothed[index]), float(smoothed[index + 1])
+        denom = y_l - 2.0 * y_c + y_r
+        if denom < -1e-30:
+            delta = float(np.clip(0.5 * (y_l - y_r) / denom, -0.5, 0.5))
+            step_hz = 0.5 * float(alpha_f[index + 1] - alpha_f[index - 1])
+            peak = float(np.clip(float(alpha_f[index]) + delta * step_hz, alpha_f[0], alpha_f[-1]))
+    prominence = float(smoothed[index] / max(baseline[index], 1e-20))
     value = peak if prominence >= 0.20 else cog
     return {
         "value": value,
@@ -131,14 +141,10 @@ def _reference_iapf(freqs: np.ndarray, psd: np.ndarray) -> dict[str, float | str
 
 
 def _reference_brainbeat(freqs: np.ndarray, fz: np.ndarray, pz: np.ndarray, iapf: float) -> float:
-    def selected_trapezoid(values: np.ndarray, low: float, high: float) -> float:
-        mask = (freqs >= low) & (freqs <= high)
-        return float(np.trapezoid(values[mask], freqs[mask])) if np.count_nonzero(mask) >= 2 else 0.0
-
-    fz_total = selected_trapezoid(fz, 1, 30) + 1e-20
-    pz_total = selected_trapezoid(pz, 1, 30) + 1e-20
-    theta = selected_trapezoid(fz, max(4, iapf - 6), iapf - 2) / fz_total
-    alpha = selected_trapezoid(pz, iapf - 2, iapf + 2) / pz_total
+    fz_total = float(_reference_band_power(freqs, fz, 1, 30)) + 1e-20
+    pz_total = float(_reference_band_power(freqs, pz, 1, 30)) + 1e-20
+    theta = float(_reference_band_power(freqs, fz, max(4, iapf - 6), iapf - 2)) / fz_total
+    alpha = float(_reference_band_power(freqs, pz, iapf - 2, iapf + 2)) / pz_total
     return theta / (alpha + 1e-20)
 
 

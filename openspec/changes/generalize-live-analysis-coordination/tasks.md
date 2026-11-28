@@ -31,6 +31,6 @@
 ## 6. Live scalar acceptance corrections
 
 - [x] 6.1 Restrict live BrainBeat channel options and backend validation to the offline Fz/Pz source-role contract; add regression coverage rejecting bipolar derivations.
-- [x] 6.2 Keep the live IAPF chart fixed at 8–13 Hz for all values; update the range regression test.
+- [x] 6.2 Keep the live IAPF chart fixed at 8–13 Hz (independent of the 7–13 Hz search band) with 8–13 Hz Alpha highlight and COG reference; update the range regression test.
 - [x] 6.3 Carry live preprocessing provenance into scalar card details and verify the filter settings and offline non-equivalence are visible.
 - [x] 6.4 Validate BrainBeat montage source formulas on the backend and test actual hardware, mean, bipolar and specified-pair reference kinds on both sides, including misleading supported output names. Validation (2026-11-28): 41 backend scalar/access/API tests and 18 desktop scalar/workspace tests passed; strict OpenSpec, file-size and scoped diff checks passed. Hardware acceptance remains under 5.5.

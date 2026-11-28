@@ -46,20 +46,62 @@
                     <ComboBoxItem Content="标准频段 (4–8 / 13–30 Hz)" Tag="standard" />
                     <ComboBoxItem Content="IAF 相对频段" Tag="individualized" />
                 </ComboBox>
+                <ComboBox x:Name="IapfDisplayModeSelector"
+                          Margin="5,0,0,0"
+                          Style="{StaticResource AnalysisHeaderComboBoxStyle}"
+                          MinWidth="112" MaxWidth="148" HorizontalAlignment="Left"
+                          SelectedValuePath="Tag"
+                          SelectedValue="{Binding ScalarAnalysis.IapfDisplayMode, Mode=TwoWay}"
+                          Visibility="{Binding ScalarAnalysis.IsIapf, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ComboBoxItem Content="重心 (COG)" Tag="cog" />
+                    <ComboBoxItem Content="对比视图" Tag="compare" />
+                    <ComboBoxItem Content="峰值 (PAF)" Tag="peak" />
+                </ComboBox>
             </StackPanel>
         </shared:AnalysisPanelShell.HeaderContent>
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <views:LiveScalarTrendChart Grid.Row="0" MinHeight="180"
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,4"
+                        Visibility="{Binding ScalarAnalysis.IsIapfCogMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Line X1="0" Y1="5" X2="14" Y2="5" Stroke="#16779B" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="COG 主趋势" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Border Width="10" Height="7" Background="#1816779B" BorderBrush="#4016779B" BorderThickness="0,1,0,1" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="8–13 Hz Alpha" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,4"
+                        Visibility="{Binding ScalarAnalysis.IsIapfCompareMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Line X1="0" Y1="5" X2="14" Y2="5" Stroke="#16779B" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="COG 主趋势" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Ellipse Width="7" Height="7" Fill="#8716779B" Stroke="#BE16779B" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="瞬时峰值" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Ellipse Width="7" Height="7" Fill="White" Stroke="#D97706" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="双峰回退" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Border Width="10" Height="7" Background="#1816779B" BorderBrush="#4016779B" BorderThickness="0,1,0,1" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="8–13 Hz Alpha" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,4"
+                        Visibility="{Binding ScalarAnalysis.IsIapfPeakMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Ellipse Width="7" Height="7" Fill="#16779B" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="峰值" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Ellipse Width="7" Height="7" Fill="White" Stroke="#D97706" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="重心回退" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Line X1="0" Y1="5" X2="14" Y2="5" Stroke="#D97706" StrokeThickness="1.5" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="COG 参考" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Border Width="10" Height="7" Background="#1816779B" BorderBrush="#4016779B" BorderThickness="0,1,0,1" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Text="8–13 Hz Alpha" Foreground="#64748B" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <views:LiveScalarTrendChart Grid.Row="1" MinHeight="180"
                                         AlgorithmId="{Binding AlgorithmId}"
+                                        IapfDisplayMode="{Binding ScalarAnalysis.IapfDisplayMode}"
                                         Points="{Binding ScalarAnalysis.Points}"
                                         Unit="{Binding ScalarAnalysis.Unit}"
                                         StartSeconds="{Binding ScalarAnalysis.StartSeconds}"
                                         EndSeconds="{Binding ScalarAnalysis.EndSeconds}" />
-            <Border Grid.Row="1" Margin="0,4,0,0" Padding="2,4,2,0" BorderBrush="#F1F5F9" BorderThickness="0,1,0,0">
+            <Border Grid.Row="2" Margin="0,4,0,0" Padding="2,4,2,0" BorderBrush="#F1F5F9" BorderThickness="0,1,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />

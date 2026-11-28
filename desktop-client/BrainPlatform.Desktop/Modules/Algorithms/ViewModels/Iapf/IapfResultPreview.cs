@@ -13,7 +13,8 @@ public sealed record IapfResultPoint(
     string Source,
     double? PeakHz,
     double? CogHz,
-    double? ModelR2)
+    double? ModelR2,
+    bool SplitPeak = false)
 {
     public bool IsComplete => State == "Complete" && ValueHz is not null;
     public bool HasValue => State is "Complete" or "Partial" && ValueHz is not null;
@@ -58,7 +59,8 @@ public sealed partial record IapfResultPreview(
         var point = new IapfResultPoint(
             double.NaN, Number(range, "start_s") ?? double.NaN, Number(range, "end_s") ?? double.NaN,
             valueHz, valueHz is null ? "Unavailable" : "Complete", Quality(metric), Failure(metric),
-            Text(evidence, "source"), Number(evidence, "peak_hz"), Number(evidence, "cog_hz"), Number(evidence, "model_r2"));
+            Text(evidence, "source"), Number(evidence, "peak_hz"), Number(evidence, "cog_hz"),
+            Number(evidence, "model_r2"), Bool(evidence, "split_peak"));
         return new IapfResultPreview(channel, point, []);
     }
 
@@ -74,7 +76,8 @@ public sealed partial record IapfResultPreview(
         return new IapfResultPoint(time.Value, start.Value, end.Value,
             state == "Complete" ? Number(point.GetProperty("output"), "value") : null,
             state, Quality(point), Failure(point), Text(evidence, "source"),
-            Number(evidence, "peak_hz"), Number(evidence, "cog_hz"), Number(evidence, "model_r2"));
+            Number(evidence, "peak_hz"), Number(evidence, "cog_hz"), Number(evidence, "model_r2"),
+            Bool(evidence, "split_peak"));
     }
 
     private static JsonElement Evidence(JsonElement point) =>
@@ -98,4 +101,8 @@ public sealed partial record IapfResultPreview(
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) &&
         value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && double.IsFinite(number)
             ? number : null;
+
+    private static bool Bool(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) &&
+        value.ValueKind == JsonValueKind.True;
 }

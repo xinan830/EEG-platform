@@ -11,7 +11,7 @@ public sealed partial class RecordingReviewViewModelTests
 {
     [Theory]
     [InlineData("faa", "F3", "F4")]
-    [InlineData("iapf", "F3", null)]
+    [InlineData("iapf", "Pz", null)]
     [InlineData("theta_beta", "F3", null)]
     [InlineData("brainbeat", "Fz", "Pz")]
     [InlineData("brainbeat_individualized", "Fz", "Pz")]

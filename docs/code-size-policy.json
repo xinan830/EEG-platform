@@ -83,7 +83,7 @@
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/ScreenCalibrationView.xaml": {
       "decision": "split",
       "max_lines": 769,
-      "reason": "校准视图包含完整屏幕标定交互与多状态呈现，已超过 600 行高风险线。本次只替换品牌色并保留校准流程不变。",
+      "reason": "高风险规模评审：762 行校准视图包含完整屏幕标定交互与多状态呈现。本次仅复用设置页返回按钮并统一标题区布局，未修改校准输入、持久化、导航与物理尺度计算；为避免牵动标定绑定，保留现有视图及已登记职责拆分计划。",
       "follow_up": "将标定指引、标定输入和结果呈现拆为可独立验证的面板，保持校准状态由现有协调者唯一持有。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Styles/InstrumentWorkspaceStyles.xaml": {

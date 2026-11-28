@@ -47,12 +47,14 @@ class OfficialAlgorithmRunConfig(BaseModel):
     def apply_algorithm_dynamic_default(cls, values: Any) -> Any:
         if isinstance(values, dict) and values.get("mode", "static") == "dynamic":
             algorithm_id = values.get("algorithm_id")
-            default_window = {"theta_beta": 20, "faa": 20,
+            default_window = {"iapf": 20, "theta_beta": 20, "faa": 20,
                               "brainbeat": 20, "brainbeat_individualized": 20}.get(algorithm_id)
             if default_window is None:
                 return values
             values = dict(values)
             values.setdefault("dynamic_window_s", default_window)
+            if algorithm_id == "iapf":
+                values.setdefault("refresh_step_s", 2.0)
         return values
 
     @model_validator(mode="after")

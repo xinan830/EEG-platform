@@ -12,7 +12,7 @@ def test_registry_only_exposes_declared_validated_capabilities():
         ("brainbeat", "official-brainbeat-v6-classic-absolute"),
         ("brainbeat_individualized", "official-brainbeat-individualized-v1-relative"),
         ("faa", "official-faa-v2"),
-        ("iapf", "official-iapf-v5"),
+        ("iapf", "official-iapf-v6"),
         ("peak_frequency", "official-peak-frequency-v2"),
         ("psd", "offline-spectral-v6-shared-1-50-notch"),
         ("rbp", "official-rbp-v4"),

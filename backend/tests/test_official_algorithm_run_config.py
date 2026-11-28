@@ -43,9 +43,26 @@ def test_dynamic_faa_defaults_to_manifest_window_and_preserves_explicit_override
     assert default_config.runtime_config()["window_s"] == 20.0
     assert default_config.runtime_config()["step_s"] == 1.0
     assert OfficialAlgorithmRunConfig.model_validate({**base, "dynamic_window_s": 30}).runtime_config()["window_s"] == 30.0
-    assert OfficialAlgorithmRunConfig.model_validate({
-        "algorithm_id": "iapf",
-        "channel": "O1",
-        "mode": "dynamic",
-        "time": {"start_s": 0.0, "end_s": 30.0},
-    }).runtime_config()["window_s"] == 10.0
+
+
+@pytest.mark.parametrize("overrides,window_s,step_s", [
+    ({}, 20.0, 2.0),
+    ({"refresh_step_s": 1.0}, 20.0, 1.0),
+    ({"dynamic_window_s": 30.0, "refresh_step_s": 5.0}, 30.0, 5.0),
+])
+def test_dynamic_iapf_defaults_preserve_explicit_overrides(overrides, window_s, step_s):
+    config = OfficialAlgorithmRunConfig.model_validate({
+        "algorithm_id": "iapf", "channel": "O1", "mode": "dynamic",
+        "time": {"start_s": 0.0, "end_s": 30.0}, **overrides,
+    })
+    assert config.runtime_config()["window_s"] == window_s
+    assert config.runtime_config()["step_s"] == step_s
+
+
+@pytest.mark.parametrize("step_s", [None, 0, -1])
+def test_dynamic_iapf_does_not_replace_invalid_explicit_steps(step_s):
+    with pytest.raises(ValidationError):
+        OfficialAlgorithmRunConfig.model_validate({
+            "algorithm_id": "iapf", "channel": "O1", "mode": "dynamic",
+            "time": {"start_s": 0.0, "end_s": 30.0}, "refresh_step_s": step_s,
+        })

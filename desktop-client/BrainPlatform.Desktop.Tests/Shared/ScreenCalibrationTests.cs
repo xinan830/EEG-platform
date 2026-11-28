@@ -5,6 +5,25 @@ namespace BrainPlatform.Desktop.Tests.Acquisition;
 public sealed class ScreenCalibrationTests
 {
     [Fact]
+    public void View_UsesSharedSettingsHeaderAndExistingBackNavigation()
+    {
+        var document = System.Xml.Linq.XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory, "Fixtures", "ScreenCalibrationView.xaml"));
+        System.Xml.Linq.XNamespace ui = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var back = document.Descendants(ui + "Button").Single(item => (string?)item.Attribute("Click") == "OnBackClick");
+        Assert.Equal("{StaticResource BackNavigationIconButtonStyle}", (string?)back.Attribute("Style"));
+        Assert.Equal("返回设置", (string?)back.Attribute("AutomationProperties.Name"));
+        Assert.NotNull(back.Element(ui + "Path"));
+        var header = back.Parent!;
+        var title = header.Descendants(ui + "TextBlock").Single(item => (string?)item.Attribute("Text") == "屏幕尺寸校准");
+        Assert.Equal("20", (string?)title.Attribute("FontSize"));
+        Assert.Equal("1", (string?)title.Parent!.Attribute("Grid.Column"));
+        var description = title.ElementsAfterSelf(ui + "TextBlock").Single();
+        Assert.Equal("13", (string?)description.Attribute("FontSize"));
+        Assert.Equal("Wrap", (string?)description.Attribute("TextWrapping"));
+    }
+
+    [Fact]
     public void Store_RoundTripsCalibrationByDisplayKey()
     {
         var path = Path.Combine(Path.GetTempPath(), "brain-platform-tests", Guid.NewGuid().ToString("N"), "screen.json");
