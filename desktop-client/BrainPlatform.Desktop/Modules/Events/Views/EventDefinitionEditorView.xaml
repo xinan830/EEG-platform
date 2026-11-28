@@ -140,25 +140,19 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Back Navigation Link + Titles -->
-            <StackPanel Grid.Column="0">
-                <Button Click="OnCancelClick" Cursor="Hand" Background="Transparent"
-                        BorderThickness="0" Padding="0" HorizontalAlignment="Left" Margin="0,0,0,10">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <StackPanel Orientation="Horizontal" Background="Transparent">
-                                <Path Data="M 14 12 L 4 12 M 9 7 L 4 12 L 9 17" Stroke="#1E293B" StrokeThickness="1.8"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"
-                                      Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBlock Text="返回" FontSize="15" FontWeight="Medium" Foreground="#1E293B" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </ControlTemplate>
-                    </Button.Template>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource BackNavigationIconButtonStyle}" Margin="0,0,14,0"
+                        Click="OnCancelClick" ToolTip="返回事件设置" VerticalAlignment="Center">
+                    <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12" Stroke="#475569" StrokeThickness="1.8"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"
+                          Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Button>
 
                 <!-- Page Title (Auto-switches between "新建事件" and "编辑事件") -->
-                <TextBlock Text="{Binding EventDefinitions.DraftPageTitle}" FontSize="30" FontWeight="Bold" Foreground="#0F172A" />
-                <TextBlock Text="配置采集与回放过程中使用的事件定义。" FontSize="15" Foreground="#64748B" Margin="0,8,0,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding EventDefinitions.DraftPageTitle}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="配置采集与回放过程中使用的事件定义。" FontSize="13" Foreground="#64748B" Margin="0,5,0,0" />
+                </StackPanel>
             </StackPanel>
 
             <!-- Right: Action Buttons (Cancel + Save) -->

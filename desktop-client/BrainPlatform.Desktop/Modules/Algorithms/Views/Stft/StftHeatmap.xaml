@@ -1,22 +1,29 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Stft.StftHeatmap"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:scichart="http://schemas.abtsoftware.co.uk/scichart">
+             xmlns:scichart="http://schemas.abtsoftware.co.uk/scichart"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Stft">
     <Grid Background="White">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="116" /></Grid.ColumnDefinitions>
-        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <scichart:SciChartSurface x:Name="Surface" Grid.Column="0" Grid.RowSpan="2" />
-        <scichart:HeatmapColorMap x:Name="ColourMap"
-                                  Grid.Column="1"
-                                  Margin="8,0,4,2"
-                                  HorizontalAlignment="Stretch"
-                                  VerticalAlignment="Stretch"
-                                  Orientation="Vertical"
-                                  TextFormatting="0.#"
-                                  FontSize="11"
-                                  Foreground="#475569" />
-        <TextBlock Grid.Column="1" Grid.Row="1" Text="dB re 1 µV²/Hz" FontSize="9"
-                   Foreground="#64748B" HorizontalAlignment="Center" TextAlignment="Center"
-                   TextWrapping="Wrap" Margin="0,2,0,0" />
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="64" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="FrequencyUnitLabel" Grid.Row="0" Grid.Column="0"
+                   Text="Hz" FontSize="10" FontWeight="Medium" Foreground="#64748B"
+                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                   Width="38" TextAlignment="Right" Padding="0,0,6,2" />
+        <TextBlock x:Name="PowerUnitLabel" Grid.Row="0" Grid.Column="1"
+                   Text="dB" ToolTip="功率谱密度（dB re 1 µV²/Hz）"
+                   FontSize="10" FontWeight="Medium" Foreground="#64748B"
+                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                   Margin="10,0,0,2" />
+        <scichart:SciChartSurface x:Name="Surface" Grid.Row="1" Grid.Column="0" Padding="0" />
+        <local:StftColorBar x:Name="ColourBar" Grid.Row="1" Grid.Column="1"
+                            Margin="10,0,2,0" BottomInset="28"
+                            ToolTip="功率谱密度（dB re 1 µV²/Hz）" />
     </Grid>
 </UserControl>

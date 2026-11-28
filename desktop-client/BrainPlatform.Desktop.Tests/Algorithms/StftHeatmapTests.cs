@@ -7,6 +7,7 @@ using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Stft;
+using SciChart.Charting;
 using SciChart.Charting.Visuals;
 using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.RenderableSeries;
@@ -35,12 +36,20 @@ public sealed class StftHeatmapTests
                 var yAxis = Assert.IsType<NumericAxis>(typeof(StftHeatmap)
                     .GetField("yAxis", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
                 Assert.Equal("", xAxis.AxisTitle);
-                Assert.Equal(42, xAxis.Height);
+                Assert.Equal(28, xAxis.Height);
                 Assert.False(xAxis.DrawMajorGridLines);
+                Assert.False(xAxis.DrawMinorTicks);
                 Assert.Equal("", yAxis.AxisTitle);
-                Assert.Equal(32, yAxis.Width);
+                Assert.Equal(38, yAxis.Width);
+                Assert.False(yAxis.DrawMinorTicks);
 
                 var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
+                Assert.Equal("BrightSpark", ThemeManager.GetTheme(surface));
+                var colorBar = Assert.IsType<StftColorBar>(FindVisualChild<StftColorBar>(control));
+                Assert.Null(FindVisualChild<HeatmapColorMap>(control));
+                Assert.Equal(1d, colorBar.Minimum);
+                Assert.Equal(4d, colorBar.Maximum);
+
                 var heatmap = Assert.IsType<FastNonUniformHeatmapRenderableSeries>(surface.RenderableSeries[0]);
                 Assert.NotNull(heatmap.DataSeries);
                 Assert.False(heatmap.UseLinearTextureFiltering);
@@ -48,6 +57,72 @@ public sealed class StftHeatmapTests
 
                 control.Preview = null;
                 Assert.Null(heatmap.DataSeries);
+                Assert.True(double.IsNaN(colorBar.Minimum));
+                Assert.True(double.IsNaN(colorBar.Maximum));
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void ColorBar_ComputesNiceTicksAndHandlesEdgeCases()
+    {
+        var standard = StftColorBar.ComputeTicks(-32.4, 8.7, 240);
+        Assert.InRange(standard.Count, 3, 6);
+        Assert.True(standard.Zip(standard.Skip(1)).All(pair => pair.First < pair.Second));
+        Assert.All(standard, tick => Assert.InRange(tick, -32.4 - 1e-9, 8.7 + 1e-9));
+
+        var fractional = StftColorBar.ComputeTicks(0.1, 0.4, 180);
+        Assert.True(fractional.Count >= 2);
+        Assert.All(fractional, tick => Assert.InRange(tick, 0.1 - 1e-9, 0.4 + 1e-9));
+
+        Assert.Equal([-10d], StftColorBar.ComputeTicks(-10d, -10d, 200));
+
+        var compact = StftColorBar.ComputeTicks(-20d, 10d, 40d);
+        Assert.InRange(compact.Count, 2, 3);
+
+        Assert.Empty(StftColorBar.ComputeTicks(double.NaN, 10d, 200d));
+        Assert.Empty(StftColorBar.ComputeTicks(10d, 5d, 200d));
+        Assert.Equal("0", StftColorBar.FormatTick(-0.0, 1.0));
+    }
+
+    [Fact]
+    public void Heatmap_ShowsLightThemeUnitHeadersAndAlignsColorBarWithPlot()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                foreach (var size in new[] { new Size(360, 240), new Size(640, 420) })
+                {
+                    var control = new StftHeatmap { Preview = StftPreview.Parse(CreatePreview()) };
+                    control.Measure(size);
+                    control.Arrange(new Rect(size));
+                    control.UpdateLayout();
+
+                    var freqLabel = Assert.IsType<TextBlock>(control.FindName("FrequencyUnitLabel"));
+                    var powerLabel = Assert.IsType<TextBlock>(control.FindName("PowerUnitLabel"));
+                    Assert.Equal("Hz", freqLabel.Text);
+                    Assert.Equal("dB", powerLabel.Text);
+
+                    var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
+                    var colorBar = Assert.IsType<StftColorBar>(FindVisualChild<StftColorBar>(control));
+                    var surfaceLeft = surface.TranslatePoint(new Point(0, 0), control).X;
+                    var colorBarOrigin = colorBar.TranslatePoint(new Point(0, 0), control);
+                    Assert.True(colorBarOrigin.X >= surfaceLeft + surface.ActualWidth);
+                    Assert.True(colorBarOrigin.X + colorBar.ActualWidth <= size.Width + 0.5);
+                    Assert.True(colorBarOrigin.Y + colorBar.ActualHeight <= size.Height + 0.5);
+
+                    var xAxis = Assert.IsType<NumericAxis>(typeof(StftHeatmap)
+                        .GetField("xAxis", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
+                    var expectedInset = xAxis.ActualHeight > 0 ? xAxis.ActualHeight : 28d;
+                    Assert.Equal(expectedInset, colorBar.BottomInset, 2);
+                }
             }
             catch (Exception exception) { failure = exception; }
         });

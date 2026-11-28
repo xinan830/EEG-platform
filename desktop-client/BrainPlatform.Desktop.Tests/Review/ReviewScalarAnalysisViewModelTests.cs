@@ -1,12 +1,51 @@
+using System.Runtime.ExceptionServices;
+using System.Windows;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.ViewModels;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
 using BrainPlatform.Desktop.Tests.Algorithms;
+using BrainPlatform.Desktop.Modules.Review.Views;
+using SciChart.Charting.Visuals;
+using SciChart.Charting.Visuals.Axes;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class ReviewScalarAnalysisViewModelTests
 {
+    [Fact]
+    public void ScalarTrendChart_FixesOnlyIapfAxisToAlphaRange()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var iapf = new ReviewScalarTrendChart
+                {
+                    AlgorithmId = "iapf",
+                    Unit = "Hz",
+                    Points = new[]
+                    {
+                        new ReviewScalarPoint(41.4, 41, 41.4, 9.18, "Complete", "clean", "", null, null),
+                        new ReviewScalarPoint(42, 41.4, 42, 9.0, "Complete", "clean", "", null, null),
+                    },
+                };
+                var axis = Assert.Single(Chart(iapf).YAxes);
+                Assert.Equal(AutoRange.Never, axis.AutoRange);
+                Assert.Equal(8d, Convert.ToDouble(axis.VisibleRange.Min));
+                Assert.Equal(13d, Convert.ToDouble(axis.VisibleRange.Max));
+
+                var thetaBeta = new ReviewScalarTrendChart { AlgorithmId = "theta_beta", Unit = "dimensionless" };
+                Assert.Equal(AutoRange.Always, Assert.Single(Chart(thetaBeta).YAxes).AutoRange);
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
     [Theory]
     [InlineData("iapf", "Hz")]
     [InlineData("theta_beta", "dimensionless")]
@@ -61,4 +100,7 @@ public sealed class ReviewScalarAnalysisViewModelTests
     {
         DynamicResponse = raw,
     };
+
+    private static SciChartSurface Chart(ReviewScalarTrendChart chart) =>
+        Assert.IsType<SciChartSurface>(((System.Windows.Controls.Grid)chart.Content).Children[0]);
 }

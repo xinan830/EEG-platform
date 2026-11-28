@@ -26,10 +26,12 @@ public partial class ReviewScalarTrendChart : UserControl
     public static readonly DependencyProperty StartSecondsProperty = DependencyProperty.Register(nameof(StartSeconds), typeof(double), typeof(ReviewScalarTrendChart), new PropertyMetadata(0d, OnDataChanged));
     public static readonly DependencyProperty EndSecondsProperty = DependencyProperty.Register(nameof(EndSeconds), typeof(double), typeof(ReviewScalarTrendChart), new PropertyMetadata(1d, OnDataChanged));
     public static readonly DependencyProperty UnitProperty = DependencyProperty.Register(nameof(Unit), typeof(string), typeof(ReviewScalarTrendChart), new PropertyMetadata("", OnDataChanged));
+    public static readonly DependencyProperty AlgorithmIdProperty = DependencyProperty.Register(nameof(AlgorithmId), typeof(string), typeof(ReviewScalarTrendChart), new PropertyMetadata("", OnDataChanged));
     public IEnumerable? Points { get => (IEnumerable?)GetValue(PointsProperty); set => SetValue(PointsProperty, value); }
     public double StartSeconds { get => (double)GetValue(StartSecondsProperty); set => SetValue(StartSecondsProperty, value); }
     public double EndSeconds { get => (double)GetValue(EndSecondsProperty); set => SetValue(EndSecondsProperty, value); }
     public string Unit { get => (string)GetValue(UnitProperty); set => SetValue(UnitProperty, value); }
+    public string AlgorithmId { get => (string)GetValue(AlgorithmIdProperty); set => SetValue(AlgorithmIdProperty, value); }
 
     public ReviewScalarTrendChart()
     {
@@ -56,6 +58,16 @@ public partial class ReviewScalarTrendChart : UserControl
 
     private void UpdateSeries()
     {
+        if (string.Equals(AlgorithmId, "iapf", StringComparison.OrdinalIgnoreCase))
+        {
+            yAxis.AutoRange = AutoRange.Never;
+            yAxis.VisibleRange = new DoubleRange(8, 13);
+        }
+        else
+        {
+            yAxis.AutoRange = AutoRange.Always;
+            yAxis.GrowBy = new DoubleRange(0.12, 0.12);
+        }
         yAxis.AxisTitle = Unit;
         values.SeriesName = Unit;
         var items = Points?.Cast<ReviewScalarPoint>().ToArray() ?? [];

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
+using BrainPlatform.Desktop.Modules.Acquisition.Views;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Stft;
 using BrainPlatform.Desktop.Modules.Review.Views;
 using BrainPlatform.Desktop.Modules.Review.ViewModels;
@@ -36,6 +37,31 @@ public sealed class StftReviewChartTests
             Assert.All(new[] { dock, close }, button => Assert.Equal(selectorCenter,
                 button.TranslatePoint(new Point(0, button.ActualHeight / 2), panel).Y, 1));
             Assert.Null(Find<Expander>(panel));
+        });
+
+    [Fact]
+    public void Header_selector_stays_compact_and_footer_unit_fits_without_clipping() =>
+        ReviewTimelineNavigatorTests.OnSta(() =>
+        {
+            var time = new RecordingTimeDisplayContext(new RecordingTimeDisplaySettings(), DateTimeOffset.UtcNow);
+            var reviewPanel = new StftReviewAnalysisPanel { DataContext = new { TimeDisplay = time } };
+            var livePanel = new LiveStftAnalysisPanel();
+
+            foreach (var panel in new FrameworkElement[] { reviewPanel, livePanel })
+            {
+                panel.Measure(new Size(600, 300));
+                panel.Arrange(new Rect(0, 0, 600, 300));
+                panel.UpdateLayout();
+
+                var selector = Assert.IsType<ComboBox>(Find<ComboBox>(panel));
+                Assert.True(selector.ActualWidth <= 180.5);
+
+                var unitLabel = FindAll<TextBlock>(panel).Single(item => item.Name == "PowerUnitFooterLabel");
+                Assert.Equal("dB re 1 µV²/Hz", unitLabel.Text);
+                var origin = unitLabel.TranslatePoint(new Point(0, 0), panel);
+                Assert.True(origin.X + unitLabel.ActualWidth <= panel.ActualWidth + 0.5);
+                Assert.True(origin.Y + unitLabel.ActualHeight <= panel.ActualHeight + 0.5);
+            }
         });
 
     [Fact]

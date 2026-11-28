@@ -16,39 +16,32 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="32,24,32,24">
+    <Grid Margin="24,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Top Header Navigation & Action Bar -->
-        <Grid Grid.Row="0" Margin="0,0,0,20">
+        <!-- Page header follows the Settings channel and montage pages. -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Back Navigation + Titles -->
-            <StackPanel Grid.Column="0">
-                <!-- Back Link Button -->
-                <Button Click="OnBackClick" Cursor="Hand" Background="Transparent"
-                        BorderThickness="0" Padding="0" HorizontalAlignment="Left" Margin="0,0,0,10">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <StackPanel Orientation="Horizontal" Background="Transparent">
-                                <Path Data="M 14 12 L 4 12 M 9 7 L 4 12 L 9 17" Stroke="#1E293B" StrokeThickness="1.8"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"
-                                      Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBlock Text="返回" FontSize="14" FontWeight="Medium" Foreground="#1E293B" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </ControlTemplate>
-                    </Button.Template>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource BackNavigationIconButtonStyle}" Margin="0,0,14,0"
+                        Click="OnBackClick" ToolTip="返回设置" VerticalAlignment="Center">
+                    <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12"
+                          Stroke="#475569" StrokeThickness="1.8"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Width="14" Height="14" Stretch="Uniform"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Button>
-
-                <!-- Page Title & Subtitle -->
-                <TextBlock Text="事件设置" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
-                <TextBlock Text="管理采集和回放过程中使用的事件标记。" FontSize="13" Foreground="#64748B" Margin="0,6,0,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="事件设置" FontSize="20" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="管理采集和回放过程中使用的事件标记。" FontSize="13" Foreground="#64748B" Margin="0,5,0,0" />
+                </StackPanel>
             </StackPanel>
 
             <!-- Right: Action Buttons (Refresh + New Event) -->

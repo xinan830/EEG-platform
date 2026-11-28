@@ -64,40 +64,35 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 顶部返回与标题栏 -->
+        <!-- Shared Settings page header -->
         <Grid Grid.Row="0" Margin="0,0,0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                <Button Content="‹  返回设置"
-                        Click="OnBackClick"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Foreground="#475569"
-                        HorizontalAlignment="Left"
-                        Padding="0"
-                        FontSize="13"
-                        Cursor="Hand" />
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="脑影像视图中心" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+            <Button Grid.Column="0" Style="{StaticResource BackNavigationIconButtonStyle}" Margin="0,0,14,0"
+                    Click="OnBackClick" ToolTip="返回设置" VerticalAlignment="Center">
+                <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12"
+                      Stroke="#475569" StrokeThickness="1.8"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Width="14" Height="14" Stretch="Uniform"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="脑影像视图中心" FontSize="20" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                     <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="9,2" Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock x:Name="ActiveCategoryBadge" Text="地形图与皮层图谱" FontSize="11.5" FontWeight="SemiBold" Foreground="#2563EB" />
                     </Border>
                 </StackPanel>
+                <TextBlock x:Name="ActiveViewSummary"
+                           Text="高精度 fsaverage 折叠皮层连续电位分布，支持色带与分布场景切换。"
+                           FontSize="13" Foreground="#64748B" VerticalAlignment="Center"
+                           Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>
-
-            <TextBlock x:Name="ActiveViewSummary"
-                       Grid.Column="1"
-                       Text="高精度 fsaverage 折叠皮层连续电位分布，支持色带与分布场景切换。"
-                       FontSize="12.5"
-                       Foreground="#64748B"
-                       VerticalAlignment="Bottom"
-                       HorizontalAlignment="Right"
-                       Margin="20,0,4,2"
-                       TextTrimming="CharacterEllipsis" />
         </Grid>
 
         <!-- 主内容区：左侧分类导航 + 右侧 3D/MRI 视口 -->

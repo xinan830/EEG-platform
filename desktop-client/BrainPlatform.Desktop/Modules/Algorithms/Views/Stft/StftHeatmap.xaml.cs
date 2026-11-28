@@ -58,24 +58,21 @@ public partial class StftHeatmap : UserControl
     public StftHeatmap()
     {
         InitializeComponent();
+        ThemeManager.SetTheme(Surface, "BrightSpark");
         xAxis = CreateAxis("", AxisAlignment.Bottom);
-        xAxis.Height = 42;
+        xAxis.Height = 28;
+        xAxis.CursorTextFormatting = "0.## 's'";
         yAxis = CreateAxis("", AxisAlignment.Left);
+        yAxis.CursorTextFormatting = "0.# 'Hz'";
         xAxis.AutoRange = AutoRange.Never;
         yAxis.AutoRange = AutoRange.Never;
-
-        palette = new HeatmapColorPalette
+        xAxis.SizeChanged += (_, _) =>
         {
-            Precision = 4,
-            AllowsHighPrecision = true,
-            GradientStops =
-            {
-                new GradientStop(Color.FromRgb(25, 51, 75), 0.0),
-                new GradientStop(Color.FromRgb(40, 127, 146), 0.33),
-                new GradientStop(Color.FromRgb(228, 189, 92), 0.67),
-                new GradientStop(Color.FromRgb(217, 76, 68), 1.0),
-            },
+            if (xAxis.ActualHeight > 0)
+                ColourBar.BottomInset = xAxis.ActualHeight;
         };
+
+        palette = StftColorPalette.CreateHeatmapColorPalette();
         cursor = new CursorModifier
         {
             IsEnabled = true,
@@ -87,24 +84,25 @@ public partial class StftHeatmap : UserControl
         };
 
         Surface.Background = Brushes.White;
+        Surface.BorderThickness = new Thickness(0);
         Surface.ShowLicensingWarnings = false;
         Surface.XAxes.Add(xAxis);
         RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         Surface.YAxes.Add(yAxis);
         Surface.ChartModifier = cursor;
-        ColourMap.ColorPalette = palette;
     }
 
     private static NumericAxis CreateAxis(string title, AxisAlignment alignment) => new()
     {
         AxisAlignment = alignment,
         AxisTitle = title,
-        Width = alignment == AxisAlignment.Left ? 32 : double.NaN,
-        FontSize = 12,
+        Width = alignment == AxisAlignment.Left ? 38 : double.NaN,
+        FontSize = 11,
         TickTextBrush = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         DrawMajorBands = false,
         DrawMajorGridLines = false,
         DrawMinorGridLines = false,
+        DrawMinorTicks = false,
     };
 
     private static void OnPreviewChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
@@ -137,8 +135,8 @@ public partial class StftHeatmap : UserControl
         maximumDb = Math.Max(maximumDb, preview.MaximumDb);
         palette.Minimum = minimumDb;
         palette.Maximum = maximumDb;
-        ColourMap.Minimum = minimumDb;
-        ColourMap.Maximum = maximumDb;
+        ColourBar.Minimum = minimumDb;
+        ColourBar.Maximum = maximumDb;
         var timeStep = preview.TimesSeconds.Length > 1
             ? preview.TimesSeconds[1] - preview.TimesSeconds[0]
             : 1.0;
@@ -235,5 +233,7 @@ public partial class StftHeatmap : UserControl
         renderedFrequencies = null;
         minimumDb = double.PositiveInfinity;
         maximumDb = double.NegativeInfinity;
+        ColourBar.Minimum = double.NaN;
+        ColourBar.Maximum = double.NaN;
     }
 }
