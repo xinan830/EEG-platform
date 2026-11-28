@@ -293,7 +293,7 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
             analysis.Stream.SamplingRateHz,
             eegChannels.Select(channel => channel.Label ?? $"channel-{channel.StreamIndex}").ToArray(),
             eegChannels.Select(channel => channel.Unit).ToArray(),
-            Math.Max(30_000, checked(12 * analysis.Stream.SamplingRateHz)));
+            Math.Min(2_000_000, Math.Max(40_000, checked(40 * analysis.Stream.SamplingRateHz))));
         using var response = await httpClient.PostAsJsonAsync("api/live-recordings/sessions", request, cancellationToken);
         response.EnsureSuccessStatusCode();
         activeSamplingRateHz = analysis.Stream.SamplingRateHz;

@@ -17,6 +17,9 @@ public sealed partial class LiveAnalysisWorkspaceViewModel
     public ICommand OpenRbpCommand { get; }
     public ICommand OpenPsdCommand { get; }
     public ICommand OpenStftCommand { get; }
+    public ICommand OpenIapfCommand { get; }
+    public ICommand OpenThetaBetaCommand { get; }
+    public ICommand OpenBrainbeatCommand { get; }
     public ICommand FocusSlotCommand { get; }
     public ICommand FloatingWindowClosedCommand { get; }
     public ICommand FloatSlotCommand { get; }
@@ -25,6 +28,9 @@ public sealed partial class LiveAnalysisWorkspaceViewModel
     public bool IsRbpOpen => GetOpenSlot("rbp") is not null;
     public bool IsPsdOpen => GetOpenSlot("psd") is not null;
     public bool IsStftOpen => GetOpenSlot("stft") is not null;
+    public bool IsIapfOpen => GetOpenSlot("iapf") is not null;
+    public bool IsThetaBetaOpen => GetOpenSlot("theta_beta") is not null;
+    public bool IsBrainbeatOpen => GetOpenSlot("brainbeat") is not null;
     public bool IsOpen => OpenSlots.Count > 0;
 
     internal LiveAnalysisCardViewModel? GetOpenSlot(string algorithmId) =>
@@ -103,6 +109,9 @@ public sealed partial class LiveAnalysisWorkspaceViewModel
         RaisePropertyChanged(nameof(IsRbpOpen));
         RaisePropertyChanged(nameof(IsPsdOpen));
         RaisePropertyChanged(nameof(IsStftOpen));
+        RaisePropertyChanged(nameof(IsIapfOpen));
+        RaisePropertyChanged(nameof(IsThetaBetaOpen));
+        RaisePropertyChanged(nameof(IsBrainbeatOpen));
         RaisePropertyChanged(nameof(IsOpen));
     }
 

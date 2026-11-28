@@ -87,7 +87,7 @@ public sealed class HttpLiveSampleAccessBridgeTests
         var batch = CreateBatch(samplingRateHz: 4096);
         await bridge.PublishAsync(batch, CancellationToken.None);
         Assert.Equal(0, handler.Starts);
-        Assert.True(handler.CapacitySamples >= batch.Stream.SamplingRateHz * 10);
+        Assert.True(handler.CapacitySamples >= batch.Stream.SamplingRateHz * 40);
 
         await bridge.SetAlgorithmEnabledAsync("rbp", true, LiveRbpPresentation.Config(["Fz"]), CancellationToken.None);
         Assert.Equal(1, handler.Starts);

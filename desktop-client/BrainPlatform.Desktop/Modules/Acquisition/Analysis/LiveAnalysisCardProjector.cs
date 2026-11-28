@@ -14,7 +14,12 @@ internal static class LiveAnalysisCardProjector
 
     internal static void Apply(LiveAnalysisCardViewModel card, LiveAnalysisUpdate update)
     {
-        var status = FormatStatus(update, card.AlgorithmId);
+        if (update.State == "overloaded")
+        {
+            ApplyOverloaded(card, update);
+            return;
+        }
+        var status = FormatStatus(update, card);
         card.StatusText = status;
         try
         {
@@ -43,7 +48,18 @@ internal static class LiveAnalysisCardProjector
                 return;
             }
             if (card.PanelKind == LiveAnalysisPanelKind.Stft && card.StftAnalysis is { } stft && card.SelectedChannel is { } stftChannel)
+            {
                 stft.Apply(update, stftChannel, status);
+                return;
+            }
+            if (card.PanelKind == LiveAnalysisPanelKind.Scalar && card.ScalarAnalysis is { } scalar)
+            {
+                var expectedChannels = card.HasSecondaryChannel
+                    ? new[] { card.SelectedChannel ?? "", card.SecondaryChannel ?? "" }
+                    : [card.SelectedChannel ?? ""];
+                scalar.Apply(LiveScalarPresentation.Read(update, expectedChannels, scalar.Unit));
+                card.StatusText = scalar.StatusText;
+            }
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
         {
@@ -51,16 +67,29 @@ internal static class LiveAnalysisCardProjector
             card.StatusText = formatError;
             card.PsdAnalysis?.SetFault(formatError);
             card.StftAnalysis?.SetFault(formatError);
+            card.ScalarAnalysis?.SetFault(formatError);
             DesktopLog.Warning($"live_analysis_projection_invalid session={update.SessionId} algorithm={update.AlgorithmId} revision={update.Revision} {exception.Message}");
         }
     }
 
-    private static string FormatStatus(LiveAnalysisUpdate update, string cardAlgorithmId) => update.State switch
+    internal static void ApplyOverloaded(LiveAnalysisCardViewModel card, LiveAnalysisUpdate update)
+    {
+        var status = update.SkippedWindows > 0
+            ? $"实时分析繁忙，已跳过 {update.SkippedWindows} 个窗口"
+            : update.Message ?? "实时分析繁忙，当前窗口已跳过";
+        card.StatusText = status;
+        card.RbpAnalysis?.SetOverloadedStatus(status);
+        card.PsdAnalysis?.SetOverloadedStatus(status);
+        card.StftAnalysis?.SetOverloadedStatus(status);
+        card.ScalarAnalysis?.SetOverloaded(status);
+    }
+
+    private static string FormatStatus(LiveAnalysisUpdate update, LiveAnalysisCardViewModel card) => update.State switch
     {
         "ready" => "",
-        "partial" when cardAlgorithmId == "rbp" => "",
+        "partial" when card.AlgorithmId == "rbp" => "",
         "partial" => "部分数据可用",
-        "warming_up" => "等待可用的 10 秒窗口",
+        "warming_up" => $"等待可用的 {card.WindowSeconds:0} 秒窗口",
         _ => update.Message ?? "当前窗口不可用",
     };
 }

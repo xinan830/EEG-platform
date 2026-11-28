@@ -12,6 +12,11 @@ import numpy as np
 from app.services.recordings.sample_access_contract import SampleBlock, UnavailableSampleInterval
 
 
+# Numeric MontageNegativeKind values serialized by the desktop montage contract.
+_HARDWARE_REFERENCE = 0
+_MEAN_REFERENCE = 2
+
+
 class LiveRecordingAccessError(ValueError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -80,6 +85,7 @@ class LiveRecordingAccessSession:
         self._high_watermark: int | None = None
         self._montage_revision = 0
         self._montage_signals: dict[str, tuple[int, tuple[int, ...]]] = {}
+        self._montage_reference_kinds: dict[str, object] = {}
         self._closed = False
         self._lock = threading.RLock()
 
@@ -118,6 +124,7 @@ class LiveRecordingAccessSession:
             raise LiveRecordingAccessError("LIVE_MONTAGE_INVALID", "实时导联配置没有输出通道。")
         available = {name.casefold(): index for index, name in enumerate(self.raw_channel_names)}
         signals: dict[str, tuple[int, tuple[int, ...]]] = {}
+        reference_kinds: dict[str, object] = {}
         ordered = []
         for row in sorted(rows, key=lambda item: int(next(value for key, value in item.items() if key.casefold() == "displayorder"))):
             fields = {key.casefold(): value for key, value in row.items()}
@@ -129,6 +136,7 @@ class LiveRecordingAccessSession:
             if any(label.casefold() not in available for label in negatives) or len({label.casefold() for label in negatives}) != len(negatives):
                 raise LiveRecordingAccessError("LIVE_MONTAGE_INVALID", f"实时导联 {name} 的负输入不存在或重复。")
             signals[name.casefold()] = (available[positive.casefold()], tuple(available[label.casefold()] for label in negatives))
+            reference_kinds[name.casefold()] = fields.get("negativekind")
             ordered.append(name)
         with self._lock:
             self._ensure_open()
@@ -138,9 +146,28 @@ class LiveRecordingAccessSession:
             if effective_from_sample_counter < expected:
                 raise LiveRecordingAccessError("LIVE_MONTAGE_BOUNDARY_INVALID", "实时导联边界不能覆盖已接收样本。")
             self._montage_signals = signals
+            self._montage_reference_kinds = reference_kinds
             self.channel_names = tuple(ordered)
             self.channel_units = tuple("V" for _ in ordered)
             self._montage_revision = revision
+
+    def matches_source_role(self, channel: str, role: str) -> bool:
+        """Check electrode and hardware/mean reference semantics independently of the output name."""
+        with self._lock:
+            self._ensure_open()
+            if not self._montage_signals:
+                return channel.casefold() in {name.casefold() for name in self.raw_channel_names}
+            signal = self._montage_signals.get(channel.casefold())
+            if signal is None:
+                return False
+            positive_index, negative_indexes = signal
+            kind = self._montage_reference_kinds[channel.casefold()]
+            return self.raw_channel_names[positive_index].casefold() == role.casefold() and (
+                type(kind) is int and (
+                    (kind == _HARDWARE_REFERENCE and not negative_indexes)
+                    or (kind == _MEAN_REFERENCE and len(negative_indexes) >= 2)
+                )
+            )
 
     @property
     def first_sample(self) -> int | None:

@@ -67,6 +67,8 @@ public sealed class LiveStftAnalysisViewModel : ObservableObject
         Stft = LiveSpectralPresentation.ReadStft(update, channel, new TimeRange(start, end));
     }
 
+    internal void SetOverloadedStatus(string message) => StatusText = message;
+
     public void SetFault(string message)
     {
         Stft = null;

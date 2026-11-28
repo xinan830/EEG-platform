@@ -125,6 +125,8 @@ public sealed class LivePsdAnalysisViewModel : ObservableObject
         RaisePropertyChanged(nameof(CurrentRangeText));
     }
 
+    internal void SetOverloadedStatus(string message) => StatusText = message;
+
     public void SetFault(string message)
     {
         ClearSpectrumOnly();

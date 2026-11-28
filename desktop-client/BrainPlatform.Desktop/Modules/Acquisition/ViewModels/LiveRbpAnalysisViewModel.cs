@@ -95,6 +95,8 @@ public sealed class LiveRbpAnalysisViewModel : ObservableObject
         WindowText = "等待实时窗口";
     }
 
+    internal void SetOverloadedStatus(string message) => StatusText = message;
+
     public bool Apply(LiveRbpUpdate update)
     {
         if (sessionId is null || update.SessionId != sessionId) return false;

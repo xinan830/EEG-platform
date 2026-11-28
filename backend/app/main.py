@@ -54,6 +54,7 @@ from app.bootstrap import build_builtin_registry
 from app.services.live_analysis.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
 from app.services.live_analysis.live_analysis_coordinator import LiveAnalysisCoordinator
 from app.services.live_analysis.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_analysis.live_scalar_algorithms import LiveScalarAlgorithm
 from app.services.live_analysis.live_scientific_preprocessing import LiveScientificPreprocessingService
 from app.services.live_analysis.live_spectral_algorithms import LiveSpectrumAlgorithm
 from app.services.live_analysis.live_topomap_algorithm import LiveTopomapAlgorithm
@@ -161,6 +162,9 @@ app.state.live_analysis_coordinator = LiveAnalysisCoordinator(
         LiveSpectrumAlgorithm("stft", preprocessor=app.state.live_scientific_preprocessing_service),
         LiveTopomapAlgorithm("rbp", preprocessor=app.state.live_scientific_preprocessing_service),
         LiveTopomapAlgorithm("psd", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveScalarAlgorithm("iapf", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveScalarAlgorithm("theta_beta", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveScalarAlgorithm("brainbeat", preprocessor=app.state.live_scientific_preprocessing_service),
     )),
     preprocessor=app.state.live_scientific_preprocessing_service,
 )

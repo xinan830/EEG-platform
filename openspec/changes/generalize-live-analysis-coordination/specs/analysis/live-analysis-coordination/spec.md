@@ -98,3 +98,31 @@ During preview or recording, the acquisition client SHALL feed accepted raw EEG 
 - **WHEN** RBP is turned off and then on within the same acquisition session after older samples have been overwritten
 - **THEN** the latest retained full window is scheduled and `start_s` / `end_s` still use the acquisition session's first accepted sample as time zero
 - **AND** stopping the acquisition closes the cache and rejects results from the old session
+
+### Requirement: Preserve live scalar channel roles and processing provenance
+
+Live scalar algorithms SHALL validate role-specific inputs before calculation and expose the processing scope and filter parameters with each result. The desktop SHALL make material differences from offline preprocessing visible to the user.
+
+#### Scenario: BrainBeat receives Fz and Pz source channels
+- **WHEN** a live BrainBeat configuration is submitted
+- **THEN** its primary and secondary channels SHALL satisfy the same supported Fz/Pz source-role contract as the offline BrainBeat algorithm
+- **AND** bipolar derivations SHALL NOT be silently accepted as Fz or Pz
+
+#### Scenario: A live scalar result uses window-local preprocessing
+- **WHEN** a scalar result is displayed after window-local zero-phase filtering
+- **THEN** the result details SHALL show the filter band, notch setting, and that the live window is not equivalent to offline continuous preprocessing
+
+#### Scenario: A bipolar formula uses an allowed BrainBeat channel name
+- **WHEN** a montage output has a supported BrainBeat source name but its formula uses a single-channel or specified-pair reference, or a different positive electrode
+- **THEN** the desktop SHALL exclude that output from BrainBeat choices and the backend SHALL reject it with `LIVE_CONFIG_INVALID`
+- **AND** hardware-reference outputs with no negative inputs and mean-reference outputs with at least two distinct negative inputs SHALL remain supported for the matching positive electrode
+- **AND** montage outputs missing reference-kind metadata SHALL NOT be accepted as BrainBeat source channels
+
+### Requirement: Keep the IAPF live trend scale stable
+
+The live IAPF trend chart SHALL use a fixed 8–13 Hz vertical range so incoming values cannot cause automatic axis rescaling.
+
+#### Scenario: IAPF values move below 8 Hz
+- **WHEN** a valid IAPF result is below 8 Hz
+- **THEN** the chart vertical range SHALL remain 8–13 Hz
+- **AND** the latest numeric result SHALL remain visible independently of the plotted range

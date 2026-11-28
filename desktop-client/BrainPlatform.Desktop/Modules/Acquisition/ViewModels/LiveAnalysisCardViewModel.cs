@@ -7,6 +7,7 @@ public enum LiveAnalysisPanelKind
     Rbp,
     Psd,
     Stft,
+    Scalar,
 }
 
 /// <summary>Per-open-panel state, commands, and dock chrome metadata for live Acquisition analysis cards.</summary>
@@ -14,8 +15,10 @@ public sealed class LiveAnalysisCardViewModel : ObservableObject
 {
     private readonly Action<LiveAnalysisCardViewModel>? onChannelChanged;
     private IReadOnlyList<string> channels = [];
+    private IReadOnlyList<string> secondaryChannels = [];
     private string? selectedChannel;
-    private string statusText = "等待可用的 10 秒窗口";
+    private string? secondaryChannel;
+    private string statusText;
     private bool isFloating;
     private bool isMaximized;
     private bool isFocused;
@@ -31,18 +34,33 @@ public sealed class LiveAnalysisCardViewModel : ObservableObject
         Action<LiveAnalysisCardViewModel>? onChannelChanged,
         LiveRbpAnalysisViewModel? rbpAnalysis = null,
         LivePsdAnalysisViewModel? psdAnalysis = null,
-        LiveStftAnalysisViewModel? stftAnalysis = null)
+        LiveStftAnalysisViewModel? stftAnalysis = null,
+        LiveScalarAnalysisViewModel? scalarAnalysis = null,
+        double windowSeconds = 10d,
+        bool hasSecondaryChannel = false,
+        string? initialSecondaryChannel = null,
+        string primaryChannelToolTip = "分析通道",
+        string secondaryChannelToolTip = "第二来源通道",
+        IReadOnlyList<string>? secondaryChannelOptions = null)
     {
         AlgorithmId = algorithmId;
         DisplayName = displayName;
         CardHeaderTitle = cardHeaderTitle;
         PanelKind = panelKind;
+        WindowSeconds = windowSeconds;
+        HasSecondaryChannel = hasSecondaryChannel;
+        PrimaryChannelToolTip = primaryChannelToolTip;
+        SecondaryChannelToolTip = secondaryChannelToolTip;
         this.channels = channels;
+        secondaryChannels = hasSecondaryChannel ? secondaryChannelOptions ?? channels : [];
         selectedChannel = initialChannel;
+        secondaryChannel = initialSecondaryChannel;
+        statusText = $"等待可用的 {windowSeconds:0} 秒窗口";
         this.onChannelChanged = onChannelChanged;
         RbpAnalysis = rbpAnalysis;
         PsdAnalysis = psdAnalysis;
         StftAnalysis = stftAnalysis;
+        ScalarAnalysis = scalarAnalysis;
 
         CloseAnalysisCommand = new AsyncRelayCommand(() => owner.CloseSlotAsync(AlgorithmId), owner.ReportCommandError);
         DockCommand = new RelayCommand(() => owner.ToggleFloatingSlot(AlgorithmId));
@@ -55,10 +73,15 @@ public sealed class LiveAnalysisCardViewModel : ObservableObject
     public string CardHeaderTitle { get; }
     public LiveAnalysisPanelKind PanelKind { get; }
     public LiveAnalysisPanelKind ActiveAnalysisPanelKind => PanelKind;
+    public double WindowSeconds { get; }
+    public bool HasSecondaryChannel { get; }
+    public string PrimaryChannelToolTip { get; }
+    public string SecondaryChannelToolTip { get; }
 
     public LiveRbpAnalysisViewModel? RbpAnalysis { get; }
     public LivePsdAnalysisViewModel? PsdAnalysis { get; }
     public LiveStftAnalysisViewModel? StftAnalysis { get; }
+    public LiveScalarAnalysisViewModel? ScalarAnalysis { get; }
 
     public ICommand CloseAnalysisCommand { get; }
     public ICommand DockCommand { get; }
@@ -71,12 +94,28 @@ public sealed class LiveAnalysisCardViewModel : ObservableObject
         internal set => SetProperty(ref channels, value);
     }
 
+    public IReadOnlyList<string> SecondaryChannels
+    {
+        get => secondaryChannels;
+        internal set => SetProperty(ref secondaryChannels, value);
+    }
+
     public string? SelectedChannel
     {
         get => selectedChannel;
         set
         {
             if (!SetProperty(ref selectedChannel, value) || IsClosed) return;
+            onChannelChanged?.Invoke(this);
+        }
+    }
+
+    public string? SecondaryChannel
+    {
+        get => secondaryChannel;
+        set
+        {
+            if (!SetProperty(ref secondaryChannel, value) || IsClosed) return;
             onChannelChanged?.Invoke(this);
         }
     }
@@ -131,4 +170,7 @@ public sealed class LiveAnalysisCardViewModel : ObservableObject
 
     internal void SetSelectedChannelSilently(string? channel) =>
         SetProperty(ref selectedChannel, channel, nameof(SelectedChannel));
+
+    internal void SetSecondaryChannelSilently(string? channel) =>
+        SetProperty(ref secondaryChannel, channel, nameof(SecondaryChannel));
 }

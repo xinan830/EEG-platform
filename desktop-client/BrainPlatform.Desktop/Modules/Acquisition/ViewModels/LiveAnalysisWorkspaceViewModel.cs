@@ -43,6 +43,9 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         OpenRbpCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("rbp"), reportError);
         OpenPsdCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("psd"), reportError);
         OpenStftCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("stft"), reportError);
+        OpenIapfCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("iapf"), reportError);
+        OpenThetaBetaCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("theta_beta"), reportError);
+        OpenBrainbeatCommand = new AsyncRelayCommand(() => OpenOrFocusAsync("brainbeat"), reportError);
         FocusSlotCommand = new RelayCommand<LiveAnalysisCardViewModel>(slot => { if (slot is not null) FocusSlot(slot.AlgorithmId); });
         FloatingWindowClosedCommand = new RelayCommand<LiveAnalysisCardViewModel>(slot => { if (slot is not null) HandleFloatingWindowClosedByUser(slot); });
         FloatSlotCommand = new RelayCommand<LiveAnalysisCardViewModel>(slot => { if (slot is { IsFloating: false }) ToggleFloatingSlot(slot.AlgorithmId); });
@@ -123,49 +126,6 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         });
     }
 
-    private LiveAnalysisCardViewModel CreateCard(string algorithmId, Guid sessionId, IReadOnlyList<string> channels)
-    {
-        var initialChannel = channels.FirstOrDefault();
-        var card = algorithmId switch
-        {
-            "rbp" => CreateRbpCard(sessionId, channels),
-            "psd" => CreatePsdCard(channels, initialChannel),
-            "stft" => CreateStftCard(channels, initialChannel),
-            _ => throw new ArgumentOutOfRangeException(nameof(algorithmId), algorithmId, "不支持的实时算法卡片。"),
-        };
-        card.SessionId = sessionId;
-        return card;
-    }
-
-    private LiveAnalysisCardViewModel CreateRbpCard(Guid sessionId, IReadOnlyList<string> channels)
-    {
-        var rbp = new LiveRbpAnalysisViewModel();
-        rbp.Begin(sessionId, backend.CurrentElapsedSeconds);
-        return new LiveAnalysisCardViewModel(this, "rbp", "RBP 相对频段功率", "RBP",
-            LiveAnalysisPanelKind.Rbp, channels, null, null, rbpAnalysis: rbp);
-    }
-
-    private LiveAnalysisCardViewModel CreatePsdCard(IReadOnlyList<string> channels, string? initialChannel)
-    {
-        LiveAnalysisCardViewModel? card = null;
-        var psd = new LivePsdAnalysisViewModel(vm =>
-        {
-            if (card is { IsClosed: false }) _ = SafeReconfigureAsync(card);
-        });
-        psd.Begin();
-        card = new LiveAnalysisCardViewModel(this, "psd", "PSD 功率谱密度", "PSD",
-            LiveAnalysisPanelKind.Psd, channels, initialChannel, c => _ = SafeReconfigureAsync(c), psdAnalysis: psd);
-        return card;
-    }
-
-    private LiveAnalysisCardViewModel CreateStftCard(IReadOnlyList<string> channels, string? initialChannel)
-    {
-        var stft = new LiveStftAnalysisViewModel();
-        stft.Begin(backend.CurrentElapsedSeconds);
-        return new LiveAnalysisCardViewModel(this, "stft", "STFT 时频图", "STFT",
-            LiveAnalysisPanelKind.Stft, channels, initialChannel, c => _ = SafeReconfigureAsync(c), stftAnalysis: stft);
-    }
-
     private async Task SafeReconfigureAsync(LiveAnalysisCardViewModel card)
     {
         try { await ApplyCardConfigurationAsync(card, forceRestart: false, expectedMontageRevision: null); }
@@ -183,6 +143,19 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         if (!forceRestart && string.Equals(card.LastAppliedConfigKey, configKey, StringComparison.Ordinal)) return;
 
         var previousIds = card.ActiveBackendIds;
+        if (requests.Count == 0)
+        {
+            card.LastAppliedConfigKey = null;
+            card.Revision = -1;
+            card.SecondaryRevision = -1;
+            await RunBackendTransitionAsync(async () =>
+            {
+                foreach (var oldId in previousIds)
+                    await backend.SetLiveAlgorithmEnabledAsync(oldId, false, default, CancellationToken.None);
+                card.ActiveBackendIds = [];
+            });
+            return;
+        }
         card.LastAppliedConfigKey = configKey;
         card.Revision = -1;
         card.SecondaryRevision = -1;
@@ -226,39 +199,6 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         });
     }
 
-    private IReadOnlyList<(string BackendId, JsonElement Config, bool Optional)> BuildBackendRequests(
-        LiveAnalysisCardViewModel card, AcquisitionStreamMetadata stream)
-    {
-        var montage = backend.LiveMontage;
-        if (card.AlgorithmId == "rbp")
-        {
-            return
-            [
-                ("rbp", LiveRbpPresentation.Config(card.Channels), false),
-                ("rbp-topomap", LiveSpectralPresentation.MultiBandMapConfig(stream, montage, LiveAnalysisCardProjector.RbpTopomapFieldIds), true),
-            ];
-        }
-        if (card.AlgorithmId == "psd" && card.PsdAnalysis is { IsTopomapSelected: true })
-        {
-            return
-            [
-                ("psd-topomap", LiveSpectralPresentation.MultiBandMapConfig(stream, montage, LivePsdAnalysisViewModel.TopomapFieldIds), false),
-            ];
-        }
-        var selectedChannel = card.SelectedChannel ?? card.Channels.FirstOrDefault()
-            ?? throw new InvalidOperationException("请选择分析通道。");
-        return [(card.AlgorithmId, LiveRbpPresentation.Config([selectedChannel]), false)];
-    }
-
-    private void ResetCardPresentationBeforeRun(LiveAnalysisCardViewModel card, Guid sessionId)
-    {
-        card.SessionId = sessionId;
-        card.StatusText = "等待可用的 10 秒窗口";
-        card.RbpAnalysis?.Begin(sessionId, backend.CurrentElapsedSeconds);
-        card.PsdAnalysis?.Begin();
-        card.StftAnalysis?.Begin(backend.CurrentElapsedSeconds);
-    }
-
     private void OnMontageChanged(LiveMontageSnapshot montage)
     {
         var switchGeneration = Interlocked.Increment(ref montageGeneration);
@@ -268,12 +208,21 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
             var nextChannels = LiveSpectralPresentation.AnalysisChannelNames(montage);
             foreach (var card in OpenSlots.ToArray())
             {
-                card.Channels = nextChannels;
-                var nextChannel = montage.Profile.DerivedChannels.FirstOrDefault(output =>
-                    string.Equals(output.Name, card.SelectedChannel, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(output.PositiveLabel, card.SelectedChannel, StringComparison.OrdinalIgnoreCase))?.Name
-                    ?? nextChannels.FirstOrDefault();
-                card.SetSelectedChannelSilently(nextChannel);
+                if (card.HasSecondaryChannel)
+                {
+                    card.Channels = LiveScalarPresentation.BrainbeatChannelOptions(nextChannels, montage, "Fz");
+                    card.SecondaryChannels = LiveScalarPresentation.BrainbeatChannelOptions(nextChannels, montage, "Pz");
+                    var (nextPrimary, nextSecondary) = LiveScalarPresentation.ResolveBrainbeatChannels(
+                        nextChannels, montage, card.SelectedChannel, card.SecondaryChannel);
+                    card.SetSelectedChannelSilently(nextPrimary);
+                    card.SetSecondaryChannelSilently(nextSecondary);
+                }
+                else
+                {
+                    card.Channels = nextChannels;
+                    card.SetSelectedChannelSilently(LiveScalarPresentation.ResolveSingleChannel(
+                        nextChannels, montage, card.SelectedChannel));
+                }
                 try { await ApplyCardConfigurationAsync(card, forceRestart: true, expectedMontageRevision: montage.Revision); }
                 catch (Exception exception)
                 {
@@ -296,6 +245,7 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
                 card.RbpAnalysis?.Clear(fault.Detail);
                 card.PsdAnalysis?.SetFault(fault.Detail);
                 card.StftAnalysis?.SetFault(fault.Detail);
+                card.ScalarAnalysis?.SetFault(fault.Detail);
             }
         });
     }
@@ -306,7 +256,6 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         {
             if (disposed || !IsSessionReady || backend.State.SessionId != update.SessionId) return;
             if (backend.LiveMontage is { } montage && !update.IsCurrentMontageResult(montage)) return;
-            if (update.State == "overloaded") return;
 
             var card = FindTargetCard(update.AlgorithmId);
             if (card is null || card.SessionId != update.SessionId) return;
@@ -327,6 +276,7 @@ public sealed partial class LiveAnalysisWorkspaceViewModel : ObservableObject, I
         "psd" => GetOpenSlot("psd") is { PsdAnalysis.IsTopomapSelected: false } card ? card : null,
         "psd-topomap" => GetOpenSlot("psd") is { PsdAnalysis.IsTopomapSelected: true } card ? card : null,
         "stft" => GetOpenSlot("stft"),
+        "iapf" or "theta_beta" or "brainbeat" => GetOpenSlot(algorithmId),
         _ => null,
     };
 

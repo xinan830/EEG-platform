@@ -63,6 +63,10 @@ See proposal.md for motivation. The live recording-access session already owns b
 
 同步部署桌面端和后端，沿用当前消息结构。回滚时成对恢复开启后上传与从启用点计时的规则，无需迁移录制文件。重点复核采集协调器与工作区 ViewModel 的行数登记，优先在现有样本访问与调度模块内完成。
 
+## BrainBeat source validation boundary (2026-11-28)
+
+Live BrainBeat keeps the offline Fz/Pz name whitelist and additionally verifies the actual live montage formula. The bounded source retains the desktop `MontageNegativeKind` numeric metadata (hardware=0, channel=1, mean=2, pair=3) with its existing projection indexes. A supported output must use the matching positive electrode and either hardware reference with no negative inputs or mean reference with at least two distinct inputs. Missing kind metadata fails closed for BrainBeat; other live readers keep their existing projection behavior. Regression tests use explicit kinds rather than inferring them from display names. No scientific formula, sample timing, V units, channel order or transport schema changes. Before a result arrives, processing details still wait for actual provenance; custom output names and pair references remain outside the current BrainBeat contract.
+
 ## File-size review
 
 New backend contracts/coordinator/adapter and desktop transport/presentation files are below 400 lines. `ConfiguredAcquisitionRuntime` remains one session lifecycle owner (448 lines). The pre-existing acquisition workspace ViewModel is 1186 lines and retains the executable split plan in `docs/code-size-policy.json`: extract device setup, live presentation and event commands into dedicated owners before further feature growth. A broad ViewModel rewrite is outside this transport migration because it would expand capture lifecycle risk. No acquisition loop or raw writer changes are required for adding another registered windowed adapter.

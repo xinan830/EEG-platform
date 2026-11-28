@@ -56,6 +56,7 @@ class LiveAnalysisCoordinator:
         self._lock = RLock()
         self._workers = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="live-analysis")
         self._slots = BoundedSemaphore(max_workers)
+        self._schedule_cursor = 0
         self._closed = False
 
     @property
@@ -142,8 +143,14 @@ class LiveAnalysisCoordinator:
             if high is None:
                 return []
             changed: list[LiveAnalysisEnvelope] = []
-            for active in active_sessions:
+            count = len(active_sessions)
+            start_index = self._schedule_cursor % count if count else 0
+            if count:
+                self._schedule_cursor = (start_index + 1) % count
+            ordered = active_sessions[start_index:] + active_sessions[:start_index]
+            for active in ordered:
                 self._schedule(active, high + 1)
+            for active in active_sessions:
                 if active.latest.revision > active.delivered_revision:
                     active.delivered_revision = active.latest.revision
                     changed.append(active.latest)

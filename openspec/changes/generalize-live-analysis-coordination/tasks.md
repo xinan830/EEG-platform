@@ -27,3 +27,10 @@
 - [x] 5.3 Track the first accepted sample per source and schedule the latest window on enable with the existing worker limits. Cover absent history, gaps and recovery, overwritten reads, overload, stale revisions and session replacement.
 - [x] 5.4 Verify first-result delivery through the desktop bridge, including result delivery when activation is allowed without a fresh batch, one-second cadence, chart timestamps, and disabling or stopping while a result is pending. Reuse the existing RBP result reader and chart. Run the shared RBP numerical regression on identical spectra.
 - [ ] 5.5 Run focused backend and desktop acquisition suites, verify strict OpenSpec and file-size checks, and record results. On hardware, compare RBP off/on/reenabled during a continuous recording, check the 23-second acceptance case and confirm capture counters and saved-file replay under the added idle transport load. Automated evidence is in `docs/validation/2026-11-20-live-analysis-coordination.md`. Hardware verification remains open.
+
+## 6. Live scalar acceptance corrections
+
+- [x] 6.1 Restrict live BrainBeat channel options and backend validation to the offline Fz/Pz source-role contract; add regression coverage rejecting bipolar derivations.
+- [x] 6.2 Keep the live IAPF chart fixed at 8–13 Hz for all values; update the range regression test.
+- [x] 6.3 Carry live preprocessing provenance into scalar card details and verify the filter settings and offline non-equivalence are visible.
+- [x] 6.4 Validate BrainBeat montage source formulas on the backend and test actual hardware, mean, bipolar and specified-pair reference kinds on both sides, including misleading supported output names. Validation (2026-11-28): 41 backend scalar/access/API tests and 18 desktop scalar/workspace tests passed; strict OpenSpec, file-size and scoped diff checks passed. Hardware acceptance remains under 5.5.
